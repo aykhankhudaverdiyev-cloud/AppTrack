@@ -294,6 +294,8 @@ export default function StudentDashboard() {
       console.error('Failed to load public students:', error)
     }
   }, [user?.id])
+
+  
   const togglePublicApplicationExpanded = useCallback((applicationId) => {
     setExpandedPublicApplications((prev) =>
       prev.includes(applicationId)
