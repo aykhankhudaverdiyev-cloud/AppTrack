@@ -441,76 +441,83 @@ export async function getPublicStudents() {
     .select("*")
     .eq("profile_visibility", "public")
     .order("full_name", { ascending: true })
-    .eq("role", "student")
-    .eq("is_profile_completed", true) 
 
   if (profilesError) throw profilesError
-  console.log("PUBLIC PROFILES:", profilesData)
 
-  const studentIds = profilesData.map(p => p.id).filter(Boolean)
-  if (studentIds.length === 0) return []
+  const studentIds = profilesData.map((p) => p.id).filter(Boolean)
 
-  const { data: appsData, error: appsError } = await supabase
+  if (!studentIds.length) return []
+
+  // Applications
+  const { data: applicationsData, error: applicationsError } = await supabase
     .from("applications")
     .select("*")
     .in("student_id", studentIds)
     .eq("visibility", "public")
     .order("created_at", { ascending: false })
 
-  if (appsError) throw appsError
+  if (applicationsError) throw applicationsError
 
-  const { data: licData, error: licError } = await supabase
+  const applicationIds = (applicationsData || []).map((a) => a.id)
+
+  // Documents
+  const { data: documentsData, error: documentsError } =
+    applicationIds.length === 0
+      ? { data: [], error: null }
+      : await supabase
+          .from("application_documents")
+          .select("*")
+          .in("application_id", applicationIds)
+          .eq("visibility", "public")
+          .order("created_at", { ascending: false })
+
+  if (documentsError) throw documentsError
+
+  // Licenses
+  const { data: licensesData, error: licensesError } = await supabase
     .from("licenses")
     .select("*")
     .in("user_id", studentIds)
     .eq("visibility", "public")
     .order("created_at", { ascending: false })
 
-  if (licError) throw licError
+  if (licensesError) throw licensesError
 
-  const applicationIds = (appsData || []).map(app => app.id)
+  const licenseIds = (licensesData || []).map((l) => l.id)
 
-  const { data: docsData, error: docsError } = await supabase
-    .from("application_documents")
-    .select("*")
-    .in("application_id", applicationIds)
-    .eq("visibility", "public")
+  // License media
+  const { data: licenseMediaData, error: licenseMediaError } =
+    licenseIds.length === 0
+      ? { data: [], error: null }
+      : await supabase
+          .from("license_media")
+          .select("*")
+          .in("license_id", licenseIds)
+          .order("created_at", { ascending: false })
 
-  if (docsError) throw docsError
-  
-  const docsByApplication = {}
+  if (licenseMediaError) throw licenseMediaError
 
-  ;(docsData || []).forEach(doc => {
-    if (!docsByApplication[doc.application_id]) {
-      docsByApplication[doc.application_id] = []
-    }
+  const mappedApplications = (applicationsData || []).map(mapApplicationRow)
 
-    docsByApplication[doc.application_id].push(doc)
-  })
+  const mergedApplications =
+    await mergeApplicationsWithDocuments(
+      mappedApplications,
+      documentsData || []
+    )
 
-  const appsByStudent = {}
+  const mappedLicenses = (licensesData || []).map(mapLicenseRow)
 
-  ;(appsData || []).forEach(app => {
-    if (!appsByStudent[app.student_id]) appsByStudent[app.student_id] = []
-    appsByStudent[app.student_id].push(app)
-  })
+  const mergedLicenses =
+    mergeLicensesWithMedia(
+      mappedLicenses,
+      licenseMediaData || []
+    )
 
-  const licensesByStudent = {}
-
-  ;(licData || []).forEach(lic => {
-    if (!licensesByStudent[lic.user_id]) licensesByStudent[lic.user_id] = []
-    licensesByStudent[lic.user_id].push(lic)
-  })
-
-  return profilesData.map(profile => {
-    const student = mapProfileToStudent(profile)
-    student.applications = (appsByStudent[profile.id] || []).map(app => ({
-      ...app,
-      documents: docsByApplication[app.id] || []
-    }))
-    student.licenses = licensesByStudent[profile.id] || []
-    return student
-  })
+  return mergeStudentsWithApplicationsAndLicenses(
+    profilesData || [],
+    mergedApplications,
+    mergedLicenses
+  )
 }
 
 export async function setApplicationVisibilityWithRequest(studentId, applicationId, visibility) {
