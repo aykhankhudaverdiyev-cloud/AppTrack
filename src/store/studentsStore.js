@@ -465,6 +465,26 @@ export async function getPublicStudents() {
 
   if (licError) throw licError
 
+  const applicationIds = (appsData || []).map(app => app.id)
+
+  const { data: docsData, error: docsError } = await supabase
+    .from("application_documents")
+    .select("*")
+    .in("application_id", applicationIds)
+    .eq("visibility", "public")
+
+  if (docsError) throw docsError
+  
+  const docsByApplication = {}
+
+  ;(docsData || []).forEach(doc => {
+    if (!docsByApplication[doc.application_id]) {
+      docsByApplication[doc.application_id] = []
+    }
+
+    docsByApplication[doc.application_id].push(doc)
+  })
+
   const appsByStudent = {}
   (appsData || []).forEach(app => {
     if (!appsByStudent[app.student_id]) appsByStudent[app.student_id] = []
@@ -479,7 +499,10 @@ export async function getPublicStudents() {
 
   return profilesData.map(profile => {
     const student = mapProfileToStudent(profile)
-    student.applications = appsByStudent[profile.id] || []
+    student.applications = (appsByStudent[profile.id] || []).map(app => ({
+      ...app,
+      documents: docsByApplication[app.id] || []
+    }))
     student.licenses = licensesByStudent[profile.id] || []
     return student
   })
