@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
+import PublicStudentDrawer from '../components/PublicStudentDrawer'
 import {
   getPublicStudents,
   setVisibility,
@@ -68,6 +69,8 @@ export default function StudentDashboard() {
   const [activeTab, setActiveTab] = useState('profile')
   const [publicStudents, setPublicStudents] = useState([])
   const [selectedPublicStudent, setSelectedPublicStudent] = useState(null)
+  const [publicStudentActiveTab, setPublicStudentActiveTab] = useState('profile')
+  const [expandedPublicApplications, setExpandedPublicApplications] = useState([])
 
   // Profile editing
   const [editingName, setEditingName] = useState(false)
@@ -292,6 +295,13 @@ export default function StudentDashboard() {
       console.error('Failed to load public students:', error)
     }
   }, [user?.id])
+  const togglePublicApplicationExpanded = useCallback((applicationId) => {
+    setExpandedPublicApplications((prev) =>
+      prev.includes(applicationId)
+        ? prev.filter((id) => id !== applicationId)
+        : [...prev, applicationId]
+    )
+  }, [])
 
   // ── Initial load and subscriptions ───────────────────────────────
   useEffect(() => {
@@ -1044,7 +1054,11 @@ export default function StudentDashboard() {
                   <StudentCard
                     key={student.id}
                     student={student}
-                    onClick={() => setSelectedPublicStudent(student)}
+                    onClick={() => {
+                      setSelectedPublicStudent(student)
+                      setPublicStudentActiveTab('profile')
+                      setExpandedPublicApplications([])
+                    }}
                   />
                 ))
               ) : (
@@ -1059,7 +1073,20 @@ export default function StudentDashboard() {
         )}
       </main>
 
-      <PublicStudentDrawer student={selectedPublicStudent} onClose={() => setSelectedPublicStudent(null)} />
+      <PublicStudentDrawer
+      student={selectedPublicStudent}
+      activeTab={publicStudentActiveTab}
+      setActiveTab={setPublicStudentActiveTab}
+      expandedApplications={expandedPublicApplications}
+      onToggleApplicationExpanded={togglePublicApplicationExpanded}
+      licenses={selectedPublicStudent?.licenses}
+      readOnly={true}
+      onClose={() => {
+        setSelectedPublicStudent(null)
+        setPublicStudentActiveTab('profile')
+        setExpandedPublicApplications([])
+      }}
+    />
 
       <ApplicationModal
         open={appModal.open}

@@ -4,6 +4,7 @@ import './AdminDashboard.css'
 import Avatar from '../components/Avatar'
 import '../components/Avatar.css'
 import { useAuth } from '../context/AuthContext'
+import PublicStudentDrawer from '../components/PublicStudentDrawer'
 import {
   useStudents,
   setProfile,
@@ -749,33 +750,7 @@ function LicenseModal({ open, studentId, license, onClose, onSave, onLicenseMedi
   )
 }
 
-function AdminDrawer({
-  student,
-  activeTab,
-  setActiveTab,
-  onClose,
-  onEditProfile,
-  onDeleteStudent,
-  onUpdateNotes,
-  onSetVisibility,
-  onToggleApplicationExpanded,
-  expandedApplications,
-  onAddApplication,
-  onEditApplication,
-  onDeleteApplication,
-  onSetApplicationVisibility,
-  onUploadApplicationFile,
-  onRemoveApplicationFile,
-  licenses,
-  onAddLicense,
-  onEditLicense,
-  onDeleteLicense,
-  onSetLicenseVisibility,
-  onStudentPhotoUpload,
-  onRemoveStudentPhoto,
-  onLicenseMediaUpload,
-  onLicenseMediaRemove,
-}) {
+ {
   const [activePdf, setActivePdf] = useState(null)
   if (!student) return null
 
@@ -2147,7 +2122,7 @@ function removeDocumentFromStudentApplication(prevStudents, studentId, applicati
         </section>
       </main>
 
-      <AdminDrawer
+      <PublicStudentDrawer
       student={selectedStudent}
       activeTab={activeTab}
       setActiveTab={setActiveTab}
