@@ -138,8 +138,8 @@ async function groupDocumentsByApplication(documents = []) {
   return grouped
 }
 
-function mergeApplicationsWithDocuments(applications = [], documents = []) {
-  const groupedDocs = groupDocumentsByApplication(documents)
+async function mergeApplicationsWithDocuments(applications = [], documents = []) {
+  const groupedDocs = await groupDocumentsByApplication(documents)
   return applications.map((app) => ({
     ...app,
     documents: groupedDocs[app.id] || {},
