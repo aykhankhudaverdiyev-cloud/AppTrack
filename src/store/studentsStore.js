@@ -441,6 +441,8 @@ export async function getPublicStudents() {
     .select("*")
     .eq("profile_visibility", "public")
     .order("full_name", { ascending: true })
+    .eq("role", "student")
+    .eq("is_profile_completed", true) 
 
   if (profilesError) throw profilesError
 
