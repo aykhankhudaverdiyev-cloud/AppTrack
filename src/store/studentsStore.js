@@ -445,6 +445,7 @@ export async function getPublicStudents() {
     .eq("is_profile_completed", true) 
 
   if (profilesError) throw profilesError
+  console.log("PUBLIC PROFILES:", profilesData)
 
   const studentIds = profilesData.map(p => p.id).filter(Boolean)
   if (studentIds.length === 0) return []
