@@ -547,15 +547,36 @@ export default function StudentDashboard() {
   }, [user?.id, loadMyProfile])
 
   const handleApplicationDocumentRemove = useCallback(async (studentId, applicationId, category, docId) => {
-    if (!user?.id) return
-    // studentId is passed by DocumentGroup but we use the authenticated user.id
-    try {
-      await removeApplicationFile(user.id, applicationId, category, docId)
-      await loadMyProfile()
-    } catch (error) {
-      console.error('Failed to remove document:', error)
-    }
-  }, [user?.id, loadMyProfile])
+  if (!user?.id) return
+  // studentId is passed by DocumentGroup but we use the authenticated user.id
+  try {
+    await removeApplicationFile(user.id, applicationId, category, docId)
+
+    setMe((prev) => ({
+      ...prev,
+      applications: (prev.applications || []).map((app) => {
+        if (app.id !== applicationId) return app
+
+        const existingDocuments = app.documents || {}
+        const existingCategoryDocs = existingDocuments[category] || []
+
+        return {
+          ...app,
+          documents: {
+            ...existingDocuments,
+            [category]: existingCategoryDocs.filter(
+              (doc) => doc.id !== docId
+            ),
+          },
+        }
+      }),
+    }))
+
+    await loadMyProfile()
+  } catch (error) {
+    console.error('Failed to remove document:', error)
+  }
+}, [user?.id, loadMyProfile])
 
   // ── License handlers ─────────────────────────────────────────────
   const handleSaveLicense = useCallback(async (payload) => {
