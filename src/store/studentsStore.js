@@ -97,6 +97,32 @@ function mapLicenseRow(row) {
   }
 }
 
+function groupDocumentsByApplication(documents = []) {
+  const grouped = {}
+
+  for (const doc of documents) {
+    const appId = doc.application_id
+    const category = doc.category || "other"
+
+    if (!grouped[appId]) grouped[appId] = {}
+    if (!grouped[appId][category]) grouped[appId][category] = []
+
+    grouped[appId][category].push({
+      id: doc.id,
+      name: doc.name || "Document",
+      path: doc.file_path || "",
+      url: doc.file_url || "",
+      size: doc.size || 0,
+      visibility: doc.visibility || "private",
+      created_at: doc.created_at || "",
+      application_id: doc.application_id,
+      category,
+    })
+  }
+
+  return grouped
+}
+
 function mergeStudentsWithApplicationsAndLicenses(profiles = [], applications = [], licenses = []) {
   const appsByStudentId = applications.reduce((acc, app) => {
     const key = app.student_id
@@ -439,7 +465,6 @@ export async function getPublicStudents() {
   const { data: profilesData, error: profilesError } = await supabase
     .from("profiles")
     .select("*")
-    .eq("profile_visibility", "public")
     .order("full_name", { ascending: true })
 
   if (profilesError) throw profilesError
