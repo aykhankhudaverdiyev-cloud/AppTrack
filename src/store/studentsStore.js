@@ -489,13 +489,15 @@ export async function getPublicStudents() {
   })
 
   const appsByStudent = {}
-  (appsData || []).forEach(app => {
+
+  ;(appsData || []).forEach(app => {
     if (!appsByStudent[app.student_id]) appsByStudent[app.student_id] = []
     appsByStudent[app.student_id].push(app)
   })
 
   const licensesByStudent = {}
-  (licData || []).forEach(lic => {
+
+  ;(licData || []).forEach(lic => {
     if (!licensesByStudent[lic.user_id]) licensesByStudent[lic.user_id] = []
     licensesByStudent[lic.user_id].push(lic)
   })
