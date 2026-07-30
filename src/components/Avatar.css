@@ -1,0 +1,50 @@
+﻿/* Professional, face-safe avatar treatment shared across admin + student. */
+
+.avatar {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #7c3aed, #06b6d4);
+  color: #fff;
+  font-weight: 800;
+  line-height: 1;
+  isolation: isolate;
+}
+
+.avatar__img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  /* Bias toward the face: portraits sit in the upper part of the frame. */
+  object-position: 50% 28%;
+  display: block;
+}
+
+.avatar__initials {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  letter-spacing: 0.02em;
+}
+
+/* Sizes */
+.avatar--sm { width: 46px; height: 46px; font-size: 1rem; }
+.avatar--md { width: 72px; height: 72px; font-size: 1.5rem; }
+.avatar--lg { width: 120px; height: 120px; font-size: 2.4rem; border-radius: 28px; }
+.avatar--xl { width: 150px; height: 150px; font-size: 3rem; border-radius: 30px; }
+
+/* Rounded-square variants keep the same face bias. */
+.avatar--lg .avatar__img,
+.avatar--xl .avatar__img { object-position: 50% 25%; }
+
+.avatar--ring {
+  border: 3px solid #ffffff;
+  box-shadow: 0 12px 26px rgba(124, 58, 237, 0.28);
+}
+

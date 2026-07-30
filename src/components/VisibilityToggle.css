@@ -1,0 +1,44 @@
+﻿.vis-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 20px;
+  border: 1.5px solid transparent;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: #f1f5f9;
+  color: #475569;
+  white-space: nowrap;
+}
+
+.vis-toggle:hover {
+  transform: scale(1.03);
+}
+
+.vis-toggle--public {
+  background: #ecfdf5;
+  color: #059669;
+  border-color: #a7f3d0;
+}
+
+.vis-toggle--public:hover {
+  background: #d1fae5;
+}
+
+.vis-toggle--private {
+  background: #fef2f2;
+  color: #dc2626;
+  border-color: #fecaca;
+}
+
+.vis-toggle--private:hover {
+  background: #fee2e2;
+}
+
+.vis-toggle__icon {
+  font-size: 0.9rem;
+  line-height: 1;
+}
