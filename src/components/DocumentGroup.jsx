@@ -23,11 +23,9 @@ export default function DocumentGroup({
   console.log("Category:", category.key)
   console.log("Docs:", docs)
   console.log("Available categories:", Object.keys(application.documents || {}))
-
   console.log("APPLICATION DOCS:", application.documents)
-  
   console.log("FIRST DOC:", application.documents?.transcript?.[0])
-  
+
   const inputId = `doc-${studentId}-${application.id}-${category.key}`
 
   function getDocs(application, key) {
@@ -40,7 +38,13 @@ export default function DocumentGroup({
     <section className="doc-group">
       <header className="doc-group__head">
         <div className="doc-group__title">
-          <span className="doc-group__icon" style={{ background: category.tint || 'rgba(124,58,237,0.12)', color: category.color || '#6d28d9' }}>
+          <span
+            className="doc-group__icon"
+            style={{
+              background: category.tint || 'rgba(124,58,237,0.12)',
+              color: category.color || '#6d28d9',
+            }}
+          >
             {category.emoji || '📄'}
           </span>
           <div className="doc-group__label">
@@ -62,7 +66,7 @@ export default function DocumentGroup({
             </div>
 
             <div className="doc-chip__actions">
-              {doc.file_url && (
+              {(doc.url || doc.file_url) && (
                 <>
                   <button
                     type="button"
@@ -74,7 +78,7 @@ export default function DocumentGroup({
 
                   <a
                     className="mini-btn"
-                    href={doc.file_url}
+                    href={doc.url || doc.file_url}
                     target="_blank"
                     rel="noreferrer"
                   >
@@ -99,44 +103,48 @@ export default function DocumentGroup({
                 </button>
               )}
 
-              {!readOnly && (<button
-                type="button"
-                className="mini-btn mini-btn--danger"
-                onClick={() => onRemove(studentId, application.id, category.key, doc.id)}
-              >
-                Remove
-              </button>)}
+              {!readOnly && (
+                <button
+                  type="button"
+                  className="mini-btn mini-btn--danger"
+                  onClick={() =>
+                    onRemove(studentId, application.id, category.key, doc.id)
+                  }
+                >
+                  Remove
+                </button>
+              )}
             </div>
           </div>
         ))}
+
         {!readOnly && (
-        <>
-          <label htmlFor={inputId} className="doc-drop">
-            <span className="doc-drop__plus">＋</span>
-            <span className="doc-drop__text">
-              Upload PDF
-              <small>Click to browse — PDF only</small>
-            </span>
-          </label>
+          <>
+            <label htmlFor={inputId} className="doc-drop">
+              <span className="doc-drop__plus">＋</span>
+              <span className="doc-drop__text">
+                Upload PDF
+                <small>Click to browse — PDF only</small>
+              </span>
+            </label>
 
-          <input
-            id={inputId}
-            type="file"
-            accept="application/pdf"
-            className="file-input-hidden"
-            onChange={(e) => {
-              onUpload(
-                studentId,
-                application.id,
-                category.key,
-                e.target.files?.[0] || null
-              )
-              e.target.value = ''
-            }}
-          />
-        </>
-      )}
-
+            <input
+              id={inputId}
+              type="file"
+              accept="application/pdf"
+              className="file-input-hidden"
+              onChange={(e) => {
+                onUpload(
+                  studentId,
+                  application.id,
+                  category.key,
+                  e.target.files?.[0] || null
+                )
+                e.target.value = ''
+              }}
+            />
+          </>
+        )}
       </div>
 
       {activePdf && (
@@ -147,14 +155,30 @@ export default function DocumentGroup({
               <span>{formatSize(activePdf.size)}</span>
             </div>
             <div className="pdf-viewer__actions">
-              <a className="mini-btn" href={activePdf.file_url} target="_blank" rel="noreferrer">
+              <a
+                className="mini-btn"
+                href={activePdf.url || activePdf.file_url}
+                target="_blank"
+                rel="noreferrer"
+              >
                 Open tab
               </a>
-              <button type="button" className="mini-btn mini-btn--danger" onClick={() => setActivePdf(null)}>Close</button>
+              <button
+                type="button"
+                className="mini-btn mini-btn--danger"
+                onClick={() => setActivePdf(null)}
+              >
+                Close
+              </button>
             </div>
           </div>
           <div className="pdf-viewer__frame">
-            <iframe src={`${activePdf.file_url}#toolbar=0`} title={activePdf.name} width="100%" height="620" />
+            <iframe
+              src={`${activePdf.url || activePdf.file_url}#toolbar=0`}
+              title={activePdf.name}
+              width="100%"
+              height="620"
+            />
           </div>
         </section>
       )}
