@@ -1,4 +1,4 @@
-﻿import { useEffect, useState, useCallback } from "react"
+﻿import { useEffect, useState } from "react"
 import { supabase } from "../lib/supabase"
 import {
   normalizeDocuments,
@@ -165,196 +165,28 @@ function mergeLicensesWithMedia(licenses = [], media = []) {
 
 export function useStudents() {
   const [students, setStudents] = useState([])
-  const [expandedApplications, setExpandedApplications] = useState([])
-  const [appModal, setAppModal] = useState({ open: false, studentId: null, application: null })
-  const [licenseModal, setLicenseModal] = useState({ open: false, studentId: null, license: null })
-
-  const loadStudents = useCallback(async () => {
-    const [
-      { data: profilesData, error: profilesError },
-      { data: applicationsData, error: applicationsError },
-      { data: documentsData, error: documentsError },
-      { data: licensesData, error: licensesError },
-      { data: licenseMediaData, error: licenseMediaError },
-    ] = await Promise.all([
-      supabase
-        .from("profiles")
-        .select("*")
-        .order("created_at", { ascending: false }),
-
-      supabase
-        .from("applications")
-        .select(`
-          id,
-          student_id,
-          university,
-          program,
-          major,
-          term,
-          deadline,
-          status,
-          decision,
-          recommendation,
-          notes,
-          visibility,
-          created_at
-        `)
-        .order("created_at", { ascending: false }),
-
-      supabase
-        .from("application_documents")
-        .select("*")
-        .order("created_at", { ascending: false }),
-
-      supabase
-        .from("licenses")
-        .select("*")
-        .order("created_at", { ascending: false }),
-
-      supabase
-        .from("license_media")
-        .select("*")
-        .order("created_at", { ascending: false }),
-    ])
-
-    if (profilesError) throw profilesError
-    if (applicationsError) throw applicationsError
-    if (documentsError) throw documentsError
-    if (licensesError) throw licensesError
-    if (licenseMediaError) throw licenseMediaError
-
-    const mappedApplications = (applicationsData || []).map(mapApplicationRow)
-    const mergedApplications = await mergeApplicationsWithDocuments(
-      mappedApplications,
-      documentsData || []
-    )
-    const mergedLicenses = await mergeLicensesWithMedia(
-      licensesData || [],
-      licenseMediaData || []
-    )
-
-    setStudents(
-      mergeStudentsWithApplicationsAndLicenses(
-        profilesData || [],
-        mergedApplications,
-        mergedLicenses
-      )
-    )
-  }, [])
 
   useEffect(() => {
     let active = true
 
-    const loadStudents = async () => {
+    const load = async () => {
       try {
-        const [
-          { data: profilesData, error: profilesError },
-          { data: applicationsData, error: applicationsError },
-          { data: documentsData, error: documentsError },
-          { data: licensesData, error: licensesError },
-          { data: licenseMediaData, error: licenseMediaError },
-        ] = await Promise.all([
-          supabase
-            .from("profiles")
-            .select("*")
-            .order("created_at", { ascending: false }),
-
-          supabase
-            .from("applications")
-            .select(`
-              id,
-              student_id,
-              university,
-              program,
-              major,
-              term,
-              deadline,
-              status,
-              decision,
-              recommendation,
-              notes,
-              visibility,
-              created_at
-            `)
-            .order("created_at", { ascending: false }),
-
-          supabase
-            .from("application_documents")
-            .select("*")
-            .order("created_at", { ascending: false }),
-
-          supabase
-            .from("licenses")
-            .select("*")
-            .order("created_at", { ascending: false }),
-
-          supabase
-            .from("license_media")
-            .select("*")
-            .order("created_at", { ascending: false }),
-        ])
-
-        if (profilesError) throw profilesError
-        if (applicationsError) throw applicationsError
-        if (documentsError) throw documentsError
-        if (licensesError) throw licensesError
-        if (licenseMediaError) throw licenseMediaError
-
-        const mappedApplications = (applicationsData || []).map(mapApplicationRow)
-        const mergedApplications = await mergeApplicationsWithDocuments(
-          mappedApplications,
-          documentsData || []
-        )
-        const mergedLicenses = await mergeLicensesWithMedia(
-          licensesData || [],
-          licenseMediaData || []
-        )
-
-        setStudents(
-          mergeStudentsWithApplicationsAndLicenses(
-            profilesData || [],
-            mergedApplications,
-            mergedLicenses
-          )
-        )
+        const data = await getStudents()
+        if (active) setStudents(data)
       } catch (error) {
         console.error("Failed to load students:", error)
-      } finally {
-        if (active) {
-          loadStudents()
-        }
       }
     }
 
-    loadStudents()
+    load()
 
     const channel = supabase
       .channel("profiles-store-changes")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "profiles" },
-        () => { loadStudents() }
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "applications" },
-        () => { loadStudents() }
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "application_documents" },
-        () => { loadStudents() }
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "licenses" },
-        () => { loadStudents() }
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "license_media" },
-        () => { loadStudents() }
-      )
+      .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, load)
+      .on("postgres_changes", { event: "*", schema: "public", table: "applications" }, load)
+      .on("postgres_changes", { event: "*", schema: "public", table: "application_documents" }, load)
+      .on("postgres_changes", { event: "*", schema: "public", table: "licenses" }, load)
+      .on("postgres_changes", { event: "*", schema: "public", table: "license_media" }, load)
       .subscribe()
 
     return () => {
@@ -438,12 +270,10 @@ export async function getStudents() {
 }
 
 export async function getPublicStudents() {
-  console.log("START PUBLIC STUDENTS")
   const { data: profilesData, error: profilesError } = await supabase
     .from("profiles")
     .select("*")
     .order("full_name", { ascending: true })
-  console.log("PROFILES:", profilesData)
 
   if (profilesError) throw profilesError
 
@@ -460,7 +290,6 @@ export async function getPublicStudents() {
     .order("created_at", { ascending: false })
 
   if (applicationsError) throw applicationsError
-  console.log("APPLICATIONS:", applicationsData)
 
   const applicationIds = (applicationsData || []).map((a) => a.id)
 
@@ -476,7 +305,6 @@ export async function getPublicStudents() {
           .order("created_at", { ascending: false })
 
   if (documentsError) throw documentsError
-  console.log("DOCUMENTS:", documentsData)
 
   // Licenses
   const { data: licensesData, error: licensesError } = await supabase
@@ -487,7 +315,6 @@ export async function getPublicStudents() {
     .order("created_at", { ascending: false })
 
   if (licensesError) throw licensesError
-  console.log("LICENSES:", licensesData)
 
   const licenseIds = (licensesData || []).map((l) => l.id)
 
