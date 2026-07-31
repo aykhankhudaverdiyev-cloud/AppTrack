@@ -147,6 +147,7 @@ async function mergeApplicationsWithDocuments(applications = [], documents = [])
   }))
 }
 
+
 function mergeLicensesWithMedia(licenses = [], media = []) {
   const mediaByLicenseId = media.reduce((acc, m) => {
     const licId = m.license_id
@@ -472,6 +473,7 @@ export async function getPublicStudents() {
           .order("created_at", { ascending: false })
 
   if (documentsError) throw documentsError
+  console.log("DOCUMENTS:", documentsData)
 
   // Licenses
   const { data: licensesData, error: licensesError } = await supabase

@@ -36,33 +36,14 @@ export default function PublicStudentDrawer({
   activeTab = 'profile',
   setActiveTab,
   onClose,
-  readOnly = false,
   expandedApplications = [],
   onToggleApplicationExpanded,
   licenses,
-  onEditProfile,
-  onDeleteStudent,
-  onUpdateNotes,
-  onSetVisibility,
-  onAddApplication,
-  onEditApplication,
-  onDeleteApplication,
-  onSetApplicationVisibility,
-  onUploadApplicationFile,
-  onRemoveApplicationFile,
-  onAddLicense,
-  onEditLicense,
-  onDeleteLicense,
-  onSetLicenseVisibility,
-  onStudentPhotoUpload,
-  onRemoveStudentPhoto,
-  onLicenseMediaUpload,
-  onLicenseMediaRemove,
+  readOnly = false,
 }) {
   const [activePdf, setActivePdf] = useState(null)
   if (!student) return null
 
-  const visibility = student.visibility || {}
   const safeSetTab = setActiveTab || (() => {})
   const safeExpanded = expandedApplications || []
   const safeLicenses = licenses || student.licenses || []
@@ -187,7 +168,7 @@ export default function PublicStudentDrawer({
               </div>
 
               <div className="application-list">
-                {student.applications.map((application) => {
+                {(student.applications || []).map((application) => {
                   const expanded = safeExpanded.includes(application.id)
 
                   return (
@@ -222,7 +203,7 @@ export default function PublicStudentDrawer({
 
                       {expanded && (
                         <div className="application-card__expand">
-                          <div className="app-grid">
+                          <div className="info-grid">
                             <div className="info-card">
                               <span>Program</span>
                               <strong>{application.program}</strong>

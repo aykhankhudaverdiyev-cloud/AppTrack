@@ -126,6 +126,10 @@ export async function normalizeDoc(doc) {
     signedUrl = doc.file_url
   }
 
+  console.log("SIGNED URL:", signedUrl)
+  console.log("FILE PATH:", cleanPath)
+
+
   return {
     id: doc.id,
     application_id: doc.application_id,

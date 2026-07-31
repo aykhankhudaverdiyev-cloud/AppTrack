@@ -18,6 +18,9 @@ export default function DocumentGroup({
   const [activePdf, setActivePdf] = useState(null)
 
   const docs = getDocs(application, category.key)
+
+  console.log("APPLICATION DOCS:", application.documents)
+  
   const inputId = `doc-${studentId}-${application.id}-${category.key}`
 
   function getDocs(application, key) {
@@ -52,7 +55,7 @@ export default function DocumentGroup({
             </div>
 
             <div className="doc-chip__actions">
-              {doc.url && (
+              {doc.file_url && (
                 <>
                   <button
                     type="button"
@@ -64,7 +67,7 @@ export default function DocumentGroup({
 
                   <a
                     className="mini-btn"
-                    href={doc.url}
+                    href={doc.file_url}
                     target="_blank"
                     rel="noreferrer"
                   >
@@ -128,7 +131,7 @@ export default function DocumentGroup({
             </div>
           </div>
           <div className="pdf-viewer__frame">
-            <iframe src={`${activePdf.url}#toolbar=0`} title={activePdf.name} width="100%" height="620" />
+            <iframe src={`${activePdf.file_url}#toolbar=0`} title={activePdf.name} width="100%" height="620" />
           </div>
         </section>
       )}
