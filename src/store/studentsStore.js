@@ -438,10 +438,12 @@ export async function getStudents() {
 }
 
 export async function getPublicStudents() {
+  console.log("START PUBLIC STUDENTS")
   const { data: profilesData, error: profilesError } = await supabase
     .from("profiles")
     .select("*")
     .order("full_name", { ascending: true })
+  console.log("PROFILES:", profilesData)
 
   if (profilesError) throw profilesError
 
@@ -458,6 +460,7 @@ export async function getPublicStudents() {
     .order("created_at", { ascending: false })
 
   if (applicationsError) throw applicationsError
+  console.log("APPLICATIONS:", applicationsData)
 
   const applicationIds = (applicationsData || []).map((a) => a.id)
 
@@ -484,6 +487,7 @@ export async function getPublicStudents() {
     .order("created_at", { ascending: false })
 
   if (licensesError) throw licensesError
+  console.log("LICENSES:", licensesData)
 
   const licenseIds = (licensesData || []).map((l) => l.id)
 
