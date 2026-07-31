@@ -130,7 +130,9 @@ export default function DocumentGroup({
               <span>{formatSize(activePdf.size)}</span>
             </div>
             <div className="pdf-viewer__actions">
-              <a className="mini-btn" href={activePdf.url} target="_blank" rel="noreferrer">Open tab</a>
+              <a className="mini-btn" href={activePdf.file_url} target="_blank" rel="noreferrer">
+                Open tab
+              </a>
               <button type="button" className="mini-btn mini-btn--danger" onClick={() => setActivePdf(null)}>Close</button>
             </div>
           </div>
