@@ -1,7 +1,25 @@
-﻿import { createContext, useContext, useEffect, useMemo, useState } from "react"
+﻿/**
+ * ============================================================================
+ * AuthContext.jsx
+ * ============================================================================
+ *
+ * PURPOSE:
+ *   Global Authentication Hub. Manages user session, profile data, and 
+ *   role-based access throughout the application.
+ *
+ * KEY FEATURES:
+ *   1. Auth State: Tracks if a user is logged in (session/user).
+ *   2. Profile Sync: Automatically fetches profile data on login.
+ *   3. Auto-Provisioning: Creates a student profile if one doesn't exist yet.
+ *   4. Admin Protection: Hardcoded admin list for role promotion.
+ * ============================================================================
+ */
+
+import { createContext, useContext, useEffect, useMemo, useState } from "react"
 import { supabase } from "../lib/supabase"
 import { getMyProfile } from "../Services/ProfileService"
 
+// List of emails that get automatic admin access
 const ADMIN_EMAILS = ["aykhan.khudaverdiyev@gmail.com"]
 
 const AuthContext = createContext(null)
@@ -12,6 +30,9 @@ export function AuthProvider({ children }) {
   const [profile, setProfile] = useState(null)
   const [loading, setLoading] = useState(true)
 
+  /**
+   * Fetches user profile, creates it if missing, or promotes if admin.
+   */
   async function loadProfile(currentUser) {
     if (!currentUser) {
       setProfile(null)
@@ -21,10 +42,8 @@ export function AuthProvider({ children }) {
     try {
       let data = await getMyProfile(currentUser.id)
 
-      // If OAuth created a user but the profile row does not exist yet,
-      // create a minimal student profile automatically.
+      // 1. Auto-create student profile if missing (new users)
       if (!data) {
-        // Get email from currentUser or user_metadata
         const email = (currentUser.email || currentUser.user_metadata?.email || "").trim()
         const fullName = currentUser.user_metadata?.full_name || (currentUser.email?.split("@")[0]) || "Student"
         
@@ -33,7 +52,7 @@ export function AuthProvider({ children }) {
           .upsert(
             {
               id: currentUser.id,
-              email: email || "unknown+" + currentUser.id + "@supabase.user",  // Fallback email
+              email: email || "unknown+" + currentUser.id + "@supabase.user",
               role: "student",
               is_profile_completed: false,
               full_name: fullName,
@@ -46,11 +65,10 @@ export function AuthProvider({ children }) {
           setProfile(null)
           return null
         }
-
         data = await getMyProfile(currentUser.id)
       }
 
-      // Auto-promote admin emails to admin role — works even on first login
+      // 2. Auto-promote admin emails to admin role
       if (currentUser.email && ADMIN_EMAILS.includes(currentUser.email)) {
         if (data?.role !== "admin") {
           const email = (currentUser.email || currentUser.user_metadata?.email || "").trim()
@@ -61,7 +79,7 @@ export function AuthProvider({ children }) {
             .upsert(
               {
                 id: currentUser.id,
-                email: email || "admin+" + currentUser.id + "@supabase.user",  // Fallback email
+                email: email || "admin+" + currentUser.id + "@supabase.user",
                 role: "admin",
                 is_profile_completed: true,
                 full_name: fullName,
@@ -84,15 +102,13 @@ export function AuthProvider({ children }) {
     }
   }
 
+  // Handle auth state changes (login/logout/token refresh)
   useEffect(() => {
     let mounted = true
 
     async function initialize() {
       setLoading(true)
-
-      const {
-        data: { session },
-      } = await supabase.auth.getSession()
+      const { data: { session } } = await supabase.auth.getSession()
 
       if (!mounted) return
 
@@ -100,19 +116,16 @@ export function AuthProvider({ children }) {
       setUser(session?.user ?? null)
 
       if (session?.user) {
-        loadProfile(session.user)
+        await loadProfile(session.user)
       } else {
         setProfile(null)
       }
-
-      if (mounted) setLoading(false)
+      setLoading(false)
     }
 
     initialize()
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, nextSession) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, nextSession) => {
       if (!mounted) return
 
       setLoading(true)
@@ -120,12 +133,11 @@ export function AuthProvider({ children }) {
       setUser(nextSession?.user ?? null)
 
       if (nextSession?.user) {
-        loadProfile(nextSession.user)
+        await loadProfile(nextSession.user)
       } else {
         setProfile(null)
       }
-
-      if (mounted) setLoading(false)
+      setLoading(false)
     })
 
     return () => {
