@@ -81,11 +81,16 @@ export default function DocumentGroup({
                 </>
               )}
 
-              {onSetDocVisibility && (
+              {!readOnly && onSetDocVisibility && (
                 <button
                   type="button"
                   className={`mini-btn ${doc.visibility === 'public' ? 'mini-btn--public' : ''}`}
-                  onClick={() => onSetDocVisibility(doc.id, doc.visibility === 'public' ? 'private' : 'public')}
+                  onClick={() =>
+                    onSetDocVisibility(
+                      doc.id,
+                      doc.visibility === 'public' ? 'private' : 'public'
+                    )
+                  }
                   title={doc.visibility === 'public' ? 'Public' : 'Private'}
                 >
                   {doc.visibility === 'public' ? '🌐' : '🔒'}
@@ -129,6 +134,8 @@ export default function DocumentGroup({
           />
         </>
       )}
+
+      </div>
 
       {activePdf && (
         <section className="pdf-viewer">
