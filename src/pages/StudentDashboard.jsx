@@ -648,14 +648,7 @@ export default function StudentDashboard() {
 
   // ── Loading state ────────────────────────────────────────────────
   if (loading) {
-    return (
-      <div className="app-shell student-shell">
-        <div className="loading-screen">
-          <div className="loading-spinner" />
-          <p>Loading your dashboard...</p>
-        </div>
-      </div>
-    )
+    return null
   }
 
   return (
