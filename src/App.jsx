@@ -14,7 +14,7 @@ import AdminDashboard from './pages/AdminDashboard'
 function RootRedirect() {
   const { user, profile, loading } = useAuth()
 
-  if (loading) return <div>Loading...</div>
+  if (loading) return null
   if (!user) return <HomePage />
   if (!profile?.is_profile_completed) return <Navigate to="/complete-profile" replace />
   if (profile?.role === 'admin') return <Navigate to="/admin" replace />
