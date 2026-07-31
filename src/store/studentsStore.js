@@ -353,44 +353,6 @@ export async function getPublicStudents() {
   )
 }
 
-export async function setApplicationVisibilityWithRequest(studentId, applicationId, visibility) {
-  const request = await requestVisibilityChange(studentId, {
-    requestType: "application",
-    recordId: applicationId,
-    requestedVisibility: visibility,
-    reason: "Student requested visibility change",
-  })
-  return { request, pending: true }
-}
-
-export async function setLicenseVisibilityWithRequest(studentId, licenseId, visibility) {
-  const request = await requestVisibilityChange(studentId, {
-    requestType: "license",
-    recordId: licenseId,
-    requestedVisibility: visibility,
-    reason: "Student requested visibility change",
-  })
-  return { request, pending: true }
-}
-
-export async function requestVisibilityChange(studentId, payload) {
-  const { data, error } = await supabase
-    .from("visibility_requests")
-    .insert({
-      student_id: studentId,
-      request_type: payload.requestType,
-      record_id: payload.recordId,
-      requested_visibility: payload.requestedVisibility,
-      reason: payload.reason || null,
-    })
-    .select()
-    .single()
-
-  if (error) throw error
-  notifyDataChanged()
-  return data
-}
-
 export async function approveVisibilityRequest(requestId, adminId) {
   const { data: request, error: reqError } = await supabase
     .from("visibility_requests")
