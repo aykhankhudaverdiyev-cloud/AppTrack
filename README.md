@@ -1,16 +1,26 @@
-# React + Vite
+# AppTrack 🎓
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+AppTrack is a comprehensive Student Application Tracking System designed to help students manage their university applications, academic transcripts, and certifications in one secure, organized platform.
 
-Currently, two official plugins are available:
+## 🚀 Live Demo
+[https://apptrack-black.vercel.app/](https://apptrack-black.vercel.app/)
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## ✨ Key Features
+- **Role-Based Access:** Dedicated interfaces for Students and Admins.
+- **Privacy Control:** Granular visibility settings (Public/Private) for individual applications and documents.
+- **Document Management:** Secure PDF upload and viewing system using Supabase Storage.
+- **Public Directory:** A searchable directory of public student profiles for community exploration.
+- **Real-time Updates:** Automatic UI synchronization via Supabase Real-time.
 
-## React Compiler
+## 🛠 Tech Stack
+- **Frontend:** React 19, Vite, React Router 7
+- **Backend/Database:** Supabase (Auth, Postgres, Storage)
+- **Styling:** CSS3 (Custom responsive design)
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## ⚙️ Getting Started
+1. Clone the repository.
+2. Install dependencies: `npm install`
+3. Create a `.env.local` file in the root directory and add your Supabase credentials:
+   ```env
+   VITE_SUPABASE_URL=your_project_url
+   VITE_SUPABASE_ANON_KEY=your_anon_key
