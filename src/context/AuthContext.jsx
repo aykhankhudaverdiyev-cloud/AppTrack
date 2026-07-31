@@ -100,7 +100,7 @@ export function AuthProvider({ children }) {
       setUser(session?.user ?? null)
 
       if (session?.user) {
-        await loadProfile(session.user)
+        loadProfile(session.user)
       } else {
         setProfile(null)
       }
@@ -120,7 +120,7 @@ export function AuthProvider({ children }) {
       setUser(nextSession?.user ?? null)
 
       if (nextSession?.user) {
-        await loadProfile(nextSession.user)
+        loadProfile(nextSession.user)
       } else {
         setProfile(null)
       }
