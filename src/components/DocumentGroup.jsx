@@ -14,6 +14,7 @@ export default function DocumentGroup({
   onUpload,
   onRemove,
   onSetDocVisibility,
+  readOnly = false,
 }) {
   const [activePdf, setActivePdf] = useState(null)
 
@@ -91,36 +92,43 @@ export default function DocumentGroup({
                 </button>
               )}
 
-              <button
+              {!readOnly && (<button
                 type="button"
                 className="mini-btn mini-btn--danger"
                 onClick={() => onRemove(studentId, application.id, category.key, doc.id)}
               >
                 Remove
-              </button>
+              </button>)}
             </div>
           </div>
         ))}
+        {!readOnly && (
+        <>
+          <label htmlFor={inputId} className="doc-drop">
+            <span className="doc-drop__plus">＋</span>
+            <span className="doc-drop__text">
+              Upload PDF
+              <small>Click to browse — PDF only</small>
+            </span>
+          </label>
 
-        <label htmlFor={inputId} className="doc-drop">
-          <span className="doc-drop__plus">＋</span>
-          <span className="doc-drop__text">
-            Upload PDF
-            <small>Click to browse — PDF only</small>
-          </span>
-        </label>
-
-        <input
-          id={inputId}
-          type="file"
-          accept="application/pdf"
-          className="file-input-hidden"
-          onChange={(e) => {
-            onUpload(studentId, application.id, category.key, e.target.files?.[0] || null)
-            e.target.value = ''
-          }}
-        />
-      </div>
+          <input
+            id={inputId}
+            type="file"
+            accept="application/pdf"
+            className="file-input-hidden"
+            onChange={(e) => {
+              onUpload(
+                studentId,
+                application.id,
+                category.key,
+                e.target.files?.[0] || null
+              )
+              e.target.value = ''
+            }}
+          />
+        </>
+      )}
 
       {activePdf && (
         <section className="pdf-viewer">
