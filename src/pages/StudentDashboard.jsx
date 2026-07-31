@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
+import LicenseMediaItem from '../components/LicenseMediaItem'
 import {
   getPublicStudents,
   setVisibility,
@@ -984,21 +985,12 @@ export default function StudentDashboard() {
                         <a className="pill-link" href={license.credentialUrl} target="_blank" rel="noreferrer">Show credential ↗</a>
                       )}
                       {(license.media || []).map((m) => (
-                        <span key={m.id} className="pill-link pill-link--file">
-                          {m.url ? (
-                            <a href={m.url} target="_blank" rel="noreferrer">📄 {m.name}</a>
-                          ) : (
-                            <>📄 {m.name}</>
-                          )}
-                          <button
-                            type="button"
-                            className="chip-x"
-                            onClick={() => handleLicenseMediaRemove(m.id)}
-                            title="Remove"
-                          >
-                            ✕
-                          </button>
-                        </span>
+                        <LicenseMediaItem
+                          key={m.id}
+                          media={m}
+                          onRemove={handleLicenseMediaRemove}
+                          readOnly={false}
+                        />
                       ))}
                       <label className="pill-link pill-link--upload" style={{ cursor: 'pointer' }}>
                         📎 Add Evidence
