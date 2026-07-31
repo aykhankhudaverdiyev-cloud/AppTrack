@@ -2,6 +2,7 @@ import { useState } from 'react'
 import Avatar from './Avatar'
 import './Avatar.css'
 import DocumentGroup from './DocumentGroup'
+import LicenseMediaItem from './LicenseMediaItem'
 
 function VisibilityChip({ value }) {
   return (
@@ -290,15 +291,7 @@ export default function PublicStudentDrawer({
                           </a>
                         )}
                         {(license.media || []).map((m) => (
-                          <span key={m.id} className="pill-link pill-link--file">
-                            {m.url ? (
-                              <a href={m.url} target="_blank" rel="noreferrer">
-                                📄 {m.name}
-                              </a>
-                            ) : (
-                              <>📄 {m.name}</>
-                            )}
-                          </span>
+                          <LicenseMediaItem key={m.id} media={m} readOnly={true} />
                         ))}
                       </div>
                     </div>
