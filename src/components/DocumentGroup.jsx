@@ -19,6 +19,10 @@ export default function DocumentGroup({
 
   const docs = getDocs(application, category.key)
 
+  console.log("Category:", category.key)
+  console.log("Docs:", docs)
+  console.log("Available categories:", Object.keys(application.documents || {}))
+
   console.log("APPLICATION DOCS:", application.documents)
   
   const inputId = `doc-${studentId}-${application.id}-${category.key}`
