@@ -85,7 +85,7 @@ export default function LicenseMediaItem({ media, onRemove, readOnly = false }) 
               rel="noreferrer"
               title="Open in new tab"
             >
-              Open
+              Open tab
             </a>
           </>
         )}
