@@ -225,13 +225,10 @@ export default function PublicStudentDrawer({
                           <div className="docs-grid">
                             {DOC_CATEGORIES.map((category) => (
                               <DocumentGroup
-                                key={category.key}
                                 studentId={student.id}
                                 application={application}
                                 category={category}
-                                onUpload={() => {}}
-                                onRemove={() => {}}
-                                onSetDocVisibility={null}
+                                readOnly={true}
                               />
                             ))}
                           </div>
