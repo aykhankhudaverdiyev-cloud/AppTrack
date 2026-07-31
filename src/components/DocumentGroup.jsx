@@ -26,6 +26,8 @@ export default function DocumentGroup({
 
   console.log("APPLICATION DOCS:", application.documents)
   
+  console.log("FIRST DOC:", application.documents?.transcript?.[0])
+  
   const inputId = `doc-${studentId}-${application.id}-${category.key}`
 
   function getDocs(application, key) {
