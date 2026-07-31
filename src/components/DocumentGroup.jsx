@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { supabase } from '../lib/supabase'
 
 function formatSize(bytes) {
   if (!bytes) return 'PDF file'
@@ -17,15 +18,9 @@ export default function DocumentGroup({
   readOnly = false,
 }) {
   const [activePdf, setActivePdf] = useState(null)
+  const [resolvedDocs, setResolvedDocs] = useState([])
 
   const docs = getDocs(application, category.key)
-
-  console.log("Category:", category.key)
-  console.log("Docs:", docs)
-  console.log("Available categories:", Object.keys(application.documents || {}))
-  console.log("APPLICATION DOCS:", application.documents)
-  console.log("FIRST DOC:", application.documents?.transcript?.[0])
-
   const inputId = `doc-${studentId}-${application.id}-${category.key}`
 
   function getDocs(application, key) {
@@ -33,6 +28,42 @@ export default function DocumentGroup({
     if (!docs || Array.isArray(docs)) return []
     return docs[key] || []
   }
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function resolveUrls() {
+      const resolved = await Promise.all(
+        docs.map(async (doc) => {
+          // Əgər url artıq varsa, olduğu kimi qaytar
+          const existingUrl = doc.url || doc.file_url
+          if (existingUrl) {
+            return { ...doc, resolvedUrl: existingUrl }
+          }
+
+          // Yoxdursa, file_path-dən signed URL yarat
+          const path = doc.file_path || doc.path
+          if (!path) return { ...doc, resolvedUrl: '' }
+
+          const { data, error } = await supabase.storage
+            .from('student-documents')
+            .createSignedUrl(path, 3600)
+
+          if (error) {
+            console.error('Signed URL error for', path, error)
+            return { ...doc, resolvedUrl: '' }
+          }
+          return { ...doc, resolvedUrl: data.signedUrl }
+        })
+      )
+      if (!cancelled) setResolvedDocs(resolved)
+    }
+
+    resolveUrls()
+    return () => {
+      cancelled = true
+    }
+  }, [JSON.stringify(docs)])
 
   return (
     <section className="doc-group">
@@ -52,11 +83,11 @@ export default function DocumentGroup({
             <p>{category.hint || ''}</p>
           </div>
         </div>
-        <span className="doc-group__count">{docs.length}</span>
+        <span className="doc-group__count">{resolvedDocs.length}</span>
       </header>
 
       <div className="doc-group__body">
-        {docs.map((doc) => (
+        {resolvedDocs.map((doc) => (
           <div key={doc.id} className="doc-chip">
             <span className="doc-chip__file">📄</span>
 
@@ -66,7 +97,7 @@ export default function DocumentGroup({
             </div>
 
             <div className="doc-chip__actions">
-              {(doc.url || doc.file_url) && (
+              {doc.resolvedUrl && (
                 <>
                   <button
                     type="button"
@@ -78,7 +109,7 @@ export default function DocumentGroup({
 
                   <a
                     className="mini-btn"
-                    href={doc.url || doc.file_url}
+                    href={doc.resolvedUrl}
                     target="_blank"
                     rel="noreferrer"
                   >
@@ -157,7 +188,7 @@ export default function DocumentGroup({
             <div className="pdf-viewer__actions">
               <a
                 className="mini-btn"
-                href={activePdf.url || activePdf.file_url}
+                href={activePdf.resolvedUrl}
                 target="_blank"
                 rel="noreferrer"
               >
@@ -174,7 +205,7 @@ export default function DocumentGroup({
           </div>
           <div className="pdf-viewer__frame">
             <iframe
-              src={`${activePdf.url || activePdf.file_url}#toolbar=0`}
+              src={`${activePdf.resolvedUrl}#toolbar=0`}
               title={activePdf.name}
               width="100%"
               height="620"
