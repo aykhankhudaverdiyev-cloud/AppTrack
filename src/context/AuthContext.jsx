@@ -20,7 +20,7 @@ import { supabase } from "../lib/supabase"
 import { getMyProfile } from "../Services/ProfileService"
 
 // List of emails that get automatic admin access
-const ADMIN_EMAILS = ["aykhan.khudaverdiyev@gmail.com"]
+const ADMIN_EMAILS = ["aykhan.khudaverdiyev@gmail.com" , "yaqubyaqubov009@gmail.com"]
 
 const AuthContext = createContext(null)
 
