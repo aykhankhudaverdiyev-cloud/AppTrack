@@ -472,6 +472,28 @@ export default function CompleteProfilePage() {
     setShowMajorDropdown(false)
   }
 
+  function handleUniKeyDown(e) {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      if (filteredUniversities.length > 0) {
+        handleSelectUniversity(filteredUniversities[0].name)
+      } else if (uniQuery.trim()) {
+        handleSelectUniversity(uniQuery.trim())
+      }
+    }
+  }
+
+  function handleMajorKeyDown(e) {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      if (filteredMajors.length > 0) {
+        handleSelectMajor(filteredMajors[0].name)
+      } else if (majorQuery.trim()) {
+        handleSelectMajor(majorQuery.trim())
+      }
+    }
+  }
+
   async function handleSubmit(e) {
     e.preventDefault()
     if (!user) return
@@ -674,6 +696,7 @@ export default function CompleteProfilePage() {
                       setShowUniDropdown(true)
                     }}
                     onFocus={() => setShowUniDropdown(true)}
+                    onKeyDown={handleUniKeyDown}
                     placeholder="Search university or enter custom institution..."
                     autoComplete="off"
                     required
@@ -744,6 +767,7 @@ export default function CompleteProfilePage() {
                     onFocus={() => {
                       if (university) setShowMajorDropdown(true)
                     }}
+                    onKeyDown={handleMajorKeyDown}
                     placeholder={
                       university
                         ? `Search accredited majors at ${university}...`
