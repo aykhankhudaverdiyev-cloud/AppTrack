@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from "react"
+import { useEffect, useState } from "react"
 import { supabase } from "../lib/supabase"
 import {
   normalizeDocuments,
@@ -270,81 +270,61 @@ export async function getStudents() {
 }
 
 export async function getPublicStudents() {
-  const { data: profilesData, error: profilesError } = await supabase
-    .from("profiles")
-    .select("*")
-    .order("full_name", { ascending: true })
+  const [
+    { data: profilesData, error: profilesError },
+    { data: applicationsData, error: applicationsError },
+    { data: documentsData, error: documentsError },
+    { data: licensesData, error: licensesError },
+    { data: licenseMediaData, error: licenseMediaError },
+  ] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select("*")
+      .order("full_name", { ascending: true }),
+
+    supabase
+      .from("applications")
+      .select("*")
+      .eq("visibility", "public")
+      .order("created_at", { ascending: false }),
+
+    supabase
+      .from("application_documents")
+      .select("*")
+      .eq("visibility", "public")
+      .order("created_at", { ascending: false }),
+
+    supabase
+      .from("licenses")
+      .select("*")
+      .eq("visibility", "public")
+      .order("created_at", { ascending: false }),
+
+    supabase
+      .from("license_media")
+      .select("*")
+      .order("created_at", { ascending: false }),
+  ])
 
   if (profilesError) throw profilesError
-
-  const studentIds = profilesData.map((p) => p.id).filter(Boolean)
-
-  if (!studentIds.length) return []
-
-  // Applications
-  const { data: applicationsData, error: applicationsError } = await supabase
-    .from("applications")
-    .select("*")
-    .in("student_id", studentIds)
-    .eq("visibility", "public")
-    .order("created_at", { ascending: false })
-
   if (applicationsError) throw applicationsError
-
-  const applicationIds = (applicationsData || []).map((a) => a.id)
-
-  // Documents
-  const { data: documentsData, error: documentsError } =
-    applicationIds.length === 0
-      ? { data: [], error: null }
-      : await supabase
-          .from("application_documents")
-          .select("*")
-          .in("application_id", applicationIds)
-          .eq("visibility", "public")
-          .order("created_at", { ascending: false })
-
   if (documentsError) throw documentsError
-
-  // Licenses
-  const { data: licensesData, error: licensesError } = await supabase
-    .from("licenses")
-    .select("*")
-    .in("user_id", studentIds)
-    .eq("visibility", "public")
-    .order("created_at", { ascending: false })
-
   if (licensesError) throw licensesError
-
-  const licenseIds = (licensesData || []).map((l) => l.id)
-
-  // License media
-  const { data: licenseMediaData, error: licenseMediaError } =
-    licenseIds.length === 0
-      ? { data: [], error: null }
-      : await supabase
-          .from("license_media")
-          .select("*")
-          .in("license_id", licenseIds)
-          .order("created_at", { ascending: false })
-
   if (licenseMediaError) throw licenseMediaError
 
   const mappedApplications = (applicationsData || []).map(mapApplicationRow)
 
-  const mergedApplications =
-    await mergeApplicationsWithDocuments(
-      mappedApplications,
-      documentsData || []
-    )
+  const mergedApplications = await mergeApplicationsWithDocuments(
+    mappedApplications,
+    documentsData || []
+  )
 
   const mappedLicenses = (licensesData || []).map(mapLicenseRow)
 
-  const mergedLicenses =
-    mergeLicensesWithMedia(
-      mappedLicenses,
-      licenseMediaData || []
-    )
+  const mergedLicenses = mergeLicensesWithMedia(
+    mappedLicenses,
+    licenseMediaData || []
+  )
 
   return mergeStudentsWithApplicationsAndLicenses(
     profilesData || [],
