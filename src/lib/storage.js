@@ -220,7 +220,9 @@ export async function uploadAvatarFile(userId, file) {
 
   return {
     filePath,
+    path: filePath,
     publicUrl: data?.publicUrl || "",
+    url: data?.publicUrl || "",
     fileName,
     size: file.size || 0,
   }
