@@ -419,9 +419,24 @@ export function fileToDataUrl(file) {
 }
 
 export async function setProfile(studentId, payload) {
+  const fieldMapping = {
+    fullName: "full_name",
+    photoUrl: "photo_url",
+    photoPath: "photo_path",
+    assignedCounselor: "assigned_counselor",
+    isProfileCompleted: "is_profile_completed",
+    adminNotes: "admin_notes",
+  }
+
+  const mapped = {}
+  for (const [key, val] of Object.entries(payload)) {
+    const dbKey = fieldMapping[key] || key
+    mapped[dbKey] = val
+  }
+
   const { data, error } = await supabase
     .from("profiles")
-    .update(payload)
+    .update(mapped)
     .eq("id", studentId)
     .select()
     .single()
@@ -431,7 +446,18 @@ export async function setProfile(studentId, payload) {
   return data
 }
 
-export async function setPhoto(studentId, { photo_url, photo_path }) {
+export async function setPhoto(studentId, photoUrlOrObj, maybePhotoPath) {
+  let photo_url = ""
+  let photo_path = ""
+
+  if (typeof photoUrlOrObj === "object" && photoUrlOrObj !== null) {
+    photo_url = photoUrlOrObj.photo_url || photoUrlOrObj.photoUrl || ""
+    photo_path = photoUrlOrObj.photo_path || photoUrlOrObj.photoPath || ""
+  } else {
+    photo_url = photoUrlOrObj || ""
+    photo_path = maybePhotoPath || ""
+  }
+
   const { data, error } = await supabase
     .from("profiles")
     .update({ photo_url, photo_path })
