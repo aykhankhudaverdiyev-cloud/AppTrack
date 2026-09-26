@@ -1,3 +1,4 @@
+import './PublicStudentDrawer.css'
 import { useState } from 'react'
 import Avatar from './Avatar'
 import './Avatar.css'
@@ -53,7 +54,30 @@ export default function PublicStudentDrawer({
     <>
       <div className="drawer-backdrop" onClick={onClose}></div>
 
-      <aside className="admin-drawer">
+        <aside className="admin-drawer">
+        {student.isSelfPreview && (
+          <div className="preview-banner">
+            <span className="preview-banner__icon">👁️</span>
+            <div className="preview-banner__text">
+              <strong>Preview Mode:</strong> This is how your profile appears to other students in Explore.
+              {!student.isProfilePublic && (
+                <span className="preview-banner__warning">
+                  ⚠️ Your profile visibility is currently set to <strong>Private</strong>. Switch to <strong>Public</strong> in your dashboard to be discovered in Explore.
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+
+        <div className="admin-drawer__header">
+          <div>
+            <p className="admin-drawer__eyebrow">
+              {student.isSelfPreview
+                ? 'Your Public Preview'
+                : readOnly
+                ? 'Public student profile'
+                : 'Private admin access'}
+            </p>
         <div className="admin-drawer__header">
           <div>
             <p className="admin-drawer__eyebrow">
@@ -65,6 +89,8 @@ export default function PublicStudentDrawer({
 
           <button className="drawer-close" onClick={onClose}>✕</button>
         </div>
+
+        
 
         <div className="admin-drawer__hero-block">
           <div className="student-photo-card">
