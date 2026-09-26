@@ -44,7 +44,7 @@ const DOC_CATEGORIES = [
   { key: 'other', label: 'Other' },
 ]
 
-// Tab structure matching the example design
+// Tab structure organized into 4 requested groups
 const TAB_GROUPS = [
   {
     label: 'Main',
@@ -57,30 +57,30 @@ const TAB_GROUPS = [
     label: 'Academic',
     tabs: [
       { key: 'education', label: 'Education' },
-      { key: 'skills', label: 'Skills' },
-      { key: 'projects', label: 'Projects' },
+      { key: 'test_scores', label: 'Test Scores' },
+      { key: 'honors', label: 'Honors & Awards' },
     ],
   },
   {
-    label: 'Career',
+    label: 'Activities',
+    tabs: [
+      { key: 'volunteering', label: 'Volunteering' },
+      { key: 'experience', label: 'Internships & Jobs' },
+      { key: 'projects', label: 'Projects & Research' },
+    ],
+  },
+  {
+    label: 'Admissions',
     tabs: [
       { key: 'applications', label: 'Applications' },
       { key: 'documents', label: 'Documents' },
+      { key: 'recommendations', label: 'Recommendations' },
       { key: 'portfolio', label: 'Portfolio' },
-      { key: 'licenses', label: 'Certificates' },
-      { key: 'experience', label: 'Experience' },
-    ],
-  },
-  {
-    label: 'Social',
-    tabs: [
-      { key: 'explore', label: 'Explore' },
-      { key: 'activity', label: 'Activity' },
     ],
   },
 ]
 
-// LocalStorage-backed persistence for optional student-managed content
+// LocalStorage-backed persistence for student-managed content
 function loadLS(key, fallback) {
   try {
     const raw = localStorage.getItem(key)
@@ -119,17 +119,23 @@ export default function StudentDashboard() {
   const [expandedApplications, setExpandedApplications] = useState([])
 
   // Student-managed lightweight sections (persisted locally)
-  const [skills, setSkills] = useState(() => loadLS(`apptrack.skills.${user?.id}`, []))
-  const [projects, setProjects] = useState(() => loadLS(`apptrack.projects.${user?.id}`, []))
-  const [portfolio, setPortfolio] = useState(() => loadLS(`apptrack.portfolio.${user?.id}`, []))
   const [education, setEducation] = useState(() => loadLS(`apptrack.education.${user?.id}`, []))
+  const [testScores, setTestScores] = useState(() => loadLS(`apptrack.test_scores.${user?.id}`, []))
+  const [honors, setHonors] = useState(() => loadLS(`apptrack.honors.${user?.id}`, []))
+  const [volunteering, setVolunteering] = useState(() => loadLS(`apptrack.volunteering.${user?.id}`, []))
   const [experience, setExperience] = useState(() => loadLS(`apptrack.experience.${user?.id}`, []))
+  const [projects, setProjects] = useState(() => loadLS(`apptrack.projects.${user?.id}`, []))
+  const [recommendations, setRecommendations] = useState(() => loadLS(`apptrack.recommendations.${user?.id}`, []))
+  const [portfolio, setPortfolio] = useState(() => loadLS(`apptrack.portfolio.${user?.id}`, []))
 
-  useEffect(() => { if (user?.id) saveLS(`apptrack.skills.${user.id}`, skills) }, [skills, user?.id])
-  useEffect(() => { if (user?.id) saveLS(`apptrack.projects.${user.id}`, projects) }, [projects, user?.id])
-  useEffect(() => { if (user?.id) saveLS(`apptrack.portfolio.${user.id}`, portfolio) }, [portfolio, user?.id])
   useEffect(() => { if (user?.id) saveLS(`apptrack.education.${user.id}`, education) }, [education, user?.id])
+  useEffect(() => { if (user?.id) saveLS(`apptrack.test_scores.${user.id}`, testScores) }, [testScores, user?.id])
+  useEffect(() => { if (user?.id) saveLS(`apptrack.honors.${user.id}`, honors) }, [honors, user?.id])
+  useEffect(() => { if (user?.id) saveLS(`apptrack.volunteering.${user.id}`, volunteering) }, [volunteering, user?.id])
   useEffect(() => { if (user?.id) saveLS(`apptrack.experience.${user.id}`, experience) }, [experience, user?.id])
+  useEffect(() => { if (user?.id) saveLS(`apptrack.projects.${user.id}`, projects) }, [projects, user?.id])
+  useEffect(() => { if (user?.id) saveLS(`apptrack.recommendations.${user.id}`, recommendations) }, [recommendations, user?.id])
+  useEffect(() => { if (user?.id) saveLS(`apptrack.portfolio.${user.id}`, portfolio) }, [portfolio, user?.id])
 
   const startEditingContact = useCallback(() => {
     setContactDraft({ email: me.email, phone: me.phone })
@@ -259,12 +265,6 @@ export default function StudentDashboard() {
     try { await setApplicationVisibility(user.id, appId, value) } catch (e) { console.error(e); loadMyProfile() }
   }, [user?.id, loadMyProfile])
 
-  const handleLicenseVisibility = useCallback(async (id, value) => {
-    if (!user?.id) return
-    setMe(p => ({ ...p, licenses: (p.licenses || []).map(l => l.id === id ? { ...l, visibility: value } : l) }))
-    try { await setLicenseVisibility(user.id, id, value) } catch (e) { console.error(e); loadMyProfile() }
-  }, [user?.id, loadMyProfile])
-
   const handleDocumentVisibility = useCallback(async (docId, value) => {
     if (!user?.id) return
     setMe(p => ({ ...p, applications: (p.applications || []).map(a => ({ ...a, documents: Object.fromEntries(Object.entries(a.documents || {}).map(([c, ds]) => [c, (ds || []).map(d => d.id === docId ? { ...d, visibility: value } : d)])) })) }))
@@ -281,7 +281,6 @@ export default function StudentDashboard() {
       await setPhoto(user.id, url, path)
       setMe(p => ({ ...p, photoUrl: url, photoPath: path }))
       refreshProfile?.()
-      notifyDataChanged()
     } catch (e) {
       console.error('Photo upload error:', e)
     } finally {
@@ -299,7 +298,6 @@ export default function StudentDashboard() {
       await removePhoto(user.id)
       setMe(p => ({ ...p, photoUrl: '', photoPath: '' }))
       refreshProfile?.()
-      notifyDataChanged()
     } catch (e) {
       console.error('Photo remove error:', e)
     }
@@ -313,7 +311,6 @@ export default function StudentDashboard() {
       setMe(p => ({ ...p, fullName: newName }))
       setEditingName(false)
       refreshProfile?.()
-      notifyDataChanged()
     } catch (e) {
       console.error('Save name error:', e)
     }
@@ -337,6 +334,11 @@ export default function StudentDashboard() {
     })
     setPublicStudentActiveTab('profile')
   }, [me])
+
+  const saveContact = useCallback(async () => {
+    if (!user?.id) return
+    try { await setProfile(user.id, { email: contactDraft.email, phone: contactDraft.phone }); setMe(p => ({ ...p, email: contactDraft.email, phone: contactDraft.phone })); setEditingContact(false) } catch (e) { console.error(e) }
+  }, [user?.id, contactDraft])
 
   const handleSaveApplication = useCallback(async payload => {
     if (!user?.id) return
@@ -388,40 +390,78 @@ export default function StudentDashboard() {
 
   const handleSignOut = useCallback(async () => { await signOut(); navigate('/login') }, [signOut, navigate])
 
-  // Simple add handlers for the light sections
-  const addSkill = () => { const s = window.prompt('Add a skill (e.g., Python, Public speaking)'); if (s?.trim()) setSkills(prev => [...prev, { id: Date.now(), name: s.trim() }]) }
-  const removeSkill = id => setSkills(prev => prev.filter(s => s.id !== id))
+  // Simple add handlers for the sections
+  const addEducation = () => {
+    const school = window.prompt('School / University name?')
+    if (!school?.trim()) return
+    const degree = window.prompt('Degree / Major (optional)') || ''
+    const years = window.prompt('Years or graduation (e.g., 2020 - 2024)') || ''
+    setEducation(prev => [...prev, { id: Date.now(), school: school.trim(), degree, years }])
+  }
+  const removeEducation = id => setEducation(prev => prev.filter(e => e.id !== id))
+
+  const addTestScore = () => {
+    const test = window.prompt('Test type (e.g. IELTS, TOEFL, SAT, AP, IB)?')
+    if (!test?.trim()) return
+    const score = window.prompt('Overall score (e.g. 7.5, 1450)?') || ''
+    const date = window.prompt('Test date (optional, e.g. 2024)?') || ''
+    setTestScores(prev => [...prev, { id: Date.now(), test: test.trim(), score, date }])
+  }
+  const removeTestScore = id => setTestScores(prev => prev.filter(t => t.id !== id))
+
+  const addHonor = () => {
+    const title = window.prompt('Honor / Award title?')
+    if (!title?.trim()) return
+    const issuer = window.prompt('Issuer / Organization (optional)') || ''
+    const year = window.prompt('Year (optional)') || ''
+    setHonors(prev => [...prev, { id: Date.now(), title: title.trim(), issuer, year }])
+  }
+  const removeHonor = id => setHonors(prev => prev.filter(h => h.id !== id))
+
+  const addVolunteering = () => {
+    const org = window.prompt('Organization or cause name?')
+    if (!org?.trim()) return
+    const role = window.prompt('Role / Position (optional)') || ''
+    const hours = window.prompt('Hours or period (optional)') || ''
+    setVolunteering(prev => [...prev, { id: Date.now(), organization: org.trim(), role, hours }])
+  }
+  const removeVolunteering = id => setVolunteering(prev => prev.filter(v => v.id !== id))
+
+  const addExperience = () => {
+    const role = window.prompt('Role / Position?')
+    if (!role?.trim()) return
+    const company = window.prompt('Company / Organization (optional)') || ''
+    const period = window.prompt('Period (e.g., Jun 2024 - Present)') || ''
+    setExperience(prev => [...prev, { id: Date.now(), role: role.trim(), company, period }])
+  }
+  const removeExperience = id => setExperience(prev => prev.filter(e => e.id !== id))
 
   const addProject = () => {
-    const name = window.prompt('Project name?'); if (!name?.trim()) return
+    const name = window.prompt('Project name?')
+    if (!name?.trim()) return
     const desc = window.prompt('Short description (optional)') || ''
     const url = window.prompt('URL (optional)') || ''
     setProjects(prev => [...prev, { id: Date.now(), name: name.trim(), description: desc, url }])
   }
   const removeProject = id => setProjects(prev => prev.filter(p => p.id !== id))
 
+  const addRecommendation = () => {
+    const recommender = window.prompt('Recommender name (e.g., Math Teacher, Counselor)?')
+    if (!recommender?.trim()) return
+    const role = window.prompt('Subject / Institution (optional)') || ''
+    const status = window.prompt('Status (Requested / Submitted / Received)', 'Requested') || 'Requested'
+    setRecommendations(prev => [...prev, { id: Date.now(), recommender: recommender.trim(), role, status }])
+  }
+  const removeRecommendation = id => setRecommendations(prev => prev.filter(r => r.id !== id))
+
   const addPortfolioLink = () => {
-    const label = window.prompt('Link label (e.g., GitHub, Behance)'); if (!label?.trim()) return
-    const url = window.prompt('URL (https://...)'); if (!url?.trim()) return
+    const label = window.prompt('Link label (e.g., GitHub, Behance)')
+    if (!label?.trim()) return
+    const url = window.prompt('URL (https://...)')
+    if (!url?.trim()) return
     setPortfolio(prev => [...prev, { id: Date.now(), label: label.trim(), url: url.trim() }])
   }
   const removePortfolioLink = id => setPortfolio(prev => prev.filter(p => p.id !== id))
-
-  const addEducation = () => {
-    const school = window.prompt('School/University name?'); if (!school?.trim()) return
-    const degree = window.prompt('Degree (optional)') || ''
-    const years = window.prompt('Years (e.g., 2020 - 2024)') || ''
-    setEducation(prev => [...prev, { id: Date.now(), school: school.trim(), degree, years }])
-  }
-  const removeEducation = id => setEducation(prev => prev.filter(e => e.id !== id))
-
-  const addExperience = () => {
-    const role = window.prompt('Role/Position?'); if (!role?.trim()) return
-    const company = window.prompt('Company/Organization') || ''
-    const period = window.prompt('Period (e.g., Jun 2024 - Present)') || ''
-    setExperience(prev => [...prev, { id: Date.now(), role: role.trim(), company, period }])
-  }
-  const removeExperience = id => setExperience(prev => prev.filter(e => e.id !== id))
 
   if (loading) return null
 
@@ -443,148 +483,157 @@ export default function StudentDashboard() {
             </div>
             <div className="new-header__brand-text">
               <div className="new-header__brand-title-row">
-                <h1 className="new-header__brand-title">Student Manager</h1>
-                <span className="new-header__brand-badge new-header__brand-badge--student">Student</span>
+                <span className="new-header__brand-title">AppTrack</span>
+                <span className="new-header__brand-badge">STUDENT</span>
               </div>
-              <p className="new-header__brand-subtitle">Manage profile · applications · certs</p>
+              <p className="new-header__brand-sub">University Application & Portfolio Hub</p>
+            </div>
+          </div>
+
+          <div className="new-header__center">
+            <div className="new-header__explore-wrap">
+              <button type="button" className="new-header__explore-btn" onClick={() => setActiveTab('explore')}>
+                <span className="new-header__explore-icon">👥</span>
+                <span>Student Directory</span>
+                <span className="new-header__explore-count">+{publicStudents.length}</span>
+              </button>
             </div>
           </div>
 
           <nav className="new-header__nav">
             <button type="button" className="new-header__nav-btn" onClick={() => navigate('/home')}>🏠 Home</button>
-            <button type="button" className={`new-header__nav-btn ${activeTab === 'profile' ? 'new-header__nav-btn--active' : ''}`} onClick={() => setActiveTab('profile')}>👤 My Profile</button>
-
-            <button type="button" className="new-header__profile-card" onClick={() => setActiveTab('profile')} title="View your profile">
-              <div className="new-header__profile-avatar">
-                {me.photoUrl ? <img src={me.photoUrl} alt={me.fullName} /> : <span>{initials}</span>}
-              </div>
-              <div className="new-header__profile-meta">
-                <strong>{me.fullName || 'Student'}</strong>
-                {me.major && <small>{me.major}</small>}
-              </div>
-              <VisibilityChip value={me.visibility?.profile} />
+            <button
+              type="button"
+              className="new-header__nav-btn new-header__nav-btn--preview"
+              title="See how your profile appears to other students"
+              onClick={handlePreviewPublicView}
+            >
+              👁 View Public Profile
             </button>
-
-            <div className="new-header__divider" />
-            <button type="button" className="new-header__signout" onClick={handleSignOut}>🚪 Sign out</button>
-            <div className="new-header__explore-wrap">
-              <button type="button" className="new-header__explore-btn" onClick={() => setActiveTab('explore')}>
-                🔍 <span>Explore</span> →
-              </button>
-            </div>
+            <button type="button" className="new-header__nav-btn new-header__nav-btn--logout" onClick={handleSignOut}>Log out</button>
           </nav>
+        </div>
+
+        <div className="new-header__mobile-bar">
+          <button type="button" className="new-header__explore-btn new-header__explore-btn--mobile" onClick={() => setActiveTab('explore')}>
+            <span className="new-header__explore-icon">👥</span>
+            <span>Student Directory</span>
+            <span className="new-header__explore-count">+{publicStudents.length}</span>
+          </button>
         </div>
       </header>
 
-      <main className="dashboard-content">
-        {/* Page Title */}
-        <section className="new-page-title">
-          <div>
-            <div className="new-page-title__eyebrow">
-              <span className="new-page-title__line" />
-              Student Dashboard
-            </div>
-            <h2 className="new-page-title__h2">Welcome back, {firstName} 👋</h2>
-            <p className="new-page-title__sub">Manage your own profile, applications and certifications.</p>
-          </div>
-          <button type="button" className="new-header__explore-btn new-header__explore-btn--mobile" onClick={() => setActiveTab('explore')}>
-            🔍 Explore Students
-          </button>
-        </section>
-
-        {/* ═══ HERO CARD ═══ */}
+      <main className="new-main">
+        {/* ═══ HERO / PROFILE CARD ═══ */}
         <section className="new-hero-card">
-          <div className="new-hero-card__cover">
-            <div className="new-hero-card__cover-dots" />
-            <div className="new-hero-card__cover-top-left">
-              <span className="new-hero-card__active-badge">
-                <span className="new-hero-card__active-dot" /> Active
-              </span>
-            </div>
-            <div className="new-hero-card__cover-top-right">
-              <span className="new-hero-card__private-badge">
-                {me.visibility?.profile === 'public' ? '🌐 Public' : '🔒 Private'}
-              </span>
-            </div>
-          </div>
-
+          <div className="new-hero-card__banner" />
           <div className="new-hero-card__body">
-            {/* Avatar floating */}
             <div className="new-hero-card__avatar-block">
-              <div className="student-photo-preview student-photo-preview--interactive new-hero-card__avatar-preview">
-                <Avatar name={me.fullName} photoUrl={me.photoUrl} size="xl" className="student-photo-avatar new-hero-card__avatar-img" />
-                <div className="student-photo-overlay">
-                  <button type="button" className="student-photo-overlay__btn" onClick={() => document.getElementById('me-photo-input')?.click()}>
-                    {me.photoUrl ? 'Replace' : 'Upload'}
-                  </button>
-                  {me.photoUrl && (
-                    <button type="button" className="student-photo-overlay__btn student-photo-overlay__btn--danger" onClick={handleRemovePhoto}>Remove</button>
-                  )}
-                </div>
-                <input id="me-photo-input" type="file" accept="image/*" className="file-input-hidden"
-                  onChange={e => { handlePhotoUpload(e.target.files?.[0] || null); e.target.value = '' }} />
-              </div>
-              <div className="new-hero-card__avatar-online" />
+              <label className="new-hero-card__avatar-preview" title="Click to upload avatar">
+                <Avatar url={me.photoUrl} name={me.fullName} className="new-hero-card__avatar-img" />
+                <span className="new-hero-card__avatar-overlay">
+                  <span className="new-hero-card__avatar-camera">📷</span>
+                  <span>{uploadingPhoto ? '...' : 'Upload'}</span>
+                </span>
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,image/gif"
+                  className="file-input-hidden"
+                  disabled={uploadingPhoto}
+                  onChange={e => {
+                    const f = e.target.files?.[0]
+                    if (f) handlePhotoUpload(f)
+                    e.target.value = ''
+                  }}
+                />
+              </label>
+              {me.photoUrl && (
+                <button
+                  type="button"
+                  className="new-hero-card__avatar-remove"
+                  title="Remove avatar"
+                  onClick={handleRemovePhoto}
+                >
+                  ✕
+                </button>
+              )}
             </div>
 
-            <div className="new-hero-card__main">
-              <div className="new-hero-card__info">
-                <div className="new-hero-card__name-row">
-                  {editingName ? (
-                    <>
-                      <input className="inline-input inline-input--lg" value={nameDraft} onChange={e => setNameDraft(e.target.value)} autoFocus />
-                      <button type="button" className="solid-btn solid-btn--sm" onClick={saveName}>Save</button>
-                      <button type="button" className="ghost-btn solid-btn--sm" onClick={() => setEditingName(false)}>Cancel</button>
-                    </>
-                  ) : (
-                    <>
-                      <h3 className="new-hero-card__name">{me.fullName}</h3>
-                      <button type="button" className="new-hero-card__edit-btn" title="Edit name" onClick={() => { setNameDraft(me.fullName); setEditingName(true) }}>✎</button>
-                    </>
-                  )}
-                </div>
-                <p className="new-hero-card__sub">
-                  {me.major || 'Major not set yet'}{me.university ? ` · ${me.university}` : ' · Add details below'}
-                </p>
-
-                <div className="new-hero-card__privacy-row">
-                  <div className="new-hero-card__privacy-item">
-                    <span className="new-hero-card__privacy-label">🔒 Profile:</span>
-                    <VisibilityToggle value={me.visibility?.profile || 'private'} onChange={v => handleProfileVisibility('profile', v)} />
+            <div className="new-hero-card__info">
+              <div className="new-hero-card__name-row">
+                {editingName ? (
+                  <div className="name-edit-inline">
+                    <input
+                      type="text"
+                      className="name-edit-input"
+                      value={nameDraft}
+                      placeholder="Enter full name"
+                      autoFocus
+                      onChange={e => setNameDraft(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') saveName()
+                        if (e.key === 'Escape') setEditingName(false)
+                      }}
+                    />
+                    <button type="button" className="solid-btn solid-btn--sm" onClick={saveName}>Save</button>
+                    <button type="button" className="ghost-btn solid-btn--sm" onClick={() => setEditingName(false)}>Cancel</button>
                   </div>
-                  <div className="new-hero-card__privacy-item">
-                    <span className="new-hero-card__privacy-label">👁️ Photo:</span>
-                    <VisibilityToggle value={me.visibility?.photo || 'private'} onChange={v => handleProfileVisibility('photo', v)} />
-                  </div>
+                ) : (
+                  <>
+                    <h1 className="new-hero-card__name">{me.fullName || 'Student Name'}</h1>
+                    <button
+                      type="button"
+                      className="name-edit-pencil"
+                      title="Edit your full name"
+                      onClick={() => {
+                        setNameDraft(me.fullName || '')
+                        setEditingName(true)
+                      }}
+                    >
+                      ✎
+                    </button>
+                  </>
+                )}
+                <div className="new-hero-card__pill new-hero-card__pill--id">
+                  <span>ID</span>
+                  <strong>{me.id?.slice(0, 8) || '—'}</strong>
                 </div>
               </div>
 
-              <div className="new-hero-card__actions">
-                <button type="button" className="ghost-btn new-hero-card__preview-btn" onClick={handlePreviewPublicView}>
-    👁️ Preview Public View
-</button>
+              <div className="new-hero-card__meta-line">
+                <span>{me.major || 'Major pending'}</span>
+                {me.university && (
+                  <>
+                    <span className="dot-sep">•</span>
+                    <span>{me.university}</span>
+                  </>
+                )}
+                {me.assignedCounselor && (
+                  <>
+                    <span className="dot-sep">•</span>
+                    <span className="counselor-tag">Mentor: {me.assignedCounselor}</span>
+                  </>
+                )}
+              </div>
+            </div>
+
+            <div className="new-hero-card__visibility-box">
+              <div className="new-hero-card__vis-item">
+                <span className="new-hero-card__vis-label">Profile visibility</span>
+                <VisibilityToggle
+                  value={me.visibility?.profile || 'private'}
+                  onChange={v => handleProfileVisibility('profile', v)}
+                />
+              </div>
+              <div className="new-hero-card__vis-item">
+                <span className="new-hero-card__vis-label">Photo visibility</span>
+                <VisibilityToggle
+                  value={me.visibility?.photo || 'private'}
+                  onChange={v => handleProfileVisibility('photo', v)}
+                />
               </div>
             </div>
           </div>
-        </section>
-
-        {/* ═══ STAT CARDS ═══ */}
-        <section className="new-stats-grid">
-          {[
-            { label: 'Profile', value: `${profileCompletion}%`, icon: '📈', tone: 'indigo', hint: 'completion score' },
-            { label: 'Applications', value: (me.applications || []).length, icon: '📄', tone: 'sky', hint: 'submitted total' },
-            { label: 'Public Apps', value: publicApplicationsCount, icon: '👁️', tone: 'emerald', hint: 'visible to others' },
-            { label: 'Certifications', value: (me.licenses || []).length, icon: '🏆', tone: 'amber', hint: 'earned so far' },
-            { label: 'Public Certs', value: publicLicensesCount, icon: '🏆', tone: 'rose', hint: 'shared publicly' },
-            { label: 'App Progress', value: `${appProgress}%`, icon: '⚡', tone: 'violet', hint: 'in progress' },
-          ].map(s => (
-            <div key={s.label} className={`new-stat-card new-stat-card--${s.tone}`}>
-              <div className="new-stat-card__icon-wrap"><span className="new-stat-card__icon">{s.icon}</span></div>
-              <p className="new-stat-card__label">{s.label}</p>
-              <p className="new-stat-card__value">{s.value}</p>
-              <p className="new-stat-card__hint">{s.hint}</p>
-            </div>
-          ))}
         </section>
 
         {/* ═══ GROUPED TABS ═══ */}
@@ -612,6 +661,7 @@ export default function StudentDashboard() {
 
         {/* ═══ TAB CONTENT ═══ */}
 
+        {/* 1. OVERVIEW (EXACT ORIGINAL) */}
         {activeTab === 'overview' && (
           <div className="new-profile-grid">
             <div className="new-profile-main">
@@ -671,9 +721,9 @@ export default function StudentDashboard() {
                 <div className="new-next-steps__list">
                   {[
                     { title: 'Add your education history', time: '~5 min', icon: '🎓', tab: 'education' },
-                    { title: 'Add your first project', time: '~3 min', icon: '📄', tab: 'projects' },
-                    { title: 'Add a portfolio link', time: '~1 min', icon: '🌐', tab: 'portfolio' },
-                    { title: 'Add your skills', time: '~2 min', icon: '🏆', tab: 'skills' },
+                    { title: 'Add your test scores', time: '~3 min', icon: '📝', tab: 'test_scores' },
+                    { title: 'Add an honor or award', time: '~2 min', icon: '🏆', tab: 'honors' },
+                    { title: 'Track a recommender', time: '~2 min', icon: '✉️', tab: 'recommendations' },
                   ].map(step => (
                     <button key={step.title} type="button" className="new-next-step-btn" onClick={() => setActiveTab(step.tab)}>
                       <span className="new-next-step-btn__icon">{step.icon}</span>
@@ -711,6 +761,7 @@ export default function StudentDashboard() {
           </div>
         )}
 
+        {/* 2. MY PROFILE (EXACT ORIGINAL) */}
         {activeTab === 'profile' && (
           <div className="new-profile-grid">
             <div className="new-profile-main">
@@ -789,6 +840,7 @@ export default function StudentDashboard() {
           </div>
         )}
 
+        {/* 3. ACADEMIC: EDUCATION */}
         {activeTab === 'education' && (
           <SimpleListSection
             title="Education"
@@ -812,38 +864,107 @@ export default function StudentDashboard() {
           />
         )}
 
-        {activeTab === 'skills' && (
-          <section className="students-section">
-            <div className="section-head section-head--stack">
-              <div>
-                <h3>Skills</h3>
-                <p className="section-head__sub">Tag the skills that describe you best.</p>
-              </div>
-              <button type="button" className="solid-btn solid-btn--sm" onClick={addSkill}>＋ Add skill</button>
-            </div>
-            {skills.length === 0 ? (
-              <div className="empty-state empty-state--cert">
-                <div className="empty-state__icon">🏷️</div>
-                <h4>No skills yet</h4>
-                <p>Add tags like "Python", "Public speaking", "Photoshop".</p>
-              </div>
-            ) : (
-              <div className="new-chip-grid">
-                {skills.map(s => (
-                  <span key={s.id} className="new-skill-chip">
-                    {s.name}
-                    <button type="button" onClick={() => removeSkill(s.id)}>✕</button>
-                  </span>
-                ))}
+        {/* 4. ACADEMIC: TEST SCORES */}
+        {activeTab === 'test_scores' && (
+          <SimpleListSection
+            title="Test Scores"
+            subtitle="Standardized tests (IELTS, TOEFL, SAT, AP, IB, etc.)."
+            emptyIcon="📝"
+            emptyTitle="No test scores added"
+            emptyDesc="Add your standardized test results."
+            addLabel="Add test score"
+            onAdd={addTestScore}
+            items={testScores}
+            renderItem={t => (
+              <div className="simple-item">
+                <div className="simple-item__logo">📝</div>
+                <div className="simple-item__body">
+                  <h4>{t.test} — {t.score}</h4>
+                  <p>{t.date ? `Date: ${t.date}` : 'Standardized Exam'}</p>
+                </div>
+                <button type="button" className="icon-btn icon-btn--danger" onClick={() => removeTestScore(t.id)}>🗑</button>
               </div>
             )}
-          </section>
+          />
         )}
 
+        {/* 5. ACADEMIC: HONORS & AWARDS */}
+        {activeTab === 'honors' && (
+          <SimpleListSection
+            title="Honors & Awards"
+            subtitle="Academic competitions, olympiads, and recognitions."
+            emptyIcon="🏆"
+            emptyTitle="No honors or awards"
+            emptyDesc="Add your academic awards or certificates."
+            addLabel="Add honor / award"
+            onAdd={addHonor}
+            items={honors}
+            renderItem={h => (
+              <div className="simple-item">
+                <div className="simple-item__logo">🏆</div>
+                <div className="simple-item__body">
+                  <h4>{h.title}</h4>
+                  <p>{[h.issuer, h.year].filter(Boolean).join(' · ')}</p>
+                </div>
+                <button type="button" className="icon-btn icon-btn--danger" onClick={() => removeHonor(h.id)}>🗑</button>
+              </div>
+            )}
+          />
+        )}
+
+        {/* 6. ACTIVITIES: VOLUNTEERING */}
+        {activeTab === 'volunteering' && (
+          <SimpleListSection
+            title="Volunteering"
+            subtitle="Community service and non-profit volunteer work."
+            emptyIcon="🤝"
+            emptyTitle="No volunteering added"
+            emptyDesc="Add your volunteer experiences."
+            addLabel="Add volunteering"
+            onAdd={addVolunteering}
+            items={volunteering}
+            renderItem={v => (
+              <div className="simple-item">
+                <div className="simple-item__logo">🤝</div>
+                <div className="simple-item__body">
+                  <h4>{v.organization}</h4>
+                  <p>{[v.role, v.hours].filter(Boolean).join(' · ')}</p>
+                </div>
+                <button type="button" className="icon-btn icon-btn--danger" onClick={() => removeVolunteering(v.id)}>🗑</button>
+              </div>
+            )}
+          />
+        )}
+
+        {/* 7. ACTIVITIES: INTERNSHIPS & JOBS */}
+        {activeTab === 'experience' && (
+          <SimpleListSection
+            title="Internships & Jobs"
+            subtitle="Internships, summer jobs, and professional experience."
+            emptyIcon="💼"
+            emptyTitle="No experience added"
+            emptyDesc="Add your first experience."
+            addLabel="Add experience"
+            onAdd={addExperience}
+            items={experience}
+            renderItem={e => (
+              <div className="simple-item">
+                <div className="simple-item__logo">💼</div>
+                <div className="simple-item__body">
+                  <h4>{e.role}</h4>
+                  <p>{[e.company, e.period].filter(Boolean).join(' · ')}</p>
+                </div>
+                <button type="button" className="icon-btn icon-btn--danger" onClick={() => removeExperience(e.id)}>🗑</button>
+              </div>
+            )}
+          />
+        )}
+
+        {/* 8. ACTIVITIES: PROJECTS & RESEARCH */}
         {activeTab === 'projects' && (
           <SimpleListSection
-            title="Projects"
-            subtitle="Notable projects you've built or led."
+            title="Projects & Research"
+            subtitle="Notable projects, research papers, and products you built."
             emptyIcon="🛠️"
             emptyTitle="No projects yet"
             emptyDesc="Add your first project."
@@ -864,6 +985,7 @@ export default function StudentDashboard() {
           />
         )}
 
+        {/* 9. ADMISSIONS: APPLICATIONS */}
         {activeTab === 'applications' && (
           <section className="students-section">
             <div className="section-head section-head--stack">
@@ -931,6 +1053,7 @@ export default function StudentDashboard() {
           </section>
         )}
 
+        {/* 10. ADMISSIONS: DOCUMENTS VAULT */}
         {activeTab === 'documents' && (
           <section className="students-section">
             <div className="section-head">
@@ -961,6 +1084,31 @@ export default function StudentDashboard() {
           </section>
         )}
 
+        {/* 11. ADMISSIONS: RECOMMENDATIONS */}
+        {activeTab === 'recommendations' && (
+          <SimpleListSection
+            title="Recommendations"
+            subtitle="Letters of recommendation tracked from teachers and mentors."
+            emptyIcon="✉️"
+            emptyTitle="No recommenders added"
+            emptyDesc="Track recommendation letters for your applications."
+            addLabel="Add recommender"
+            onAdd={addRecommendation}
+            items={recommendations}
+            renderItem={r => (
+              <div className="simple-item">
+                <div className="simple-item__logo">✉️</div>
+                <div className="simple-item__body">
+                  <h4>{r.recommender}</h4>
+                  <p>{[r.role, r.status ? `Status: ${r.status}` : ''].filter(Boolean).join(' · ')}</p>
+                </div>
+                <button type="button" className="icon-btn icon-btn--danger" onClick={() => removeRecommendation(r.id)}>🗑</button>
+              </div>
+            )}
+          />
+        )}
+
+        {/* 12. ADMISSIONS: PORTFOLIO */}
         {activeTab === 'portfolio' && (
           <section className="students-section">
             <div className="section-head section-head--stack">
@@ -993,87 +1141,7 @@ export default function StudentDashboard() {
           </section>
         )}
 
-        {activeTab === 'licenses' && (
-          <section className="students-section">
-            <div className="section-head section-head--stack">
-              <div>
-                <h3>My Certifications</h3>
-                <p className="section-head__sub">Add credentials with score and visibility.</p>
-              </div>
-              <button type="button" className="solid-btn solid-btn--sm" onClick={() => setLicenseModal({ open: true, license: null })}>
-                <span className="btn-plus">＋</span> Add
-              </button>
-            </div>
-            <div className="cert-list">
-              {(me.licenses || []).map(license => (
-                <div key={license.id} className="cert-item">
-                  <div className="cert-item__logo">{(license.name || 'C').trim()[0]?.toUpperCase()}</div>
-                  <div className="cert-item__body">
-                    <div className="cert-item__row">
-                      <h4 className="cert-item__name">{license.name}</h4>
-                      <div className="cert-item__actions">
-                        <button type="button" className="icon-btn" title="Edit" onClick={() => setLicenseModal({ open: true, license })}>✎</button>
-                        <button type="button" className="icon-btn icon-btn--danger" title="Delete" onClick={() => handleDeleteLicense(license.id)}>🗑</button>
-                      </div>
-                    </div>
-                    {license.issuer && <p className="cert-item__issuer">{license.issuer}</p>}
-                    {(license.issueMonth || license.issueYear || license.score) && (
-                      <p className="cert-item__meta">
-                        {(license.issueMonth || license.issueYear) && <span>Issued {[license.issueMonth, license.issueYear].filter(Boolean).join(' ')}</span>}
-                        {license.score && <span> · Score {license.score}</span>}
-                      </p>
-                    )}
-                    {license.credentialId && <p className="cert-item__cred">Credential ID {license.credentialId}</p>}
-                    <div className="cert-item__foot">
-                      <VisibilityToggle value={license.visibility} onChange={v => handleLicenseVisibility(license.id, v)} />
-                      {license.credentialUrl && <a className="pill-link" href={license.credentialUrl} target="_blank" rel="noreferrer">Show credential ↗</a>}
-                      {(license.media || []).map(m => (
-                        <LicenseMediaItem key={m.id} media={m} onRemove={handleLicenseMediaRemove} readOnly={false} />
-                      ))}
-                      <label className="pill-link pill-link--upload" style={{ cursor: 'pointer' }}>
-                        📎 Add Evidence
-                        <input type="file" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg" className="file-input-hidden"
-                          onChange={e => { const file = e.target.files?.[0]; if (file) handleLicenseMediaUpload(license.id, file); e.target.value = '' }} />
-                      </label>
-                    </div>
-                  </div>
-                </div>
-              ))}
-              {!(me.licenses || []).length && (
-                <div className="empty-state empty-state--cert">
-                  <div className="empty-state__icon">🎓</div>
-                  <h4>No certifications yet</h4>
-                  <p>Add IELTS, SAT, GRE, or other credentials.</p>
-                  <button type="button" className="solid-btn solid-btn--sm" onClick={() => setLicenseModal({ open: true, license: null })}>Add certification</button>
-                </div>
-              )}
-            </div>
-          </section>
-        )}
-
-        {activeTab === 'experience' && (
-          <SimpleListSection
-            title="Experience"
-            subtitle="Internships, jobs, volunteering."
-            emptyIcon="💼"
-            emptyTitle="No experience added"
-            emptyDesc="Add your first experience."
-            addLabel="Add experience"
-            onAdd={addExperience}
-            items={experience}
-            renderItem={e => (
-              <div className="simple-item">
-                <div className="simple-item__logo">💼</div>
-                <div className="simple-item__body">
-                  <h4>{e.role}</h4>
-                  <p>{[e.company, e.period].filter(Boolean).join(' · ')}</p>
-                </div>
-                <button type="button" className="icon-btn icon-btn--danger" onClick={() => removeExperience(e.id)}>🗑</button>
-              </div>
-            )}
-          />
-        )}
-
+        {/* EXPLORE DIRECTORY */}
         {activeTab === 'explore' && (
           <section className="students-section">
             <div className="section-head">
@@ -1097,6 +1165,7 @@ export default function StudentDashboard() {
           </section>
         )}
 
+        {/* RECENT ACTIVITY */}
         {activeTab === 'activity' && (
           <section className="students-section">
             <div className="section-head">
