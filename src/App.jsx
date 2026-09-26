@@ -55,13 +55,16 @@ function RootRedirect() {
   // Guest → show the public landing page
   if (!user) return <HomePage />
 
+  // If user is authenticated but profile is still loading, wait for profile
+  if (!profile) return null
+
   // Logged in but profile not yet completed → force complete-profile flow
-  if (!profile?.is_profile_completed) {
+  if (!profile.is_profile_completed) {
     return <Navigate to="/complete-profile" replace />
   }
 
   // Route the user based on their role
-  if (profile?.role === 'admin') return <Navigate to="/admin" replace />
+  if (profile.role === 'admin') return <Navigate to="/admin" replace />
   return <Navigate to="/student" replace />
 }
 
