@@ -232,22 +232,26 @@
 
 .new-hero-card__avatar-block {
   position: relative;
-  margin-top: -55px;
+  margin-top: -65px;
   flex-shrink: 0;
 }
 .new-hero-card__avatar-preview {
-  width: 110px !important;
-  height: 110px !important;
-  border-radius: 22px !important;
+  width: 136px !important;
+  height: 136px !important;
+  border-radius: 28px !important;
   border: 4px solid #fff;
-  box-shadow: 0 10px 24px rgba(99,102,241,0.28);
+  box-shadow: 0 14px 28px rgba(99,102,241,0.25);
   overflow: hidden;
+  position: relative;
+  cursor: pointer;
 }
 .new-hero-card__avatar-preview .avatar,
 .new-hero-card__avatar-img {
   width: 100% !important;
   height: 100% !important;
-  border-radius: 18px !important;
+  border-radius: 24px !important;
+  object-fit: cover !important;
+  object-position: center 25% !important;
 }
 .new-hero-card__avatar-online {
   position: absolute; bottom: 4px; right: 4px;
