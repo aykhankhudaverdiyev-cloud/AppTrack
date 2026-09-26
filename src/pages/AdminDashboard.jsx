@@ -867,7 +867,7 @@ export default function AdminDashboard() {
           </div>
 
           <nav className="new-header__nav">
-            <button type="button" className="new-header__nav-btn" onClick={() => navigate('/')}>🏠 Home</button>
+            <button type="button" className="new-header__nav-btn" onClick={() => navigate('/home')}>🏠 Home</button>
             <button
               type="button"
               className="new-header__nav-btn new-header__nav-btn--notif"
