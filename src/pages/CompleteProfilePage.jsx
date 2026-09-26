@@ -233,7 +233,281 @@ const TOP_UNIVERSITIES = [
   { name: "Ilia State University", country: "Georgia", code: "GE" }
 ]
 
-// Universal Accredited Degree Majors Across Faculties
+// ── Official University-Specific Degree Programs Map ──
+const UNIVERSITY_PROGRAMS_MAP = {
+  "Massachusetts Institute of Technology (MIT)": [
+    { name: "Computer Science and Engineering (Course 6-3)", faculty: "EECS Department" },
+    { name: "Artificial Intelligence & Decision Making (Course 6-4)", faculty: "EECS Department" },
+    { name: "Electrical Science & Engineering (Course 6-1)", faculty: "EECS Department" },
+    { name: "Mechanical Engineering (Course 2)", faculty: "School of Engineering" },
+    { name: "Management Science & Finance (Course 15 / Sloan)", faculty: "Sloan School of Management" },
+    { name: "Aerospace Engineering (Course 16)", faculty: "School of Engineering" },
+    { name: "Mathematics (Course 18)", faculty: "School of Science" },
+    { name: "Physics (Course 8)", faculty: "School of Science" },
+    { name: "Chemical Engineering (Course 10)", faculty: "School of Engineering" },
+    { name: "Biological Engineering (Course 20)", faculty: "School of Engineering" },
+    { name: "Materials Science and Engineering (Course 3)", faculty: "School of Engineering" }
+  ],
+  "Harvard University": [
+    { name: "Computer Science", faculty: "SEAS" },
+    { name: "Economics", faculty: "Social Sciences" },
+    { name: "Applied Mathematics", faculty: "SEAS" },
+    { name: "Government (Political Science)", faculty: "Social Sciences" },
+    { name: "Social Studies", faculty: "Social Sciences" },
+    { name: "Molecular & Cellular Biology", faculty: "Life Sciences" },
+    { name: "Neuroscience", faculty: "Life Sciences" },
+    { name: "Statistics", faculty: "Sciences" },
+    { name: "Psychology", faculty: "Social Sciences" },
+    { name: "History & Literature", faculty: "Arts & Humanities" },
+    { name: "Philosophy", faculty: "Arts & Humanities" }
+  ],
+  "Stanford University": [
+    { name: "Computer Science", faculty: "School of Engineering" },
+    { name: "Management Science & Engineering (MS&E)", faculty: "School of Engineering" },
+    { name: "Electrical Engineering", faculty: "School of Engineering" },
+    { name: "Mechanical Engineering", faculty: "School of Engineering" },
+    { name: "Economics", faculty: "School of Humanities and Sciences" },
+    { name: "Symbolic Systems", faculty: "Interdisciplinary" },
+    { name: "Bioengineering", faculty: "School of Engineering / Medicine" },
+    { name: "Data Science", faculty: "School of Humanities and Sciences" },
+    { name: "International Relations", faculty: "School of Humanities and Sciences" },
+    { name: "Product Design", faculty: "School of Engineering" }
+  ],
+  "University of Oxford": [
+    { name: "Philosophy, Politics and Economics (PPE)", faculty: "Social Sciences" },
+    { name: "Computer Science", faculty: "Mathematical, Physical and Life Sciences" },
+    { name: "Mathematics and Computer Science", faculty: "Mathematical Sciences" },
+    { name: "Engineering Science", faculty: "Mathematical, Physical and Life Sciences" },
+    { name: "Jurisprudence (Law)", faculty: "Faculty of Law" },
+    { name: "Medicine", faculty: "Medical Sciences Division" },
+    { name: "Economics and Management", faculty: "Saïd Business School" },
+    { name: "Physics", faculty: "Mathematical, Physical and Life Sciences" },
+    { name: "Biochemistry", faculty: "Medical Sciences Division" },
+    { name: "History and Politics", faculty: "Humanities Division" }
+  ],
+  "University of Cambridge": [
+    { name: "Computer Science Tripos", faculty: "Faculty of Computer Science" },
+    { name: "Engineering Tripos", faculty: "Department of Engineering" },
+    { name: "Natural Sciences Tripos", faculty: "School of Physical Sciences" },
+    { name: "Economics Tripos", faculty: "Faculty of Economics" },
+    { name: "Law Tripos", faculty: "Faculty of Law" },
+    { name: "Medicine Tripos", faculty: "School of Clinical Medicine" },
+    { name: "Mathematics Tripos", faculty: "Faculty of Mathematics" },
+    { name: "Human, Social, and Political Sciences (HSPS)", faculty: "Faculty of HSPS" }
+  ],
+  "Imperial College London": [
+    { name: "Computing (Software Engineering)", faculty: "Department of Computing" },
+    { name: "Computing (Artificial Intelligence & Machine Learning)", faculty: "Department of Computing" },
+    { name: "Electrical & Electronic Engineering", faculty: "Department of EEE" },
+    { name: "Mechanical Engineering", faculty: "Department of Mechanical Engineering" },
+    { name: "Biomedical Engineering", faculty: "Department of Bioengineering" },
+    { name: "Chemical Engineering", faculty: "Department of Chemical Engineering" },
+    { name: "Civil Engineering", faculty: "Department of Civil Engineering" },
+    { name: "Physics", faculty: "Department of Physics" },
+    { name: "Mathematics", faculty: "Department of Mathematics" },
+    { name: "Medicine (MBBS)", faculty: "Faculty of Medicine" }
+  ],
+  "London School of Economics and Political Science (LSE)": [
+    { name: "Economics", faculty: "Department of Economics" },
+    { name: "Finance", faculty: "Department of Finance" },
+    { name: "Accounting and Finance", faculty: "Department of Accounting" },
+    { name: "International Relations", faculty: "Department of International Relations" },
+    { name: "Politics and Economics", faculty: "Department of Government" },
+    { name: "Law (LLB)", faculty: "LSE Law School" },
+    { name: "Data Science", faculty: "Department of Statistics" },
+    { name: "Management", faculty: "Department of Management" },
+    { name: "Economic History", faculty: "Department of Economic History" }
+  ],
+  "ETH Zurich": [
+    { name: "Computer Science", faculty: "D-INFK" },
+    { name: "Data Science", faculty: "D-INFK / D-MATH" },
+    { name: "Mechanical Engineering", faculty: "D-MAVT" },
+    { name: "Electrical Engineering and Information Technology", faculty: "D-ITET" },
+    { name: "Civil Engineering", faculty: "D-BAUG" },
+    { name: "Physics", faculty: "D-PHYS" },
+    { name: "Mathematics", faculty: "D-MATH" },
+    { name: "Architecture", faculty: "D-ARCH" },
+    { name: "Materials Science", faculty: "D-MATL" }
+  ],
+  "Technical University of Munich (TUM)": [
+    { name: "Informatics (Computer Science)", faculty: "TUM School of CIT" },
+    { name: "Information Engineering", faculty: "TUM School of CIT" },
+    { name: "Management and Technology (TUM-BWL)", faculty: "TUM School of Management" },
+    { name: "Mechanical Engineering", faculty: "TUM School of ED" },
+    { name: "Electrical Engineering and Information Technology", faculty: "TUM School of CIT" },
+    { name: "Robotics, Cognition, Intelligence", faculty: "TUM School of CIT" },
+    { name: "Aerospace", faculty: "TUM School of ED" }
+  ],
+  "University of Toronto": [
+    { name: "Computer Science", faculty: "Faculty of Arts & Science" },
+    { name: "Rotman Commerce (Finance & Economics)", faculty: "Rotman School of Management" },
+    { name: "Engineering Science", faculty: "Faculty of Applied Science & Engineering" },
+    { name: "TrackOne General Engineering", faculty: "Faculty of Applied Science & Engineering" },
+    { name: "Data Science Specialist", faculty: "Faculty of Arts & Science" },
+    { name: "Life Sciences & Neuroscience", faculty: "Faculty of Arts & Science" },
+    { name: "Economics", faculty: "Faculty of Arts & Science" }
+  ],
+  "University of Waterloo": [
+    { name: "Computer Science (Co-op)", faculty: "David R. Cheriton School of Computer Science" },
+    { name: "Software Engineering (Co-op)", faculty: "Faculty of Engineering" },
+    { name: "Computer Engineering", faculty: "Faculty of Engineering" },
+    { name: "Mathematics / Financial Analysis & Risk Management", faculty: "Faculty of Mathematics" },
+    { name: "Mechanical Engineering", faculty: "Faculty of Engineering" },
+    { name: "Biomedical Engineering", faculty: "Faculty of Engineering" }
+  ],
+  "ADA University": [
+    { name: "Computer Science", faculty: "School of IT and Engineering (SITE)" },
+    { name: "Computer Engineering", faculty: "School of IT and Engineering (SITE)" },
+    { name: "Information Technology", faculty: "School of IT and Engineering (SITE)" },
+    { name: "Electrical & Electronics Engineering", faculty: "School of IT and Engineering (SITE)" },
+    { name: "Business Administration (BBA)", faculty: "School of Business" },
+    { name: "Economics", faculty: "School of Business" },
+    { name: "Finance", faculty: "School of Business" },
+    { name: "International Studies", faculty: "School of Public & International Affairs (SPIA)" },
+    { name: "Public Affairs", faculty: "School of Public & International Affairs (SPIA)" },
+    { name: "Law (LLB)", faculty: "School of Law" },
+    { name: "Architecture", faculty: "School of Design & Architecture" },
+    { name: "Interior Design", faculty: "School of Design & Architecture" },
+    { name: "Communication & Digital Media", faculty: "School of Education & Humanities" },
+    { name: "Agricultural Sciences", faculty: "School of Agricultural & Food Sciences" }
+  ],
+  "Baku Higher Oil School (BHOS)": [
+    { name: "Petroleum Engineering", faculty: "School of Engineering" },
+    { name: "Chemical Engineering", faculty: "School of Engineering" },
+    { name: "Process Automation Engineering", faculty: "School of Engineering" },
+    { name: "Information Security", faculty: "School of IT and CS" },
+    { name: "Computer Engineering", faculty: "School of IT and CS" },
+    { name: "Business Administration", faculty: "School of Business" }
+  ],
+  "French-Azerbaijani University (UFAZ)": [
+    { name: "Computer Science", faculty: "Université de Strasbourg Dual Degree" },
+    { name: "Chemical Engineering", faculty: "Université de Strasbourg Dual Degree" },
+    { name: "Petroleum & Mining Engineering", faculty: "Université de Rennes 1 Dual Degree" },
+    { name: "Geophysics and Earth Sciences", faculty: "Université de Strasbourg Dual Degree" }
+  ],
+  "Baku State University (BSU)": [
+    { name: "Applied Mathematics and Cybernetics", faculty: "Faculty of Applied Mathematics" },
+    { name: "Computer Science & IT", faculty: "Faculty of Mechanics & Mathematics" },
+    { name: "Law / Jurisprudence", faculty: "Faculty of Law" },
+    { name: "International Relations and Economics", faculty: "Faculty of International Relations" },
+    { name: "Physics", faculty: "Faculty of Physics" },
+    { name: "Chemistry", faculty: "Faculty of Chemistry" },
+    { name: "Biology & Genetics", faculty: "Faculty of Biology" },
+    { name: "Journalism & Media", faculty: "Faculty of Journalism" },
+    { name: "Translation & Philology", faculty: "Faculty of Philology" }
+  ],
+  "Azerbaijan State University of Economics (UNEC)": [
+    { name: "Finance", faculty: "International School of Economics (ISE)" },
+    { name: "Accounting and Auditing", faculty: "International School of Economics (ISE)" },
+    { name: "Economics", faculty: "International School of Economics (ISE)" },
+    { name: "Business Administration", faculty: "Business School" },
+    { name: "Marketing", faculty: "Faculty of Marketing & Management" },
+    { name: "World Economy", faculty: "Faculty of Economics" },
+    { name: "Digital Economy & Information Technologies", faculty: "Faculty of Digital Economy" }
+  ],
+  "Azerbaijan State Oil and Industry University (ASOIU)": [
+    { name: "Petroleum Engineering", faculty: "Oil and Gas Mining Faculty" },
+    { name: "Computer Engineering", faculty: "Information Technologies & Control" },
+    { name: "Information Technologies & Systems", faculty: "Information Technologies & Control" },
+    { name: "Chemical Technology & Engineering", faculty: "Chemical Technology" },
+    { name: "Mechatronics and Robotics", faculty: "Electromechanics & Automation" },
+    { name: "Geology and Mining Engineering", faculty: "Geological Exploration" }
+  ],
+  "Azerbaijan Medical University (AMU)": [
+    { name: "General Medicine (MD)", faculty: "Faculty of General Medicine" },
+    { name: "Dentistry (Stomatology)", faculty: "Faculty of Dentistry" },
+    { name: "Pharmacy", faculty: "Faculty of Pharmacy" },
+    { name: "Public Health", faculty: "Faculty of Public Health" },
+    { name: "Military Medicine", faculty: "Military Medical Faculty" }
+  ],
+  "Azerbaijan Technical University (AzTU)": [
+    { name: "Information Security", faculty: "Faculty of IT & Telecommunications" },
+    { name: "Software Engineering", faculty: "Faculty of IT & Telecommunications" },
+    { name: "Computer Engineering", faculty: "Faculty of IT & Telecommunications" },
+    { name: "Mechanical Engineering", faculty: "Faculty of Mechanical Engineering" },
+    { name: "Automotive & Transport Engineering", faculty: "Faculty of Transport & Logistics" },
+    { name: "Telecommunications & Radio Engineering", faculty: "Faculty of Radio Engineering" }
+  ],
+  "Azerbaijan University of Languages (ADU)": [
+    { name: "Translation (English)", faculty: "Faculty of Translation" },
+    { name: "Translation (German / French)", faculty: "Faculty of Translation" },
+    { name: "English Language Teaching & Pedagogy", faculty: "Faculty of Education" },
+    { name: "International Relations & Regional Studies", faculty: "Faculty of International Relations" }
+  ],
+  "Khazar University": [
+    { name: "Computer Science", faculty: "School of Science and Engineering" },
+    { name: "Computer Engineering", faculty: "School of Science and Engineering" },
+    { name: "Petroleum and Gas Engineering", faculty: "School of Science and Engineering" },
+    { name: "Business Management", faculty: "School of Economics and Management" },
+    { name: "Finance and Economics", faculty: "School of Economics and Management" },
+    { name: "International Relations", faculty: "School of Humanities and Social Sciences" }
+  ],
+  "Koç University": [
+    { name: "Computer Engineering", faculty: "College of Engineering" },
+    { name: "Electrical & Electronics Engineering", faculty: "College of Engineering" },
+    { name: "Industrial Engineering", faculty: "College of Engineering" },
+    { name: "Mechanical Engineering", faculty: "College of Engineering" },
+    { name: "Business Administration", faculty: "College of Administrative Sciences and Economics" },
+    { name: "Economics", faculty: "College of Administrative Sciences and Economics" },
+    { name: "International Relations", faculty: "College of Administrative Sciences and Economics" },
+    { name: "Law (LLB)", faculty: "Law School" },
+    { name: "Medicine (MD)", faculty: "School of Medicine" },
+    { name: "Psychology", faculty: "College of Social Sciences and Humanities" }
+  ],
+  "Sabancı University": [
+    { name: "Computer Science & Engineering", faculty: "Faculty of Engineering and Natural Sciences" },
+    { name: "Data Science and Analytics", faculty: "Faculty of Engineering and Natural Sciences" },
+    { name: "Industrial Engineering", faculty: "Faculty of Engineering and Natural Sciences" },
+    { name: "Mechatronics Engineering", faculty: "Faculty of Engineering and Natural Sciences" },
+    { name: "Management", faculty: "Sabancı Business School" },
+    { name: "Economics", faculty: "Faculty of Arts and Social Sciences" },
+    { name: "Political Science & International Relations", faculty: "Faculty of Arts and Social Sciences" }
+  ],
+  "Middle East Technical University (METU)": [
+    { name: "Computer Engineering", faculty: "Faculty of Engineering" },
+    { name: "Electrical and Electronics Engineering", faculty: "Faculty of Engineering" },
+    { name: "Mechanical Engineering", faculty: "Faculty of Engineering" },
+    { name: "Civil Engineering", faculty: "Faculty of Engineering" },
+    { name: "Aerospace Engineering", faculty: "Faculty of Engineering" },
+    { name: "Industrial Engineering", faculty: "Faculty of Engineering" },
+    { name: "Business Administration", faculty: "Faculty of Economics and Administrative Sciences" },
+    { name: "Economics", faculty: "Faculty of Economics and Administrative Sciences" },
+    { name: "International Relations", faculty: "Faculty of Economics and Administrative Sciences" },
+    { name: "Architecture", faculty: "Faculty of Architecture" }
+  ],
+  "Boğaziçi University": [
+    { name: "Computer Engineering", faculty: "Faculty of Engineering" },
+    { name: "Electrical and Electronics Engineering", faculty: "Faculty of Engineering" },
+    { name: "Industrial Engineering", faculty: "Faculty of Engineering" },
+    { name: "Mechanical Engineering", faculty: "Faculty of Engineering" },
+    { name: "Management", faculty: "Faculty of Economics and Administrative Sciences" },
+    { name: "Economics", faculty: "Faculty of Economics and Administrative Sciences" },
+    { name: "Political Science & International Relations", faculty: "Faculty of Economics and Administrative Sciences" },
+    { name: "Psychology", faculty: "Faculty of Arts and Sciences" }
+  ],
+  "Bilkent University": [
+    { name: "Computer Engineering", faculty: "Faculty of Engineering" },
+    { name: "Electrical and Electronics Engineering", faculty: "Faculty of Engineering" },
+    { name: "Industrial Engineering", faculty: "Faculty of Engineering" },
+    { name: "Mechanical Engineering", faculty: "Faculty of Engineering" },
+    { name: "Business Administration", faculty: "Faculty of Business Administration" },
+    { name: "Economics", faculty: "Faculty of Economics, Administrative, and Social Sciences" },
+    { name: "International Relations", faculty: "Faculty of Economics, Administrative, and Social Sciences" },
+    { name: "Law (LLB)", faculty: "Faculty of Law" },
+    { name: "Architecture", faculty: "Faculty of Art, Design, and Architecture" }
+  ],
+  "Istanbul Technical University (ITU)": [
+    { name: "Computer Engineering", faculty: "Faculty of Computer and Informatics" },
+    { name: "Artificial Intelligence & Data Engineering", faculty: "Faculty of Computer and Informatics" },
+    { name: "Electronics & Communication Engineering", faculty: "Faculty of Electrical and Electronics" },
+    { name: "Mechanical Engineering", faculty: "Faculty of Mechanical Engineering" },
+    { name: "Control and Automation Engineering", faculty: "Faculty of Electrical and Electronics" },
+    { name: "Aeronautical Engineering", faculty: "Faculty of Aeronautics and Astronautics" },
+    { name: "Naval Architecture and Ocean Engineering", faculty: "Faculty of Naval Architecture" }
+  ]
+}
+
+// ── Universal Accredited Degree Catalog (Fallback for other institutions) ──
 const ACCREDITED_MAJORS = [
   // Engineering & Technology
   { name: "Computer Science", faculty: "Engineering & Computing" },
@@ -430,24 +704,42 @@ export default function CompleteProfilePage() {
     ).slice(0, 25)
   }, [uniQuery])
 
-  // Filtered majors
+  // University-specific program list or universal fallback catalog
+  const activeUniversityPrograms = useMemo(() => {
+    if (university && UNIVERSITY_PROGRAMS_MAP[university]) {
+      return {
+        isSpecific: true,
+        list: UNIVERSITY_PROGRAMS_MAP[university]
+      }
+    }
+    return {
+      isSpecific: false,
+      list: ACCREDITED_MAJORS
+    }
+  }, [university])
+
+  // Filtered majors for selected university
   const filteredMajors = useMemo(() => {
-    if (!majorQuery.trim()) return ACCREDITED_MAJORS.slice(0, 20)
+    const sourceList = activeUniversityPrograms.list
+    if (!majorQuery.trim()) return sourceList.slice(0, 25)
     const q = majorQuery.toLowerCase().trim()
-    return ACCREDITED_MAJORS.filter(m =>
+    return sourceList.filter(m =>
       m.name.toLowerCase().includes(q) ||
       m.faculty.toLowerCase().includes(q)
     ).slice(0, 30)
-  }, [majorQuery])
+  }, [majorQuery, activeUniversityPrograms])
 
   function handleSelectUniversity(name) {
     setUniversity(name)
     setUniQuery(name)
     setShowUniDropdown(false)
-    // Smoothly focus major input once university is chosen
+    // If university changed, reset major to prompt selecting offered program
+    setMajor('')
+    setMajorQuery('')
     setTimeout(() => {
       if (majorInputRef.current) {
         majorInputRef.current.focus()
+        setShowMajorDropdown(true)
       }
     }, 120)
   }
@@ -464,6 +756,7 @@ export default function CompleteProfilePage() {
     setMajor('')
     setMajorQuery('')
     setShowUniDropdown(false)
+    setShowMajorDropdown(false)
   }
 
   function handleClearMajor() {
@@ -594,11 +887,11 @@ export default function CompleteProfilePage() {
             <div className="complete-profile-points">
               <div className="complete-profile-point">
                 <span className="complete-profile-pointdot" />
-                <span>Global institutional catalog covering top 500+ world universities.</span>
+                <span>Institutional catalog tailored to official curriculum offerings.</span>
               </div>
               <div className="complete-profile-point">
                 <span className="complete-profile-pointdot" />
-                <span>Recognized degree majors across all faculties and academic departments.</span>
+                <span>Accredited degree majors mapped directly across faculties.</span>
               </div>
               <div className="complete-profile-point">
                 <span className="complete-profile-pointdot" />
@@ -747,11 +1040,17 @@ export default function CompleteProfilePage() {
                 </div>
               </div>
 
-              {/* 5. Major Selection (Unlocks smoothly once University is selected) */}
+              {/* 5. Major Selection (Tailored specifically to the selected university!) */}
               <div className="complete-profile-field complete-profile-field--full" ref={majorDropdownRef}>
                 <div className="field-label-row">
                   <span>Intended Degree Major <em className="req-star">*</em></span>
-                  {!university && <span className="field-locked-pill">🔒 Select university first</span>}
+                  {!university ? (
+                    <span className="field-locked-pill">🔒 Select university first</span>
+                  ) : activeUniversityPrograms.isSpecific ? (
+                    <span className="uni-verified-badge">🏛️ Official {university.split('(')[0].trim()} Programs</span>
+                  ) : (
+                    <span className="uni-verified-badge">🎓 Accredited Degrees</span>
+                  )}
                 </div>
                 <div className="autocomplete-wrap">
                   <input
@@ -770,7 +1069,9 @@ export default function CompleteProfilePage() {
                     onKeyDown={handleMajorKeyDown}
                     placeholder={
                       university
-                        ? `Search accredited majors at ${university}...`
+                        ? activeUniversityPrograms.isSpecific
+                          ? `Select official program offered at ${university.split('(')[0].trim()}...`
+                          : `Search degree majors for ${university}...`
                         : "Select or enter your university first"
                     }
                     autoComplete="off"
@@ -798,7 +1099,7 @@ export default function CompleteProfilePage() {
                           <span className="autocomplete-icon">🎓</span>
                           <div className="autocomplete-text">
                             <strong>{m.name}</strong>
-                            <small>{m.faculty} · Accredited Degree Program</small>
+                            <small>{m.faculty} · Official Degree Program</small>
                           </div>
                         </button>
                       ))}
