@@ -1,7 +1,7 @@
-import './PublicStudentDrawer.css'
 import { useState } from 'react'
 import Avatar from './Avatar'
 import './Avatar.css'
+import './PublicStudentDrawer.css'
 import DocumentGroup from './DocumentGroup'
 import LicenseMediaItem from './LicenseMediaItem'
 
@@ -30,7 +30,7 @@ const DOC_CATEGORIES = [
   { key: 'application', label: 'Applications', hint: 'Submitted application forms', emoji: '🗂️', color: '#6d28d9', tint: 'rgba(124,58,237,0.12)' },
   { key: 'transcript', label: 'Transcripts', hint: 'Official & unofficial transcripts', emoji: '📊', color: '#0e7490', tint: 'rgba(6,182,212,0.14)' },
   { key: 'recommendation', label: 'Recommendation Letters', hint: 'Letters from recommenders', emoji: '✉️', color: '#b45309', tint: 'rgba(249,115,22,0.14)' },
-  { key: 'other', label: 'Other Required PDFs', hint: 'Essays, CV, financials, etc.', emoji: '', color: '#15803d', tint: 'rgba(34,197,94,0.14)' },
+  { key: 'other', label: 'Other Required PDFs', hint: 'Essays, CV, financials, etc.', emoji: '📁', color: '#15803d', tint: 'rgba(34,197,94,0.14)' },
 ]
 
 export default function PublicStudentDrawer({
@@ -43,7 +43,6 @@ export default function PublicStudentDrawer({
   licenses,
   readOnly = false,
 }) {
-  const [activePdf, setActivePdf] = useState(null)
   if (!student) return null
 
   const safeSetTab = setActiveTab || (() => {})
@@ -54,7 +53,7 @@ export default function PublicStudentDrawer({
     <>
       <div className="drawer-backdrop" onClick={onClose}></div>
 
-        <aside className="admin-drawer">
+      <aside className="admin-drawer">
         {student.isSelfPreview && (
           <div className="preview-banner">
             <span className="preview-banner__icon">👁️</span>
@@ -78,19 +77,12 @@ export default function PublicStudentDrawer({
                 ? 'Public student profile'
                 : 'Private admin access'}
             </p>
-        <div className="admin-drawer__header">
-          <div>
-            <p className="admin-drawer__eyebrow">
-              {readOnly ? 'Public student profile' : 'Private admin access'}
-            </p>
             <h2>{student.fullName}</h2>
             <span className="admin-drawer__subtext">{student.major}</span>
           </div>
 
           <button className="drawer-close" onClick={onClose}>✕</button>
         </div>
-
-        
 
         <div className="admin-drawer__hero-block">
           <div className="student-photo-card">
@@ -151,15 +143,15 @@ export default function PublicStudentDrawer({
                 </div>
                 <div className="info-card">
                   <span>Major</span>
-                  <strong>{student.major}</strong>
+                  <strong>{student.major || 'Not specified'}</strong>
                 </div>
                 <div className="info-card">
                   <span>University</span>
-                  <strong>{student.university}</strong>
+                  <strong>{student.university || 'Not specified'}</strong>
                 </div>
                 <div className="info-card">
                   <span>Gender</span>
-                  <strong>{student.gender}</strong>
+                  <strong>{student.gender || 'Not specified'}</strong>
                 </div>
                 <div className="info-card">
                   <span>Email</span>
@@ -171,15 +163,16 @@ export default function PublicStudentDrawer({
                 </div>
               </div>
 
-              <div className="notes-block">
-                <div className="section-head">
-                  <h3>Notes</h3>
+              {student.notes && (
+                <div className="notes-block">
+                  <div className="section-head">
+                    <h3>Notes</h3>
+                  </div>
+                  <div className="notes-box">
+                    <textarea value={student.notes} readOnly rows={4} />
+                  </div>
                 </div>
-
-                <div className="notes-box">
-                  <textarea value={student.notes || ''} readOnly rows={8}></textarea>
-                </div>
-              </div>
+              )}
             </div>
           )}
 
@@ -326,7 +319,7 @@ export default function PublicStudentDrawer({
 
                 {!safeLicenses.length && (
                   <div className="empty-state empty-state--cert">
-                    <div className="empty-state__icon">🎓</div>
+                    <div className="empty-state__icon">🏆</div>
                     <h4>No public licenses or certifications yet</h4>
                     <p>This student has not shared any credentials publicly.</p>
                   </div>
