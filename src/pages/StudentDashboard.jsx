@@ -93,7 +93,7 @@ function saveLS(key, value) {
 }
 
 export default function StudentDashboard() {
-  const { user, signOut } = useAuth()
+  const { user, signOut, refreshProfile } = useAuth()
   const navigate = useNavigate()
 
   const [me, setMe] = useState({
@@ -112,6 +112,7 @@ export default function StudentDashboard() {
   const [nameDraft, setNameDraft] = useState('')
   const [editingContact, setEditingContact] = useState(false)
   const [contactDraft, setContactDraft] = useState({ email: '', phone: '' })
+  const [uploadingPhoto, setUploadingPhoto] = useState(false)
 
   const [appModal, setAppModal] = useState({ open: false, application: null })
   const [licenseModal, setLicenseModal] = useState({ open: false, license: null })
@@ -270,25 +271,72 @@ export default function StudentDashboard() {
     try { await setApplicationDocumentVisibility(user.id, docId, value) } catch (e) { console.error(e); loadMyProfile() }
   }, [user?.id, loadMyProfile])
 
-  const handlePhotoUpload = useCallback(async file => {
+  const handlePhotoUpload = useCallback(async (file) => {
     if (!user?.id || !file) return
-    try { const r = await uploadAvatar(user.id, file); await setPhoto(user.id, r.url, r.path); setMe(p => ({ ...p, photoUrl: r.url, photoPath: r.path })) } catch (e) { console.error(e) }
-  }, [user?.id])
+    setUploadingPhoto(true)
+    try {
+      const r = await uploadAvatar(user.id, file)
+      const url = r.url || r.publicUrl
+      const path = r.path || r.filePath
+      await setPhoto(user.id, url, path)
+      setMe(p => ({ ...p, photoUrl: url, photoPath: path }))
+      refreshProfile?.()
+      notifyDataChanged()
+    } catch (e) {
+      console.error('Photo upload error:', e)
+    } finally {
+      setUploadingPhoto(false)
+    }
+  }, [user?.id, refreshProfile])
 
-  const handleRemovePhoto = useCallback(async () => {
+  const handleRemovePhoto = useCallback(async (e) => {
+    e?.stopPropagation()
     if (!user?.id) return
-    try { if (me.photoPath) await removeAvatar(me.photoPath); await removePhoto(user.id); setMe(p => ({ ...p, photoUrl: '', photoPath: '' })) } catch (e) { console.error(e) }
-  }, [user?.id, me.photoPath])
+    try {
+      if (me.photoPath) {
+        await removeAvatar(me.photoPath).catch(() => {})
+      }
+      await removePhoto(user.id)
+      setMe(p => ({ ...p, photoUrl: '', photoPath: '' }))
+      refreshProfile?.()
+      notifyDataChanged()
+    } catch (e) {
+      console.error('Photo remove error:', e)
+    }
+  }, [user?.id, me.photoPath, refreshProfile])
 
   const saveName = useCallback(async () => {
     if (!user?.id || !nameDraft.trim()) return
-    try { await setProfile(user.id, { fullName: nameDraft.trim() }); setMe(p => ({ ...p, fullName: nameDraft.trim() })); setEditingName(false) } catch (e) { console.error(e) }
-  }, [user?.id, nameDraft])
+    const newName = nameDraft.trim()
+    try {
+      await setProfile(user.id, { full_name: newName, fullName: newName })
+      setMe(p => ({ ...p, fullName: newName }))
+      setEditingName(false)
+      refreshProfile?.()
+      notifyDataChanged()
+    } catch (e) {
+      console.error('Save name error:', e)
+    }
+  }, [user?.id, nameDraft, refreshProfile])
 
-  const saveContact = useCallback(async () => {
-    if (!user?.id) return
-    try { await setProfile(user.id, { email: contactDraft.email, phone: contactDraft.phone }); setMe(p => ({ ...p, email: contactDraft.email, phone: contactDraft.phone })); setEditingContact(false) } catch (e) { console.error(e) }
-  }, [user?.id, contactDraft])
+  const handlePreviewPublicView = useCallback(() => {
+    const isProfilePublic = me.visibility?.profile === 'public'
+    const publicApps = (me.applications || []).filter(a => a.visibility === 'public')
+    const publicLics = (me.licenses || []).filter(l => l.visibility === 'public')
+
+    setSelectedPublicStudent({
+      ...me,
+      email: me.visibility?.email === 'public' ? me.email : '',
+      phone: me.visibility?.phone === 'public' ? me.phone : '',
+      photoUrl: me.visibility?.photo === 'public' ? me.photoUrl : '',
+      notes: me.visibility?.notes === 'public' ? me.notes : '',
+      applications: publicApps,
+      licenses: publicLics,
+      isSelfPreview: true,
+      isProfilePublic,
+    })
+    setPublicStudentActiveTab('profile')
+  }, [me])
 
   const handleSaveApplication = useCallback(async payload => {
     if (!user?.id) return
@@ -403,7 +451,7 @@ export default function StudentDashboard() {
           </div>
 
           <nav className="new-header__nav">
-            <button type="button" className="new-header__nav-btn" onClick={() => navigate('/')}>🏠 Home</button>
+            <button type="button" className="new-header__nav-btn" onClick={() => navigate('/home')}>🏠 Home</button>
             <button type="button" className={`new-header__nav-btn ${activeTab === 'profile' ? 'new-header__nav-btn--active' : ''}`} onClick={() => setActiveTab('profile')}>👤 My Profile</button>
 
             <button type="button" className="new-header__profile-card" onClick={() => setActiveTab('profile')} title="View your profile">
@@ -512,7 +560,9 @@ export default function StudentDashboard() {
               </div>
 
               <div className="new-hero-card__actions">
-                <button type="button" className="ghost-btn" onClick={() => setActiveTab('explore')}>Preview Public View</button>
+                <button type="button" className="ghost-btn new-hero-card__preview-btn" onClick={handlePreviewPublicView}>
+    👁️ Preview Public View
+</button>
               </div>
             </div>
           </div>
