@@ -78,6 +78,7 @@ function App() {
     <Routes>
       {/* Landing / smart redirect */}
       <Route path="/" element={<RootRedirect />} />
+      <Route path="/home" element={<HomePage />} />
       <Route path="/home-page" element={<HomePage />} />
 
       {/* ── Public routes (guests only) ─────────────────────────── */}
