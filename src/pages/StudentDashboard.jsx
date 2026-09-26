@@ -265,6 +265,12 @@ export default function StudentDashboard() {
     try { await setApplicationVisibility(user.id, appId, value) } catch (e) { console.error(e); loadMyProfile() }
   }, [user?.id, loadMyProfile])
 
+  const handleLicenseVisibility = useCallback(async (id, value) => {
+    if (!user?.id) return
+    setMe(p => ({ ...p, licenses: (p.licenses || []).map(l => l.id === id ? { ...l, visibility: value } : l) }))
+    try { await setLicenseVisibility(user.id, id, value) } catch (e) { console.error(e); loadMyProfile() }
+  }, [user?.id, loadMyProfile])
+
   const handleDocumentVisibility = useCallback(async (docId, value) => {
     if (!user?.id) return
     setMe(p => ({ ...p, applications: (p.applications || []).map(a => ({ ...a, documents: Object.fromEntries(Object.entries(a.documents || {}).map(([c, ds]) => [c, (ds || []).map(d => d.id === docId ? { ...d, visibility: value } : d)])) })) }))
@@ -483,157 +489,183 @@ export default function StudentDashboard() {
             </div>
             <div className="new-header__brand-text">
               <div className="new-header__brand-title-row">
-                <span className="new-header__brand-title">AppTrack</span>
-                <span className="new-header__brand-badge">STUDENT</span>
+                <h1 className="new-header__brand-title">AppTrack</h1>
+                <span className="new-header__brand-badge new-header__brand-badge--student">Student</span>
               </div>
-              <p className="new-header__brand-sub">University Application & Portfolio Hub</p>
-            </div>
-          </div>
-
-          <div className="new-header__center">
-            <div className="new-header__explore-wrap">
-              <button type="button" className="new-header__explore-btn" onClick={() => setActiveTab('explore')}>
-                <span className="new-header__explore-icon">👥</span>
-                <span>Student Directory</span>
-                <span className="new-header__explore-count">+{publicStudents.length}</span>
-              </button>
+              <p className="new-header__brand-subtitle">University Application & Portfolio Hub</p>
             </div>
           </div>
 
           <nav className="new-header__nav">
             <button type="button" className="new-header__nav-btn" onClick={() => navigate('/home')}>🏠 Home</button>
-            <button
-              type="button"
-              className="new-header__nav-btn new-header__nav-btn--preview"
-              title="See how your profile appears to other students"
-              onClick={handlePreviewPublicView}
-            >
-              👁 View Public Profile
-            </button>
-            <button type="button" className="new-header__nav-btn new-header__nav-btn--logout" onClick={handleSignOut}>Log out</button>
-          </nav>
-        </div>
+            <button type="button" className={`new-header__nav-btn ${activeTab === 'profile' ? 'new-header__nav-btn--active' : ''}`} onClick={() => setActiveTab('profile')}>👤 My Profile</button>
 
-        <div className="new-header__mobile-bar">
-          <button type="button" className="new-header__explore-btn new-header__explore-btn--mobile" onClick={() => setActiveTab('explore')}>
-            <span className="new-header__explore-icon">👥</span>
-            <span>Student Directory</span>
-            <span className="new-header__explore-count">+{publicStudents.length}</span>
-          </button>
+            <button type="button" className="new-header__profile-card" onClick={() => setActiveTab('profile')} title="View your profile">
+              <div className="new-header__profile-avatar">
+                {me.photoUrl ? <img src={me.photoUrl} alt={me.fullName} /> : <span>{initials}</span>}
+              </div>
+              <div className="new-header__profile-meta">
+                <strong>{me.fullName || 'Student'}</strong>
+                {me.major && <small>{me.major}</small>}
+              </div>
+              <VisibilityChip value={me.visibility?.profile} />
+            </button>
+
+            <div className="new-header__divider" />
+            <button type="button" className="new-header__signout" onClick={handleSignOut}>🚪 Sign out</button>
+            <div className="new-header__explore-wrap">
+              <button type="button" className="new-header__explore-btn" onClick={() => setActiveTab('explore')}>
+                👥 <span>Student Directory</span> →
+              </button>
+            </div>
+          </nav>
         </div>
       </header>
 
-      <main className="new-main">
-        {/* ═══ HERO / PROFILE CARD ═══ */}
+      <main className="dashboard-content">
+        {/* Page Title */}
+        <section className="new-page-title">
+          <div>
+            <div className="new-page-title__eyebrow">
+              <span className="new-page-title__line" />
+              Student Dashboard
+            </div>
+            <h2 className="new-page-title__h2">Welcome back, {firstName} 👋</h2>
+            <p className="new-page-title__sub">Manage your own profile, applications and certifications.</p>
+          </div>
+          <button type="button" className="new-header__explore-btn new-header__explore-btn--mobile" onClick={() => setActiveTab('explore')}>
+            🔍 Explore Students
+          </button>
+        </section>
+
+        {/* ═══ HERO CARD ═══ */}
         <section className="new-hero-card">
-          <div className="new-hero-card__banner" />
+          <div className="new-hero-card__cover">
+            <div className="new-hero-card__cover-dots" />
+            <div className="new-hero-card__cover-top-left">
+              <span className="new-hero-card__active-badge">
+                <span className="new-hero-card__active-dot" /> Active
+              </span>
+            </div>
+            <div className="new-hero-card__cover-top-right">
+              <span className="new-hero-card__private-badge">
+                {me.visibility?.profile === 'public' ? '🌐 Public' : '🔒 Private'}
+              </span>
+            </div>
+          </div>
+
           <div className="new-hero-card__body">
+            {/* Avatar floating */}
             <div className="new-hero-card__avatar-block">
-              <label className="new-hero-card__avatar-preview" title="Click to upload avatar">
-                <Avatar url={me.photoUrl} name={me.fullName} className="new-hero-card__avatar-img" />
-                <span className="new-hero-card__avatar-overlay">
-                  <span className="new-hero-card__avatar-camera">📷</span>
-                  <span>{uploadingPhoto ? '...' : 'Upload'}</span>
-                </span>
+              <div
+                className="student-photo-preview student-photo-preview--interactive new-hero-card__avatar-preview"
+                onClick={() => document.getElementById('me-photo-input')?.click()}
+                title="Click to change profile picture"
+              >
+                <Avatar name={me.fullName} photoUrl={me.photoUrl} size="xl" className="student-photo-avatar new-hero-card__avatar-img" />
+                <div className="new-hero-card__avatar-overlay">
+                  {uploadingPhoto ? (
+                    <span className="avatar-loading-spinner" />
+                  ) : (
+                    <>
+                      <span className="avatar-overlay-icon">📷</span>
+                      <span className="avatar-overlay-text">{me.photoUrl ? 'Change' : 'Upload'}</span>
+                    </>
+                  )}
+                </div>
                 <input
+                  id="me-photo-input"
                   type="file"
-                  accept="image/png,image/jpeg,image/webp,image/gif"
+                  accept="image/*"
                   className="file-input-hidden"
-                  disabled={uploadingPhoto}
+                  onClick={e => e.stopPropagation()}
                   onChange={e => {
-                    const f = e.target.files?.[0]
-                    if (f) handlePhotoUpload(f)
+                    handlePhotoUpload(e.target.files?.[0] || null)
                     e.target.value = ''
                   }}
                 />
-              </label>
+              </div>
               {me.photoUrl && (
                 <button
                   type="button"
-                  className="new-hero-card__avatar-remove"
-                  title="Remove avatar"
+                  className="new-hero-card__remove-photo-btn"
+                  title="Remove photo"
                   onClick={handleRemovePhoto}
                 >
                   ✕
                 </button>
               )}
+              <div className="new-hero-card__avatar-online" />
             </div>
 
-            <div className="new-hero-card__info">
-              <div className="new-hero-card__name-row">
-                {editingName ? (
-                  <div className="name-edit-inline">
-                    <input
-                      type="text"
-                      className="name-edit-input"
-                      value={nameDraft}
-                      placeholder="Enter full name"
-                      autoFocus
-                      onChange={e => setNameDraft(e.target.value)}
-                      onKeyDown={e => {
-                        if (e.key === 'Enter') saveName()
-                        if (e.key === 'Escape') setEditingName(false)
-                      }}
-                    />
-                    <button type="button" className="solid-btn solid-btn--sm" onClick={saveName}>Save</button>
-                    <button type="button" className="ghost-btn solid-btn--sm" onClick={() => setEditingName(false)}>Cancel</button>
+            <div className="new-hero-card__main">
+              <div className="new-hero-card__info">
+                <div className="new-hero-card__name-row">
+                  {editingName ? (
+                    <>
+                      <input
+                        className="inline-input inline-input--lg"
+                        value={nameDraft}
+                        onChange={e => setNameDraft(e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') saveName()
+                          if (e.key === 'Escape') setEditingName(false)
+                        }}
+                        placeholder="Your full name"
+                        autoFocus
+                      />
+                      <button type="button" className="solid-btn solid-btn--sm" onClick={saveName}>Save</button>
+                      <button type="button" className="ghost-btn solid-btn--sm" onClick={() => setEditingName(false)}>Cancel</button>
+                    </>
+                  ) : (
+                    <>
+                      <h3 className="new-hero-card__name">{me.fullName || 'Student Name'}</h3>
+                      <button type="button" className="new-hero-card__edit-btn" title="Edit name" onClick={() => { setNameDraft(me.fullName); setEditingName(true) }}>✎</button>
+                    </>
+                  )}
+                </div>
+                <p className="new-hero-card__sub">
+                  {me.major || 'Major not set yet'}{me.university ? ` · ${me.university}` : ' · Add details below'}
+                </p>
+
+                <div className="new-hero-card__privacy-row">
+                  <div className="new-hero-card__privacy-item">
+                    <span className="new-hero-card__privacy-label">🔒 Profile:</span>
+                    <VisibilityToggle value={me.visibility?.profile || 'private'} onChange={v => handleProfileVisibility('profile', v)} />
                   </div>
-                ) : (
-                  <>
-                    <h1 className="new-hero-card__name">{me.fullName || 'Student Name'}</h1>
-                    <button
-                      type="button"
-                      className="name-edit-pencil"
-                      title="Edit your full name"
-                      onClick={() => {
-                        setNameDraft(me.fullName || '')
-                        setEditingName(true)
-                      }}
-                    >
-                      ✎
-                    </button>
-                  </>
-                )}
-                <div className="new-hero-card__pill new-hero-card__pill--id">
-                  <span>ID</span>
-                  <strong>{me.id?.slice(0, 8) || '—'}</strong>
+                  <div className="new-hero-card__privacy-item">
+                    <span className="new-hero-card__privacy-label">👁️ Photo:</span>
+                    <VisibilityToggle value={me.visibility?.photo || 'private'} onChange={v => handleProfileVisibility('photo', v)} />
+                  </div>
                 </div>
               </div>
 
-              <div className="new-hero-card__meta-line">
-                <span>{me.major || 'Major pending'}</span>
-                {me.university && (
-                  <>
-                    <span className="dot-sep">•</span>
-                    <span>{me.university}</span>
-                  </>
-                )}
-                {me.assignedCounselor && (
-                  <>
-                    <span className="dot-sep">•</span>
-                    <span className="counselor-tag">Mentor: {me.assignedCounselor}</span>
-                  </>
-                )}
-              </div>
-            </div>
-
-            <div className="new-hero-card__visibility-box">
-              <div className="new-hero-card__vis-item">
-                <span className="new-hero-card__vis-label">Profile visibility</span>
-                <VisibilityToggle
-                  value={me.visibility?.profile || 'private'}
-                  onChange={v => handleProfileVisibility('profile', v)}
-                />
-              </div>
-              <div className="new-hero-card__vis-item">
-                <span className="new-hero-card__vis-label">Photo visibility</span>
-                <VisibilityToggle
-                  value={me.visibility?.photo || 'private'}
-                  onChange={v => handleProfileVisibility('photo', v)}
-                />
+              <div className="new-hero-card__actions">
+                <button type="button" className="ghost-btn new-hero-card__preview-btn" onClick={handlePreviewPublicView}>
+                  👁️ Preview Public View
+                </button>
               </div>
             </div>
           </div>
+        </section>
+
+        {/* ═══ STAT CARDS ═══ */}
+        <section className="new-stats-grid">
+          {[
+            { label: 'Profile', value: `${profileCompletion}%`, icon: '📈', tone: 'indigo', hint: 'completion score' },
+            { label: 'Applications', value: (me.applications || []).length, icon: '📄', tone: 'sky', hint: 'submitted total' },
+            { label: 'Public Apps', value: publicApplicationsCount, icon: '👁️', tone: 'emerald', hint: 'visible to others' },
+            { label: 'Certifications', value: (me.licenses || []).length, icon: '🏆', tone: 'amber', hint: 'earned so far' },
+            { label: 'Public Certs', value: publicLicensesCount, icon: '🏆', tone: 'rose', hint: 'shared publicly' },
+            { label: 'App Progress', value: `${appProgress}%`, icon: '⚡', tone: 'violet', hint: 'in progress' },
+          ].map(s => (
+            <div key={s.label} className={`new-stat-card new-stat-card--${s.tone}`}>
+              <div className="new-stat-card__icon-wrap"><span>{s.icon}</span></div>
+              <p className="new-stat-card__value">{s.value}</p>
+              <p className="new-stat-card__label">{s.label}</p>
+              <p className="new-stat-card__hint">{s.hint}</p>
+            </div>
+          ))}
         </section>
 
         {/* ═══ GROUPED TABS ═══ */}
