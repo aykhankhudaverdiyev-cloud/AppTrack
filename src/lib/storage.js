@@ -1,4 +1,4 @@
-﻿import { supabase } from "../lib/supabase"
+import { supabase } from "../lib/supabase"
 
 const BUCKET = "student-documents"
 const AVATAR_BUCKET = "avatars"
@@ -105,36 +105,27 @@ export async function createSignedFileUrl(filePath, expiresIn = 3600) {
 
 /**
  * Normalize a single document record from the database.
- * Ensures file_path is a clean relative path and file_url is a fresh signed URL.
+ * Ensures file_path is a clean relative path and file_url is preserved.
+ * URLs are resolved on-demand when rendered to avoid massive network waterfalls.
  *
  * @param {object} doc - Raw document row from DB
- * @returns {Promise<object>} Normalized document
+ * @returns {object} Normalized document
  */
-export async function normalizeDoc(doc) {
+export function normalizeDoc(doc) {
   if (!doc) return doc
 
-  const rawPath = doc.file_path || ""
+  const rawPath = doc.file_path || doc.path || ""
   const cleanPath = extractStoragePath(rawPath)
   const hasValidPath = isValidStoragePath(cleanPath)
 
-  let signedUrl = ""
-
-  if (hasValidPath) {
-    signedUrl = await createSignedFileUrl(cleanPath)
-  } else if (doc.file_url && isFullUrl(doc.file_url)) {
-    // Fallback: use the stored file_url if file_path is invalid
-    signedUrl = doc.file_url
-  }
-
-  
   return {
     id: doc.id,
     application_id: doc.application_id,
     user_id: doc.user_id,
     category: doc.category || "other",
     name: doc.name || "Document",
-    file_path: hasValidPath ? cleanPath : "",
-    file_url: signedUrl,
+    file_path: hasValidPath ? cleanPath : rawPath,
+    file_url: doc.file_url || doc.url || "",
     size: doc.size || 0,
     visibility: doc.visibility || "private",
     created_at: doc.created_at || "",
@@ -144,8 +135,9 @@ export async function normalizeDoc(doc) {
 /**
  * Normalize an array of document records.
  */
-export async function normalizeDocuments(docs = []) {
-  return Promise.all(docs.map(normalizeDoc))
+export function normalizeDocuments(docs = []) {
+  if (!Array.isArray(docs)) return []
+  return docs.map(normalizeDoc)
 }
 
 /**

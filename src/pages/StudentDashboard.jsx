@@ -159,19 +159,30 @@ export default function StudentDashboard() {
   const loadMyProfile = useCallback(async () => {
     if (!user?.id) return
     try {
-      const { data: profileData, error: profileError } = await supabase.from('profiles').select('*').eq('id', user.id).single()
+      const [
+        { data: profileData, error: profileError },
+        { data: appsData, error: appsError },
+        { data: licData, error: licError },
+      ] = await Promise.all([
+        supabase.from('profiles').select('*').eq('id', user.id).single(),
+        supabase
+          .from('applications')
+          .select(
+            `id,student_id,university,program,major,term,deadline,status,decision,recommendation,notes,visibility,created_at,application_documents(id,application_id,user_id,category,name,file_path,file_url,size,visibility,created_at)`
+          )
+          .eq('student_id', user.id)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('licenses')
+          .select(
+            `id,user_id,name,issuer,issue_month,issue_year,expire_month,expire_year,credential_id,credential_url,score,visibility,created_at,license_media(id,license_id,name,file_path,file_url,size,created_at)`
+          )
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false }),
+      ])
+
       if (profileError) throw profileError
-
-      const { data: appsData, error: appsError } = await supabase
-        .from('applications')
-        .select(`id,student_id,university,program,major,term,deadline,status,decision,recommendation,notes,visibility,created_at,application_documents(id,application_id,user_id,category,name,file_path,file_url,size,visibility,created_at)`)
-        .eq('student_id', user.id).order('created_at', { ascending: false })
       if (appsError) throw appsError
-
-      const { data: licData, error: licError } = await supabase
-        .from('licenses')
-        .select(`id,user_id,name,issuer,issue_month,issue_year,expire_month,expire_year,credential_id,credential_url,score,visibility,created_at,license_media(id,license_id,name,file_path,file_url,size,created_at)`)
-        .eq('user_id', user.id).order('created_at', { ascending: false })
       if (licError) throw licError
 
       const data = { ...profileData, applications: appsData || [], licenses: licData || [] }

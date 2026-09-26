@@ -1,4 +1,4 @@
-﻿import { Navigate } from "react-router-dom"
+import { Navigate } from "react-router-dom"
 import { useAuth } from "../context/AuthContext"
 
 export default function RoleRoute({ allowedRole, children }) {
@@ -16,9 +16,9 @@ export default function RoleRoute({ allowedRole, children }) {
     return children
   }
 
-  // For students, require profile completion
+  // Wait if profile is still loading
   if (!profile) {
-    return <Navigate to="/complete-profile" replace />
+    return null
   }
 
   if (!profile.is_profile_completed) {
