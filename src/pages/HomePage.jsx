@@ -187,9 +187,15 @@ export default function HomePage() {
             of students who got into top universities. No fluff — just what worked.
           </p>
           <div className="hero__buttons">
-            <Link to="/register" className="btn btn--primary btn--lg">
-              Start exploring →
-            </Link>
+            {isLoggedIn ? (
+              <Link to={dashPath} className="btn btn--primary btn--lg">
+                Return to Dashboard →
+              </Link>
+            ) : (
+              <Link to="/register" className="btn btn--primary btn--lg">
+                Start exploring →
+              </Link>
+            )}
             <a href="#how" onClick={(e) => scrollTo(e, '#how')} className="btn btn--ghost btn--lg">
               How it works
             </a>
@@ -278,7 +284,11 @@ export default function HomePage() {
           <h2>Ready to start?</h2>
           <p>Free to use. Built by students, for students.</p>
           <div className="cta__buttons">
-            <Link to="/register" className="btn btn--white btn--lg">Create free account</Link>
+            {isLoggedIn ? (
+              <Link to={dashPath} className="btn btn--white btn--lg">Return to Dashboard →</Link>
+            ) : (
+              <Link to="/register" className="btn btn--white btn--lg">Create free account</Link>
+            )}
             <a href="#how" onClick={(e) => scrollTo(e, '#how')} className="btn btn--outline btn--lg">Learn more</a>
           </div>
         </div>
