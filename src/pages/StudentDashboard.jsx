@@ -80,7 +80,6 @@ const TAB_GROUPS = [
   },
 ]
 
-// LocalStorage-backed persistence for student-managed content
 function loadLS(key, fallback) {
   try {
     const raw = localStorage.getItem(key)
@@ -117,6 +116,7 @@ export default function StudentDashboard() {
   const [appModal, setAppModal] = useState({ open: false, application: null })
   const [licenseModal, setLicenseModal] = useState({ open: false, license: null })
   const [expandedApplications, setExpandedApplications] = useState([])
+  const [sectionModal, setSectionModal] = useState({ open: false, type: '' })
 
   // Student-managed lightweight sections (persisted locally)
   const [education, setEducation] = useState(() => loadLS(`apptrack.education.${user?.id}`, []))
@@ -396,77 +396,26 @@ export default function StudentDashboard() {
 
   const handleSignOut = useCallback(async () => { await signOut(); navigate('/login') }, [signOut, navigate])
 
-  // Simple add handlers for the sections
-  const addEducation = () => {
-    const school = window.prompt('School / University name?')
-    if (!school?.trim()) return
-    const degree = window.prompt('Degree / Major (optional)') || ''
-    const years = window.prompt('Years or graduation (e.g., 2020 - 2024)') || ''
-    setEducation(prev => [...prev, { id: Date.now(), school: school.trim(), degree, years }])
+  // LinkedIn-style modal handlers (No more window.prompt!)
+  const handleSaveSectionItem = (type, data) => {
+    const id = Date.now()
+    if (type === 'education') setEducation(p => [...p, { id, ...data }])
+    if (type === 'test_score') setTestScores(p => [...p, { id, ...data }])
+    if (type === 'honor') setHonors(p => [...p, { id, ...data }])
+    if (type === 'volunteering') setVolunteering(p => [...p, { id, ...data }])
+    if (type === 'experience') setExperience(p => [...p, { id, ...data }])
+    if (type === 'project') setProjects(p => [...p, { id, ...data }])
+    if (type === 'recommendation') setRecommendations(p => [...p, { id, ...data }])
+    if (type === 'portfolio') setPortfolio(p => [...p, { id, ...data }])
   }
+
   const removeEducation = id => setEducation(prev => prev.filter(e => e.id !== id))
-
-  const addTestScore = () => {
-    const test = window.prompt('Test type (e.g. IELTS, TOEFL, SAT, AP, IB)?')
-    if (!test?.trim()) return
-    const score = window.prompt('Overall score (e.g. 7.5, 1450)?') || ''
-    const date = window.prompt('Test date (optional, e.g. 2024)?') || ''
-    setTestScores(prev => [...prev, { id: Date.now(), test: test.trim(), score, date }])
-  }
   const removeTestScore = id => setTestScores(prev => prev.filter(t => t.id !== id))
-
-  const addHonor = () => {
-    const title = window.prompt('Honor / Award title?')
-    if (!title?.trim()) return
-    const issuer = window.prompt('Issuer / Organization (optional)') || ''
-    const year = window.prompt('Year (optional)') || ''
-    setHonors(prev => [...prev, { id: Date.now(), title: title.trim(), issuer, year }])
-  }
   const removeHonor = id => setHonors(prev => prev.filter(h => h.id !== id))
-
-  const addVolunteering = () => {
-    const org = window.prompt('Organization or cause name?')
-    if (!org?.trim()) return
-    const role = window.prompt('Role / Position (optional)') || ''
-    const hours = window.prompt('Hours or period (optional)') || ''
-    setVolunteering(prev => [...prev, { id: Date.now(), organization: org.trim(), role, hours }])
-  }
   const removeVolunteering = id => setVolunteering(prev => prev.filter(v => v.id !== id))
-
-  const addExperience = () => {
-    const role = window.prompt('Role / Position?')
-    if (!role?.trim()) return
-    const company = window.prompt('Company / Organization (optional)') || ''
-    const period = window.prompt('Period (e.g., Jun 2024 - Present)') || ''
-    setExperience(prev => [...prev, { id: Date.now(), role: role.trim(), company, period }])
-  }
   const removeExperience = id => setExperience(prev => prev.filter(e => e.id !== id))
-
-  const addProject = () => {
-    const name = window.prompt('Project name?')
-    if (!name?.trim()) return
-    const desc = window.prompt('Short description (optional)') || ''
-    const url = window.prompt('URL (optional)') || ''
-    setProjects(prev => [...prev, { id: Date.now(), name: name.trim(), description: desc, url }])
-  }
   const removeProject = id => setProjects(prev => prev.filter(p => p.id !== id))
-
-  const addRecommendation = () => {
-    const recommender = window.prompt('Recommender name (e.g., Math Teacher, Counselor)?')
-    if (!recommender?.trim()) return
-    const role = window.prompt('Subject / Institution (optional)') || ''
-    const status = window.prompt('Status (Requested / Submitted / Received)', 'Requested') || 'Requested'
-    setRecommendations(prev => [...prev, { id: Date.now(), recommender: recommender.trim(), role, status }])
-  }
   const removeRecommendation = id => setRecommendations(prev => prev.filter(r => r.id !== id))
-
-  const addPortfolioLink = () => {
-    const label = window.prompt('Link label (e.g., GitHub, Behance)')
-    if (!label?.trim()) return
-    const url = window.prompt('URL (https://...)')
-    if (!url?.trim()) return
-    setPortfolio(prev => [...prev, { id: Date.now(), label: label.trim(), url: url.trim() }])
-  }
   const removePortfolioLink = id => setPortfolio(prev => prev.filter(p => p.id !== id))
 
   if (loading) return null
@@ -693,7 +642,7 @@ export default function StudentDashboard() {
 
         {/* ═══ TAB CONTENT ═══ */}
 
-        {/* 1. OVERVIEW (EXACT ORIGINAL) */}
+        {/* 1. OVERVIEW */}
         {activeTab === 'overview' && (
           <div className="new-profile-grid">
             <div className="new-profile-main">
@@ -793,7 +742,7 @@ export default function StudentDashboard() {
           </div>
         )}
 
-        {/* 2. MY PROFILE (EXACT ORIGINAL) */}
+        {/* 2. MY PROFILE */}
         {activeTab === 'profile' && (
           <div className="new-profile-grid">
             <div className="new-profile-main">
@@ -881,7 +830,7 @@ export default function StudentDashboard() {
             emptyTitle="No education added"
             emptyDesc="Add your school or university."
             addLabel="Add education"
-            onAdd={addEducation}
+            onAdd={() => setSectionModal({ open: true, type: 'education' })}
             items={education}
             renderItem={e => (
               <div className="simple-item">
@@ -905,7 +854,7 @@ export default function StudentDashboard() {
             emptyTitle="No test scores added"
             emptyDesc="Add your standardized test results."
             addLabel="Add test score"
-            onAdd={addTestScore}
+            onAdd={() => setSectionModal({ open: true, type: 'test_score' })}
             items={testScores}
             renderItem={t => (
               <div className="simple-item">
@@ -929,7 +878,7 @@ export default function StudentDashboard() {
             emptyTitle="No honors or awards"
             emptyDesc="Add your academic awards or certificates."
             addLabel="Add honor / award"
-            onAdd={addHonor}
+            onAdd={() => setSectionModal({ open: true, type: 'honor' })}
             items={honors}
             renderItem={h => (
               <div className="simple-item">
@@ -953,7 +902,7 @@ export default function StudentDashboard() {
             emptyTitle="No volunteering added"
             emptyDesc="Add your volunteer experiences."
             addLabel="Add volunteering"
-            onAdd={addVolunteering}
+            onAdd={() => setSectionModal({ open: true, type: 'volunteering' })}
             items={volunteering}
             renderItem={v => (
               <div className="simple-item">
@@ -977,7 +926,7 @@ export default function StudentDashboard() {
             emptyTitle="No experience added"
             emptyDesc="Add your first experience."
             addLabel="Add experience"
-            onAdd={addExperience}
+            onAdd={() => setSectionModal({ open: true, type: 'experience' })}
             items={experience}
             renderItem={e => (
               <div className="simple-item">
@@ -1001,7 +950,7 @@ export default function StudentDashboard() {
             emptyTitle="No projects yet"
             emptyDesc="Add your first project."
             addLabel="Add project"
-            onAdd={addProject}
+            onAdd={() => setSectionModal({ open: true, type: 'project' })}
             items={projects}
             renderItem={p => (
               <div className="simple-item">
@@ -1125,7 +1074,7 @@ export default function StudentDashboard() {
             emptyTitle="No recommenders added"
             emptyDesc="Track recommendation letters for your applications."
             addLabel="Add recommender"
-            onAdd={addRecommendation}
+            onAdd={() => setSectionModal({ open: true, type: 'recommendation' })}
             items={recommendations}
             renderItem={r => (
               <div className="simple-item">
@@ -1148,7 +1097,7 @@ export default function StudentDashboard() {
                 <h3>Portfolio</h3>
                 <p className="section-head__sub">Add links to your GitHub, Behance, personal website, etc.</p>
               </div>
-              <button type="button" className="solid-btn solid-btn--sm" onClick={addPortfolioLink}>＋ Add link</button>
+              <button type="button" className="solid-btn solid-btn--sm" onClick={() => setSectionModal({ open: true, type: 'portfolio' })}>＋ Add link</button>
             </div>
             {portfolio.length === 0 ? (
               <div className="empty-state empty-state--cert">
@@ -1256,6 +1205,13 @@ export default function StudentDashboard() {
         onClose={() => setLicenseModal({ open: false, license: null })}
         onSave={handleSaveLicense}
       />
+
+      <SectionModal
+        open={sectionModal.open}
+        type={sectionModal.type}
+        onClose={() => setSectionModal({ open: false, type: '' })}
+        onSave={handleSaveSectionItem}
+      />
     </div>
   )
 }
@@ -1308,5 +1264,210 @@ function SimpleListSection({ title, subtitle, emptyIcon, emptyTitle, emptyDesc, 
         </div>
       )}
     </section>
+  )
+}
+
+/* ─── LinkedIn-style interactive modal for adding items ─── */
+
+function SectionModal({ open, type, onClose, onSave }) {
+  const [formData, setFormData] = useState({})
+
+  useEffect(() => {
+    setFormData({})
+  }, [type, open])
+
+  if (!open) return null
+
+  const titles = {
+    education: { title: 'Add Education', subtitle: 'Add your school, university, degree and years' },
+    test_score: { title: 'Add Standardized Test Score', subtitle: 'Record your IELTS, TOEFL, SAT, AP, or other exams' },
+    honor: { title: 'Add Honor / Award', subtitle: 'Competitions, olympiads, hackathons and recognitions' },
+    volunteering: { title: 'Add Volunteering Activity', subtitle: 'Community service, charity work, or social initiatives' },
+    experience: { title: 'Add Work Experience / Internship', subtitle: 'Internships, summer employment, or lab assistantships' },
+    project: { title: 'Add Project / Research', subtitle: 'Software apps, scientific papers, or creative builds' },
+    recommendation: { title: 'Track Recommendation Letter', subtitle: 'Letters of recommendation requested from teachers' },
+    portfolio: { title: 'Add Portfolio Link', subtitle: 'Link your GitHub, Behance, Figma, or personal website' },
+  }
+
+  const meta = titles[type] || { title: 'Add Item', subtitle: '' }
+
+  const handleSubmit = (e) => {
+    e.preventDefault()
+    onSave(type, formData)
+    onClose()
+  }
+
+  const update = (key, val) => setFormData(p => ({ ...p, [key]: val }))
+
+  return (
+    <div className="linkedin-modal-backdrop" onClick={onClose}>
+      <div className="linkedin-modal" onClick={e => e.stopPropagation()}>
+        <div className="linkedin-modal__head">
+          <div>
+            <h3>{meta.title}</h3>
+            <p className="linkedin-modal__sub">{meta.subtitle}</p>
+          </div>
+          <button type="button" className="linkedin-modal__close" onClick={onClose}>✕</button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="linkedin-modal__form">
+          <div className="linkedin-modal__body">
+            {type === 'education' && (
+              <>
+                <label className="linkedin-field">
+                  <span>School / University Name *</span>
+                  <input required placeholder="e.g. University of Glasgow" value={formData.school || ''} onChange={e => update('school', e.target.value)} />
+                </label>
+                <div className="linkedin-field-row">
+                  <label className="linkedin-field">
+                    <span>Degree / Field of Study</span>
+                    <input placeholder="e.g. Bachelor of Science" value={formData.degree || ''} onChange={e => update('degree', e.target.value)} />
+                  </label>
+                  <label className="linkedin-field">
+                    <span>Years / Graduation</span>
+                    <input placeholder="e.g. 2021 - 2025" value={formData.years || ''} onChange={e => update('years', e.target.value)} />
+                  </label>
+                </div>
+              </>
+            )}
+
+            {type === 'test_score' && (
+              <>
+                <div className="linkedin-field-row">
+                  <label className="linkedin-field">
+                    <span>Test Type *</span>
+                    <input required placeholder="e.g. IELTS Academic, SAT, TOEFL" value={formData.test || ''} onChange={e => update('test', e.target.value)} />
+                  </label>
+                  <label className="linkedin-field">
+                    <span>Overall Score *</span>
+                    <input required placeholder="e.g. 7.5, 1480" value={formData.score || ''} onChange={e => update('score', e.target.value)} />
+                  </label>
+                </div>
+                <label className="linkedin-field">
+                  <span>Test Date</span>
+                  <input placeholder="e.g. May 2024" value={formData.date || ''} onChange={e => update('date', e.target.value)} />
+                </label>
+              </>
+            )}
+
+            {type === 'honor' && (
+              <>
+                <label className="linkedin-field">
+                  <span>Award / Honor Title *</span>
+                  <input required placeholder="e.g. 1st Place National Chemistry Olympiad" value={formData.title || ''} onChange={e => update('title', e.target.value)} />
+                </label>
+                <div className="linkedin-field-row">
+                  <label className="linkedin-field">
+                    <span>Issuer / Organization</span>
+                    <input placeholder="e.g. Ministry of Science and Education" value={formData.issuer || ''} onChange={e => update('issuer', e.target.value)} />
+                  </label>
+                  <label className="linkedin-field">
+                    <span>Year</span>
+                    <input placeholder="e.g. 2023" value={formData.year || ''} onChange={e => update('year', e.target.value)} />
+                  </label>
+                </div>
+              </>
+            )}
+
+            {type === 'volunteering' && (
+              <>
+                <label className="linkedin-field">
+                  <span>Organization Name *</span>
+                  <input required placeholder="e.g. Red Crescent Society / ASAN Volunteers" value={formData.organization || ''} onChange={e => update('organization', e.target.value)} />
+                </label>
+                <div className="linkedin-field-row">
+                  <label className="linkedin-field">
+                    <span>Role / Title</span>
+                    <input placeholder="e.g. Team Lead / Volunteer" value={formData.role || ''} onChange={e => update('role', e.target.value)} />
+                  </label>
+                  <label className="linkedin-field">
+                    <span>Hours / Period</span>
+                    <input placeholder="e.g. 120 Hours / Jun 2023" value={formData.hours || ''} onChange={e => update('hours', e.target.value)} />
+                  </label>
+                </div>
+              </>
+            )}
+
+            {type === 'experience' && (
+              <>
+                <label className="linkedin-field">
+                  <span>Job / Internship Role *</span>
+                  <input required placeholder="e.g. Software Engineering Intern" value={formData.role || ''} onChange={e => update('role', e.target.value)} />
+                </label>
+                <div className="linkedin-field-row">
+                  <label className="linkedin-field">
+                    <span>Company / Organization *</span>
+                    <input required placeholder="e.g. BP / SOCAR / Tech Lab" value={formData.company || ''} onChange={e => update('company', e.target.value)} />
+                  </label>
+                  <label className="linkedin-field">
+                    <span>Period</span>
+                    <input placeholder="e.g. Jun 2024 - Aug 2024" value={formData.period || ''} onChange={e => update('period', e.target.value)} />
+                  </label>
+                </div>
+              </>
+            )}
+
+            {type === 'project' && (
+              <>
+                <label className="linkedin-field">
+                  <span>Project / Research Title *</span>
+                  <input required placeholder="e.g. Autonomous Robotic Arm" value={formData.name || ''} onChange={e => update('name', e.target.value)} />
+                </label>
+                <label className="linkedin-field">
+                  <span>Short Description</span>
+                  <textarea rows="2" placeholder="Briefly describe what you built or discovered..." value={formData.description || ''} onChange={e => update('description', e.target.value)} />
+                </label>
+                <label className="linkedin-field">
+                  <span>Link / Demo URL</span>
+                  <input placeholder="https://github.com/..." value={formData.url || ''} onChange={e => update('url', e.target.value)} />
+                </label>
+              </>
+            )}
+
+            {type === 'recommendation' && (
+              <>
+                <label className="linkedin-field">
+                  <span>Recommender Name *</span>
+                  <input required placeholder="e.g. Dr. John Smith" value={formData.recommender || ''} onChange={e => update('recommender', e.target.value)} />
+                </label>
+                <div className="linkedin-field-row">
+                  <label className="linkedin-field">
+                    <span>Subject / Institution</span>
+                    <input placeholder="e.g. Math Teacher, Lyceum No. 160" value={formData.role || ''} onChange={e => update('role', e.target.value)} />
+                  </label>
+                  <label className="linkedin-field">
+                    <span>Status</span>
+                    <select value={formData.status || 'Requested'} onChange={e => update('status', e.target.value)}>
+                      <option value="Requested">Requested</option>
+                      <option value="In Progress">In Progress</option>
+                      <option value="Submitted">Submitted</option>
+                      <option value="Received">Received</option>
+                    </select>
+                  </label>
+                </div>
+              </>
+            )}
+
+            {type === 'portfolio' && (
+              <>
+                <label className="linkedin-field">
+                  <span>Showcase Label *</span>
+                  <input required placeholder="e.g. GitHub, Behance, Architectural Works" value={formData.label || ''} onChange={e => update('label', e.target.value)} />
+                </label>
+                <label className="linkedin-field">
+                  <span>URL *</span>
+                  <input required placeholder="https://..." value={formData.url || ''} onChange={e => update('url', e.target.value)} />
+                </label>
+              </>
+            )}
+          </div>
+
+          <div className="linkedin-modal__foot">
+            <button type="button" className="ghost-btn" onClick={onClose}>Cancel</button>
+            <button type="submit" className="solid-btn">Save to Profile</button>
+          </div>
+        </form>
+      </div>
+    </div>
   )
 }
