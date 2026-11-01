@@ -52,14 +52,14 @@ export default function SortableList({ items, onReorder, renderItem, getKey = (i
               setOverIndex(null)
             }}
           >
-            <span className="sortable-grip" aria-hidden="true" title="Sırala">⋮⋮</span>
-            <span className="sortable-rank" aria-label={`${index + 1}. sıra`}>{index + 1}</span>
+            <span className="sortable-grip" aria-hidden="true" title="Drag to reorder">⋮⋮</span>
+            <span className="sortable-rank" aria-label={`Rank ${index + 1}`}>{index + 1}</span>
             <div className="sortable-content">{renderItem?.(item, index)}</div>
             <span className="sortable-buttons">
               <button
                 type="button"
                 className="sortable-btn"
-                aria-label="Yuxarı qaldır"
+                aria-label="Move up"
                 disabled={index === 0}
                 onClick={() => move(index, index - 1)}
               >
@@ -68,7 +68,7 @@ export default function SortableList({ items, onReorder, renderItem, getKey = (i
               <button
                 type="button"
                 className="sortable-btn"
-                aria-label="Aşağı endir"
+                aria-label="Move down"
                 disabled={index === items.length - 1}
                 onClick={() => move(index, index + 1)}
               >

@@ -35,7 +35,7 @@ export function CharWordCounter({
   if (typeof maxChars === 'number') {
     parts.push(
       <span key="c" className={`cwc-part${overChars ? ' cwc-over' : nearChars ? ' cwc-near' : ''}${maxWords == null ? ' cwc-primary' : ''}`}>
-        {chars}/{maxChars} simvol
+        {chars}/{maxChars} chars
       </span>
     )
   }
@@ -44,22 +44,22 @@ export function CharWordCounter({
       <span key="w" className={`cwc-part${overWords || underWords ? ' cwc-over' : nearWords ? ' cwc-near' : ''}${maxChars == null ? ' cwc-primary' : ''}`}>
         {words}
         {typeof maxWords === 'number' ? `/${maxWords}` : ''}
-        {typeof minWords === 'number' ? ` (min ${minWords})` : ''} söz
+        {typeof minWords === 'number' ? ` (min ${minWords})` : ''} words
       </span>
     )
   }
   if (maxChars == null && maxWords == null) {
     parts.push(
       <span key="f" className="cwc-part">
-        {chars} simvol · {words} söz
+        {chars} chars · {words} words
       </span>
     )
   }
 
   const warning = overChars || overWords
-    ? 'Limit aşıldı — portala yüzləmə kəsilə və ya qəbul oluna bilməz'
+    ? 'Over the limit — the portal may cut this off or reject it'
     : underWords
-      ? `Minimum ${minWords} söz lazımdır`
+      ? `Minimum ${minWords} words required`
       : null
 
   return (

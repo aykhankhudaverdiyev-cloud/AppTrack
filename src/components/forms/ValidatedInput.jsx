@@ -10,7 +10,7 @@
  *   label="Reading & Writing"
  *   type="number" min={200} max={800} step={10}
  *   validate={(v) => (v == null || (v >= 200 && v <= 800 && v % 10 === 0)
- *     ? '' : 'SAT bölmə balları 200–800 arası, 10 addımla olmalıdır')}
+ *     ? '' : 'SAT section scores are 200-800 in steps of 10')}
  *   value={v} onChange={setV}
  * />
  * ============================================================================
@@ -22,7 +22,7 @@ import './forms.css'
 
 function runValidation(value, validate, required) {
   const empty = value === '' || value === null || value === undefined
-  if (required && empty) return 'Bu sahə məcburidir'
+  if (required && empty) return 'This field is required'
   if (empty && !required) return ''
   if (typeof validate === 'function') return validate(value) || ''
   return ''
@@ -90,7 +90,7 @@ export function ValidatedSelect({
   validate,
   required = false,
   hint,
-  placeholder = 'Seç...',
+  placeholder = 'Select...',
   disabled = false,
 }) {
   const [touched, setTouched] = useState(false)

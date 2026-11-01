@@ -93,10 +93,10 @@ export function getZonedParts(date, timeZone) {
  * Human-readable format of an instant in a zone.
  * @param {Date} date
  * @param {string} timeZone
- * @param {string} [locale] BCP-47, defaults to Azerbaijani
- * @returns {string} e.g. "5 yanvar, 08:00"
+ * @param {string} [locale] BCP-47, defaults to British English
+ * @returns {string} e.g. "5 January, 08:00"
  */
-export function formatInTimeZone(date, timeZone, locale = 'az-AZ') {
+export function formatInTimeZone(date, timeZone, locale = 'en-GB') {
   return new Intl.DateTimeFormat(locale, {
     timeZone,
     day: 'numeric',
@@ -111,7 +111,7 @@ export function formatInTimeZone(date, timeZone, locale = 'az-AZ') {
  * Full date format (used for calendar views).
  * e.g. "05.01.2027, 08:00"
  */
-export function formatFullInTimeZone(date, timeZone, locale = 'az-AZ') {
+export function formatFullInTimeZone(date, timeZone, locale = 'en-GB') {
   return new Intl.DateTimeFormat(locale, {
     timeZone,
     day: '2-digit',
@@ -169,20 +169,20 @@ export function countdownParts(target, now = new Date()) {
 }
 
 /**
- * Countdown in Azerbaijani words: "3 gün 4 saat 12 dəqiqə qalır".
+ * Countdown in words: "3 days 4 hours left".
  * Only the two most significant non-zero units are shown.
  */
 export function formatCountdown(target, now = new Date()) {
   const c = countdownParts(target, now)
-  if (c.isPast) return 'müddət bitdi'
+  if (c.isPast) return 'deadline passed'
   const units = [
-    [c.days, c.days === 1 ? 'gün' : 'gün'],
-    [c.hours, c.hours === 1 ? 'saat' : 'saat'],
-    [c.minutes, c.minutes === 1 ? 'dəqiqə' : 'dəqiqə'],
+    [c.days, c.days === 1 ? 'day' : 'days'],
+    [c.hours, c.hours === 1 ? 'hour' : 'hours'],
+    [c.minutes, c.minutes === 1 ? 'minute' : 'minutes'],
   ]
   const shown = units.filter(([v]) => v > 0).slice(0, 2)
-  if (shown.length === 0) return 'indi'
-  return shown.map(([v, label]) => `${v} ${label}`).join(' ') + ' qalır'
+  if (shown.length === 0) return 'due now'
+  return shown.map(([v, label]) => `${v} ${label}`).join(' ') + ' left'
 }
 
 /**

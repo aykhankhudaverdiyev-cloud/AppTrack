@@ -90,7 +90,7 @@ test('countdown parts', () => {
 
 test('countdown text: past deadline', () => {
   const now = new Date('2027-01-05T00:00:00Z')
-  assert.equal(formatCountdown(new Date('2027-01-04T00:00:00Z'), now), 'müddət bitdi')
+  assert.equal(formatCountdown(new Date('2027-01-04T00:00:00Z'), now), 'deadline passed')
 })
 
 test('describeDeadline flags US next-morning shift as urgent-ready data', () => {

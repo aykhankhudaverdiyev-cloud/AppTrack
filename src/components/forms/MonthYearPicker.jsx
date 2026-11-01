@@ -10,9 +10,9 @@ import { useId } from 'react'
 import Field from './Field'
 import './forms.css'
 
-const MONTHS_AZ = [
-  'Yanvar', 'Fevral', 'Mart', 'Aprel', 'May', 'İyun',
-  'İyul', 'Avqust', 'Sentyabr', 'Oktyabr', 'Noyabr', 'Dekabr',
+const MONTHS = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
 ]
 
 export default function MonthYearPicker({
@@ -23,8 +23,8 @@ export default function MonthYearPicker({
   hint,
   fromYear = 2005,
   toYear = 2035,
-  placeholderMonth = 'Ay',
-  placeholderYear = 'İl',
+  placeholderMonth = 'Month',
+  placeholderYear = 'Year',
   allowFuture = true,
 }) {
   const [yearPart, monthPart] = value ? value.split('-') : ['', '']
@@ -38,7 +38,7 @@ export default function MonthYearPicker({
       {({ describedBy }) => (
         <div className="month-year" id={generatedId} aria-describedby={describedBy}>
           <select
-            aria-label={`${label || 'Tarix'} — ay`}
+            aria-label={`${label || 'Date'} — month`}
             value={monthPart || ''}
             onChange={(e) =>
               onChange?.(e.target.value && yearPart ? `${yearPart}-${e.target.value}` : '')
@@ -46,12 +46,12 @@ export default function MonthYearPicker({
             disabled={!yearPart && false}
           >
             <option value="">{placeholderMonth}</option>
-            {MONTHS_AZ.map((m, i) => (
+            {MONTHS.map((m, i) => (
               <option key={m} value={String(i + 1).padStart(2, '0')}>{m}</option>
             ))}
           </select>
           <select
-            aria-label={`${label || 'Tarix'} — il`}
+            aria-label={`${label || 'Date'} — year`}
             value={yearPart || ''}
             onChange={(e) =>
               onChange?.(e.target.value && monthPart ? `${e.target.value}-${monthPart}` : '')

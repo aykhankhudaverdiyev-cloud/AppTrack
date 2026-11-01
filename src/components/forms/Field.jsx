@@ -6,7 +6,7 @@
  * sits inside a Field so labels are always associated (htmlFor/id) and errors
  * are announced (aria-describedby, aria-invalid).
  *
- * <Field label="SAT Reading & Writing" error={err} hint="200–800, 10 addımla">
+ * <Field label="SAT Reading & Writing" error={err} hint="200–800, steps of 10">
  *   <input id={...} />
  * </Field>
  * ============================================================================
@@ -33,7 +33,7 @@ export default function Field({
         <label className="field-label" htmlFor={id}>
           {label}
           {required && <span className="field-required" aria-hidden="true"> *</span>}
-          {optional && <span className="field-optional"> (məcburi deyil)</span>}
+          {optional && <span className="field-optional"> (optional)</span>}
         </label>
       )}
       {typeof children === 'function'

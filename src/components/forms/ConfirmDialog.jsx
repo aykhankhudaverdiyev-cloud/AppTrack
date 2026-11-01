@@ -11,10 +11,10 @@ import './forms.css'
 
 export default function ConfirmDialog({
   open,
-  title = 'Silməyə əminsən?',
+  title = 'Delete this entry?',
   message,
-  confirmLabel = 'Sil',
-  cancelLabel = 'Ləğv et',
+  confirmLabel = 'Delete',
+  cancelLabel = 'Cancel',
   danger = true,
   onConfirm,
   onCancel,
