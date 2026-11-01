@@ -74,7 +74,6 @@ insert into public.universities (name, country, city) values
 ('University of Warwick', 'GB', 'Coventry'),
 ('University of Bristol', 'GB', 'Bristol'),
 ('University of Glasgow', 'GB', 'Glasgow'),
-('University of Edinburgh', 'GB', 'Edinburgh'),
 ('Durham University', 'GB', 'Durham'),
 ('University of St Andrews', 'GB', 'St Andrews'),
 ('London Business School', 'GB', 'London'),

@@ -1,18 +1,24 @@
 -- ============================================================================
--- AppTrack — Phase 0, Migration 002: Row Level Security policies
+-- AppTrack — Phase 0, Migration 002: Row Level Security policies (v2)
 -- ----------------------------------------------------------------------------
 -- PRINCIPLE #6: privacy is enforced in the DATABASE, not only in the UI.
 --
--- Access model:
---   OWNER      (user_id = auth.uid())                 → full control
---   COUNSELOR  (profiles.counselor_id = counselor)    → read assigned students
---   ADMIN      (profiles.role = 'admin')              → full control
---   ANON       → only through `public_directory` view (public fields only)
+-- SCOPE (backend-aware): policies are created ONLY on the 33 NEW tables from
+-- migration 001. The legacy tables that the app uses today (profiles,
+-- applications, application_documents, licenses, license_media,
+-- visibility_requests) and stale leftovers (students, education,
+-- recommendations, documents, profile2s, user_roles, admin_notes,
+-- change_requests, notifications, notification_settings) are NOT touched —
+-- their existing RLS setup and the admin-approved visibility flow keep working.
 --
--- Sensitive tables (profile_private, parents, financial_profile, essays,
--- documents...) have NO public path: even a direct API call with an anon key
--- cannot read them, and CHECK constraints stop `is_public` on sensitive
--- document categories.
+-- Access model for NEW tables:
+--   OWNER      (user_id = auth.uid())                → full control
+--   COUNSELOR  (profiles.counselor_id = counselor)   → read assigned students
+--   ADMIN      (profiles.role = 'admin')             → full control
+--
+-- A public directory view over profiles is intentionally DEFERRED to a later
+-- phase (together with the legacy-table RLS migration), so today's public
+-- explore flow keeps working unchanged.
 --
 -- IDEMPOTENT: safe to run multiple times.
 -- ============================================================================
@@ -47,7 +53,7 @@ as $$
 $$;
 
 -- ============================================================================
--- 2. Enable RLS on every new table
+-- 2. Enable RLS on the new tables
 -- ============================================================================
 do $$
 declare
@@ -59,7 +65,7 @@ begin
     'projects','publications','application_choices','application_deadlines',
     'application_requirements','interviews','supervisor_contacts','essays',
     'essay_versions','essay_comments','essay_shares','application_essays',
-    'documents','document_versions','document_links','recommenders',
+    'document_files','document_versions','document_links','recommenders',
     'recommendation_assignments','financial_profile','aid_forms','scholarships',
     'links','portfolio_items','reminders'
   ]
@@ -70,8 +76,9 @@ end;
 $$;
 
 -- ============================================================================
--- 3. Uniform policies for every user-scoped table (user_id column)
+-- 3. Uniform policies for the 32 user-scoped tables (user_id column)
 --    owner → ALL | counselor → SELECT | admin → ALL
+--    (universities is reference data → handled separately below)
 -- ============================================================================
 do $$
 declare
@@ -83,7 +90,7 @@ begin
     'projects','publications','application_choices','application_deadlines',
     'application_requirements','interviews','supervisor_contacts','essays',
     'essay_versions','essay_comments','essay_shares','application_essays',
-    'documents','document_versions','document_links','recommenders',
+    'document_files','document_versions','document_links','recommenders',
     'recommendation_assignments','financial_profile','aid_forms','scholarships',
     'links','portfolio_items','reminders'
   ]
@@ -132,71 +139,9 @@ create policy p_universities_read on public.universities
   using (true);
 
 -- ============================================================================
--- 5. Existing tables — counselor read access (assigned students only)
---    (No-ops if RLS is not enabled on them; safe either way.)
--- ============================================================================
-drop policy if exists p_profiles_counselor on public.profiles;
-create policy p_profiles_counselor on public.profiles
-  for select to authenticated
-  using (public.is_assigned_counselor(id));
-
-drop policy if exists p_applications_counselor on public.applications;
-create policy p_applications_counselor on public.applications
-  for select to authenticated
-  using (public.is_assigned_counselor(student_id));
-
-drop policy if exists p_app_documents_counselor on public.application_documents;
-create policy p_app_documents_counselor on public.application_documents
-  for select to authenticated
-  using (public.is_assigned_counselor(user_id));
-
-drop policy if exists p_licenses_counselor on public.licenses;
-create policy p_licenses_counselor on public.licenses
-  for select to authenticated
-  using (public.is_assigned_counselor(user_id));
-
-drop policy if exists p_license_media_counselor on public.license_media;
-create policy p_license_media_counselor on public.license_media
-  for select to authenticated
-  using (public.is_assigned_counselor(user_id));
-
--- ============================================================================
--- 6. PUBLIC DIRECTORY VIEW — the ONLY door for public/private-by-flag data
--- ----------------------------------------------------------------------------
--- Per-field visibility flags are honoured: email/phone/photo appear ONLY if
--- the student set that field to 'public'. Private columns (passport, DOB,
--- addresses) are NOT part of the view at all — they physically cannot leak.
--- ============================================================================
-create or replace view public.public_directory as
-select
-  p.id,
-  p.full_name,
-  p.preferred_name,
-  case when p.photo_visibility = 'public' then p.photo_url end as photo_url,
-  p.major,
-  p.university,
-  p.committed_university,
-  p.applying_level,
-  p.start_term,
-  p.intended_major_1,
-  p.intended_major_2,
-  case when p.email_visibility = 'public' then p.email end as email,
-  case when p.phone_visibility = 'public' then p.phone end as phone,
-  p.profile_visibility,
-  p.created_at
-from public.profiles p
-where p.profile_visibility = 'public'
-  and coalesce(p.is_profile_completed, false);
-
-grant select on public.public_directory to anon, authenticated;
-
-comment on view public.public_directory is
-  'Public student directory. Only flag-approved fields are exposed; sensitive
-   columns are excluded by construction. Base profiles table stays RLS-guarded.';
-
--- ============================================================================
--- 7. Sanity checks (run-time guarantees for the acceptance criteria)
---    - a sensitive document can never be public (CHECK in 001)
---    - essays have no public visibility at all (no column, no policy)
---    - anon has no direct select on user tables (RLS enabled, no anon policy)
+-- 5. Deferred to the legacy-table RLS phase (NOT done here on purpose):
+--    - counselor/admin policies on profiles, applications, application_documents,
+--      licenses, license_media, visibility_requests
+--    - public_directory view (will become the only public door when legacy
+--      profiles reads are tightened)
 -- ============================================================================
