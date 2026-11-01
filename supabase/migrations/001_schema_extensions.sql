@@ -74,6 +74,49 @@ create index idx_universities_name on public.universities (lower(name));
 create index idx_universities_country on public.universities (country);
 
 -- ============================================================================
+-- 1b. DOCUMENT FILES — unified library (Section 12)  [created early:
+--      test_attempts/honors/projects/publications/applications hold FK refs to it]
+--     Named `document_files` (NOT `documents`) because a legacy `documents`
+--     table already exists in this database and must stay untouched.
+-- ============================================================================
+create table public.document_files (
+  id           uuid primary key default gen_random_uuid(),
+  user_id      uuid not null references public.profiles(id) on delete cascade,
+  title        text not null,
+  category     text not null check (category in
+    ('passport','national_id','photo',
+     'transcript','translated_transcript','diploma','enrollment_certificate','predicted_grades',
+     'test_report','english_certificate','cv_resume','essay_export',
+     'award_certificate','course_certificate',
+     'bank_statement','financial_aid_document','sponsor_letter',
+     'recommendation_copy','portfolio','research_proposal','writing_sample',
+     'university_form','decision_letter','other')),
+  issue_date   date,
+  expiry_date  date,             -- alerts: passport, scores, bank statements
+  language     text,
+  is_translated boolean not null default false,
+  is_certified  boolean not null default false,
+  is_apostille  boolean not null default false,
+  version      smallint not null default 1,
+  file_path    text not null,    -- Supabase Storage, PRIVATE bucket
+  mime_type    text,
+  size_bytes   bigint,
+  -- PRINCIPLE #6: sensitive categories can NEVER be public (enforced by CHECK
+  -- below + RLS in 002, so even direct API calls cannot flip it)
+  is_public    boolean not null default false,
+  created_at   timestamptz not null default now(),
+  updated_at   timestamptz not null default now(),
+  constraint document_files_public_only_for_showcase check (
+    is_public = false or category in
+      ('cv_resume','award_certificate','course_certificate','portfolio',
+       'research_proposal','writing_sample','university_form','other')
+  )
+);
+create index idx_document_files_user     on public.document_files (user_id);
+create index idx_document_files_category on public.document_files (category);
+create index idx_document_files_expiry   on public.document_files (expiry_date);
+
+-- ============================================================================
 -- 2. PROFILE — new columns (structured names, goals, graduate fields)
 -- ============================================================================
 alter table public.profiles
@@ -638,47 +681,6 @@ create table public.application_essays (
 create index idx_application_essays_application on public.application_essays (application_id);
 create index idx_application_essays_essay       on public.application_essays (essay_id);
 
--- ============================================================================
--- 13. DOCUMENT FILES — unified library (Section 12)
---     Named `document_files` (NOT `documents`) because a legacy `documents`
---     table already exists in this database and must stay untouched.
--- ============================================================================
-create table public.document_files (
-  id           uuid primary key default gen_random_uuid(),
-  user_id      uuid not null references public.profiles(id) on delete cascade,
-  title        text not null,
-  category     text not null check (category in
-    ('passport','national_id','photo',
-     'transcript','translated_transcript','diploma','enrollment_certificate','predicted_grades',
-     'test_report','english_certificate','cv_resume','essay_export',
-     'award_certificate','course_certificate',
-     'bank_statement','financial_aid_document','sponsor_letter',
-     'recommendation_copy','portfolio','research_proposal','writing_sample',
-     'university_form','decision_letter','other')),
-  issue_date   date,
-  expiry_date  date,             -- alerts: passport, scores, bank statements
-  language     text,
-  is_translated boolean not null default false,
-  is_certified  boolean not null default false,
-  is_apostille  boolean not null default false,
-  version      smallint not null default 1,
-  file_path    text not null,    -- Supabase Storage, PRIVATE bucket
-  mime_type    text,
-  size_bytes   bigint,
-  -- PRINCIPLE #6: sensitive categories can NEVER be public (enforced by CHECK
-  -- below + RLS in 002, so even direct API calls cannot flip it)
-  is_public    boolean not null default false,
-  created_at   timestamptz not null default now(),
-  updated_at   timestamptz not null default now(),
-  constraint document_files_public_only_for_showcase check (
-    is_public = false or category in
-      ('cv_resume','award_certificate','course_certificate','portfolio',
-       'research_proposal','writing_sample','university_form','other')
-  )
-);
-create index idx_document_files_user     on public.document_files (user_id);
-create index idx_document_files_category on public.document_files (category);
-create index idx_document_files_expiry   on public.document_files (expiry_date);
 
 create table public.document_versions (
   id          uuid primary key default gen_random_uuid(),
