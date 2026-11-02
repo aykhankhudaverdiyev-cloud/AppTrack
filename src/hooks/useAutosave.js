@@ -51,10 +51,11 @@ export function useAutosave(payload, saveFn, { delay = 1200, enabled = true } = 
     dirtyRef.current = true
   }, [])
 
-  // Debounced autosave on every payload change
+  // Debounced autosave on every payload change.
+  // NOTE: dirty is set explicitly via markDirty() by the consumer on real user
+  // edits — otherwise mounting a form would trigger a save-on-load.
   useEffect(() => {
     if (!enabled) return undefined
-    dirtyRef.current = true
     if (timerRef.current) clearTimeout(timerRef.current)
     timerRef.current = setTimeout(() => {
       flush()

@@ -3,7 +3,14 @@
 > Read this first in every new session. It is the single source of truth for
 > where the counselor-spec rebuild stands and what comes next.
 
-## Current state (2026-11-01)
+## Current state (2026-11-02)
+
+**Phase 1 — COMPLETE (first slice).** My Profile rebuilt (structured cards,
+autosave, parents CRUD, level-aware Graduate block), profile completion is now
+weighted + level-aware (0% on empty, click-through missing items), Overview
+stat cards cleaned (Submitted/Recommenders replace Public Apps/Certs),
+"Assigned Mentor" renamed to "Assigned Counselor", Snapshot block removed.
+Details in CHANGELOG.md. Still on this branch: PR covers Phase 0 v2 + Phase 1.
 
 **Phase 0 — COMPLETE.** All 4 migrations ran successfully on the live Supabase
 project (`select count(*) from universities` → 123). No visual change to the
@@ -62,29 +69,17 @@ site — Phase 0 is pure foundation.
   items (CV, awards, portfolio, projects, links) may be toggled public.
 - Portal passwords are never stored (URL + login email + applicant ID only).
 
-## Next: Phase 1 (approved plan order)
+## Next: Phase 2 — Essays (§10, highest priority)
 
-1. **My Profile rebuild** (spec §3): passport-accurate names (given/middle/
-   family/preferred/passport/native), private personal data (DOB, citizenship,
-   passport + 12-month expiry warning, addresses), gender options + pronouns,
-   contact (country code + E.164 phone), languages with proficiency,
-   first-generation flag, household, parents/guardians (2+1), goals (level,
-   start term, majors, aid, gap year), graduate-only block (degree, work exp,
-   research interests, ORCID/Scholar/LinkedIn). DB columns already exist.
-2. **Profile completion fix** (spec §2): weighted, level-aware
-   (Bachelor: Profile 20 / Education 25 / Tests 15 / Honors 10 / Activities 20
-   / Recommenders 10; Master/PhD variant listed in spec). Clicking the bar
-   lists missing items with links.
-3. **Overview stat cards** (spec §2): next deadline (countdown, local+original
-   tz), applications submitted/total, essays final/required, missing documents,
-   recommendations received/needed, profile completion. "Counselor" term
-   everywhere (no "Mentor"). Committed university only after a Committed offer.
-4. Upcoming deadlines (30d), application pipeline counts, recent activity
-   widgets.
+Approved order. Phase 1 leftovers (do first or during Phase 2):
+- E.164 phone with country-code dropdown (Contact card still uses raw phone)
+- "Request change" button on counselor-managed fields
+- Overview: next-deadline card + application pipeline + upcoming deadlines
+  widgets (deadlines need Phase 3 application data to be useful)
 
-Then: Phase 2 Essays (§10, highest priority) → Phase 3 Applications (§11) →
-Phase 4 libraries (§4-9) → Phase 5 Docs/Recs/Aid/Deadlines (§12-15) →
-Phase 6 Links/Portfolio/CV/Counselor dashboard (§16-19).
+Then: Phase 3 Applications (§11) → Phase 4 libraries (§4-9) → Phase 5
+Docs/Recs/Aid/Deadlines (§12-15) → Phase 6 Links/Portfolio/CV/Counselor
+dashboard (§16-19).
 
 ## How to verify the site after SQL work
 
