@@ -1,31 +1,26 @@
-# Supabase Migrations — Phase 0
+# Supabase Migrations — Phase 0 (v2, backend-aware)
 
 Bu qovluqdakı faylları **Supabase Dashboard → SQL Editor**-da yuxarıdan aşağıya **bu sırayla** işə sal:
 
 | Sıra | Fayl | Nə edir |
 |---|---|---|
-| 1 | `001_schema_extensions.sql` | 30+ yeni cədvəl, profiles/applications genişlənmələri, trigger və indekslər |
-| 2 | `002_rls_policies.sql` | Row Level Security: owner/counselor/admin siyasətləri, public directory view |
-| 3 | `003_storage.sql` | Private bucket siyasətləri (owner-qovluq modeli) |
-| 4 | `004_seed_universities.sql` | ~110 universitet seed (avtokomplekt üçün) |
+| 1 | `001_schema_extensions.sql` | 33 yeni cədvəli yenidən yaradır (drop + create), `profiles`/`applications`-ı genişləndirir |
+| 2 | `002_rls_policies.sql` | Yalnız YENİ cədvəllərdə RLS: owner/counselor/admin |
+| 3 | `003_storage.sql` | `student-documents` private qalır + owner-qovluq siyasətləri (`avatars` toxunulmazdır) |
+| 4 | `004_seed_universities.sql` | ~110 universitet seed |
 
-## Addımlar
+## Vacib zəmanətlər (v2)
 
-1. Supabase Dashboard-u aç → layihəni seç
-2. Sol menyu → **SQL Editor** → **New query**
-3. Faylın bütün məzmununu kopyala-yapışdır → **Run**
-4. "Success. No rows returned" görəcəksən — OK ✅
-5. Növbəti faylla davam et
+- **Köhnə cədvəllərə toxunulmur:** `profiles, applications, application_documents, licenses, license_media, visibility_requests` (app-in bugünkü 6 cədvəli) + köhnə qalıqlar (`students, education, recommendations, documents, profile2s, user_roles, admin_notes, change_requests, notifications, notification_settings`).
+- Yeni fayl kitabxanası cədvəli köhnə `documents` ilə toqquşmaması üçün **`document_files`** adlanır.
+- 001 başda yalnız öz 33 yeni cədvəlini silir (hamısı boşdur) — başqa heç nə.
+- Admin təsdiqli görünürlük axını (visibility_requests) olduğu kimi işləməyə davam edir.
 
-## Yoxlama (hər ikisi success-dən sonra)
+## Yoxlama (hamısı bitəndən sonra)
 
-- **Table Editor** → yenilə → yeni cədvəllər görünür:
-  `universities, profile_private, parents, education_entries, grade_rows, test_attempts, test_section_scores, score_sending, honors, activities, projects, publications, application_choices, application_deadlines, application_requirements, interviews, supervisor_contacts, essays, essay_versions, essay_comments, essay_shares, application_essays, documents, document_versions, document_links, recommenders, recommendation_assignments, financial_profile, aid_forms, scholarships, links, portfolio_items, reminders`
-- SQL Editor-da test: `select name, country from universities limit 5;` → 5 sətir qayıtmalıdır
-
-## Qeydlər
-
-- Bütün fayllar **idempotentdir** — təkrar işə salsaq xəta vermir.
-- Mövcud cədvəllər (`profiles`, `applications`, `application_documents`, `licenses`, `license_media`) **yalnız genişləndirilir**, məzmunu toxunulmazdır.
-- `profiles` cədvəlinə `counselor_id` sütunu əlavə olunur — counselor-ın tələbəyə RLS-based girişi bunun üzərindən qurulur. Müvəqqəti olaraq counselor təyin etmək üçün: SQL Editor-da `update profiles set counselor_id = '<counselor_user_id>' where id = '<student_user_id>';`
-- Yeni sütunlar UI-yə Faza 1+ da daxil olacaq; bu migrasiya hazırkı saytın işinə **heç bir maneə yaratmır**.
+```sql
+select count(*) from universities;            -- 110
+select count(*) from information_schema.tables
+ where table_schema='public'
+   and table_name in ('document_files','essays','activities','test_attempts');  -- 4
+```

@@ -33,6 +33,8 @@ import ApplicationModal from '../components/ApplicationModal'
 import LicenseModal from '../components/LicenseModal'
 import PublicStudentDrawer from '../components/PublicStudentDrawer'
 import StudentCard from '../components/StudentCard'
+import MyProfileSection from '../components/profile/MyProfileSection'
+import { computeProfileCompletion } from '../utils/profileCompletion'
 import './StudentDashboard.css'
 
 const DOC_CATEGORIES = [
@@ -100,6 +102,7 @@ export default function StudentDashboard() {
     gender: '', photoUrl: '', photoPath: '', notes: '', assignedCounselor: '',
     decision: '', visibility: {}, applications: [], licenses: [],
   })
+  const [profileRow, setProfileRow] = useState(null) // raw profiles row for MyProfileSection
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('overview')
   const [publicStudents, setPublicStudents] = useState([])
@@ -142,19 +145,29 @@ export default function StudentDashboard() {
     setEditingContact(true)
   }, [me.email, me.phone])
 
-  const publicApplicationsCount = useMemo(
-    () => (me.applications || []).filter(a => a.visibility === 'public').length,
-    [me.applications]
-  )
-  const publicLicensesCount = useMemo(
-    () => (me.licenses || []).filter(l => l.visibility === 'public').length,
-    [me.licenses]
-  )
-
-  const profileCompletion = useMemo(() => {
-    const fields = [me.fullName, me.email, me.phone, me.major, me.university, me.gender, me.photoUrl]
-    return Math.round((fields.filter(Boolean).length / fields.length) * 100)
-  }, [me])
+  const completion = useMemo(() => computeProfileCompletion({
+    level: profileRow?.applying_level || null,
+    profile: {
+      givenName: profileRow?.given_name,
+      familyName: profileRow?.family_name,
+      passportName: profileRow?.passport_name,
+      gender: me.gender,
+      phone: me.phone,
+      photoUrl: me.photoUrl,
+      applyingLevel: profileRow?.applying_level,
+      startTerm: profileRow?.start_term,
+      intendedMajor1: profileRow?.intended_major_1,
+      gradCurrentDegree: profileRow?.grad_current_degree,
+      researchInterests: profileRow?.research_interests?.length ? profileRow.research_interests : null,
+    },
+    educationCount: education.length,
+    testsCount: testScores.length,
+    honorsCount: honors.length,
+    activitiesCount: volunteering.length + experience.length,
+    researchCount: projects.length,
+    recommendersCount: recommendations.length,
+  }), [profileRow, me, education, testScores, honors, volunteering, experience, projects, recommendations])
+  const profileCompletion = completion.percent
 
   const appProgress = useMemo(() => {
     const apps = me.applications || []
@@ -216,6 +229,7 @@ export default function StudentDashboard() {
         return { id: lic.id, user_id: lic.user_id, name: lic.name || '', issuer: lic.issuer || '', issueMonth: lic.issue_month || '', issueYear: lic.issue_year || '', expireMonth: lic.expire_month || '', expireYear: lic.expire_year || '', credentialId: lic.credential_id || '', credentialUrl: lic.credential_url || '', score: lic.score || '', visibility: lic.visibility || 'private', media, created_at: lic.created_at || '' }
       })
 
+      setProfileRow(data || null)
       setMe({ id: data.id, fullName: data.full_name || '', email: data.email || '', phone: data.phone || '', major: data.major || '', university: data.university || '', gender: data.gender || '', photoUrl: data.photo_url || '', photoPath: data.photo_path || '', notes: data.admin_notes || '', assignedCounselor: data.assigned_counselor || '', decision: data.decision || '', visibility, applications, licenses })
     } catch (error) {
       console.error('Failed to load profile:', error)
@@ -602,11 +616,11 @@ export default function StudentDashboard() {
         <section className="new-stats-grid">
           {[
             { label: 'Profile', value: `${profileCompletion}%`, icon: '📈', tone: 'indigo', hint: 'completion score' },
-            { label: 'Applications', value: (me.applications || []).length, icon: '📄', tone: 'sky', hint: 'submitted total' },
-            { label: 'Public Apps', value: publicApplicationsCount, icon: '👁️', tone: 'emerald', hint: 'visible to others' },
+            { label: 'Applications', value: (me.applications || []).length, icon: '📄', tone: 'sky', hint: 'total tracked' },
+            { label: 'Submitted', value: (me.applications || []).filter(a => ['Submitted', 'In Review', 'Closed'].includes(a.status)).length, icon: '✅', tone: 'emerald', hint: 'applications sent' },
             { label: 'Certifications', value: (me.licenses || []).length, icon: '🏆', tone: 'amber', hint: 'earned so far' },
-            { label: 'Public Certs', value: publicLicensesCount, icon: '🏆', tone: 'rose', hint: 'shared publicly' },
-            { label: 'App Progress', value: `${appProgress}%`, icon: '⚡', tone: 'violet', hint: 'in progress' },
+            { label: 'Recommenders', value: recommendations.length, icon: '✉️', tone: 'violet', hint: 'writing for you' },
+            { label: 'App Progress', value: `${appProgress}%`, icon: '⚡', tone: 'rose', hint: 'in progress' },
           ].map(s => (
             <div key={s.label} className={`new-stat-card new-stat-card--${s.tone}`}>
               <div className="new-stat-card__icon-wrap"><span>{s.icon}</span></div>
@@ -660,7 +674,20 @@ export default function StudentDashboard() {
                       <span className="new-overview-item__badge new-overview-item__badge--amber">{profileCompletion}%</span>
                     </div>
                     <div className="new-progress-bar"><div className="new-progress-bar__fill new-progress-bar__fill--indigo" style={{ width: `${profileCompletion}%` }} /></div>
-                    <p className="new-overview-item__hint">Complete more sections to build a stronger profile.</p>
+                    {completion.missingItems.length > 0 ? (
+                      <details className="new-overview-item__missing">
+                        <summary>{completion.missingItems.length} item{completion.missingItems.length === 1 ? '' : 's'} to complete</summary>
+                        <ul>
+                          {completion.missingItems.map((item) => (
+                            <li key={item.label}>
+                              <button type="button" onClick={() => setActiveTab(item.tab)}>{item.label} →</button>
+                            </li>
+                          ))}
+                        </ul>
+                      </details>
+                    ) : (
+                      <p className="new-overview-item__hint">Everything is complete — great job! 🎉</p>
+                    )}
                   </div>
                   <div className="new-overview-item new-overview-item--sky">
                     <div className="new-overview-item__top">
@@ -684,7 +711,7 @@ export default function StudentDashboard() {
                 <div className="new-quick-grid">
                   <QuickItem icon="🏫" label="University" value={me.university} placeholder="Add university (admin-managed)" muted />
                   <QuickItem icon="📚" label="Major" value={me.major} placeholder="Add major (admin-managed)" muted />
-                  <QuickItem icon="🧑‍🏫" label="Assigned Mentor" value={me.assignedCounselor || 'Not assigned'} muted />
+                  <QuickItem icon="🧑‍🏫" label="Assigned Counselor" value={me.assignedCounselor || 'Not assigned'} muted />
                   <QuickItem icon="✅" label="Overall Decision" value={me.decision || 'Pending'} isDecision />
                 </div>
               </div>
@@ -746,6 +773,8 @@ export default function StudentDashboard() {
         {activeTab === 'profile' && (
           <div className="new-profile-grid">
             <div className="new-profile-main">
+              <MyProfileSection profile={profileRow} onSaved={loadMyProfile} />
+
               <div className="new-section-card">
                 <div className="new-section-card__head">
                   <div>
@@ -786,15 +815,13 @@ export default function StudentDashboard() {
               <div className="new-section-card">
                 <div className="new-section-card__head">
                   <div>
-                    <h3>Profile Information</h3>
-                    <p className="new-section-card__sub">Academic details are managed by your admin/counselor.</p>
+                    <h3>Counselor-managed</h3>
+                    <p className="new-section-card__sub">These fields are managed by your admin/counselor — request a change if something is wrong.</p>
                   </div>
                 </div>
                 <div className="info-grid">
-                  <div className="info-card"><span>Full Name</span><strong>{me.fullName}</strong></div>
                   <div className="info-card"><span>Major</span><strong>{me.major || '—'}</strong></div>
                   <div className="info-card"><span>University</span><strong>{me.university || '—'}</strong></div>
-                  <div className="info-card"><span>Gender</span><strong>{me.gender || '—'}</strong></div>
                   <div className="info-card info-card--readonly">
                     <span>Assigned Counselor <em className="readonly-tag">read-only</em></span>
                     <strong>{me.assignedCounselor || '—'}</strong>
@@ -803,18 +830,6 @@ export default function StudentDashboard() {
                     <span>Overall Decision <em className="readonly-tag">read-only</em></span>
                     <strong>{me.decision || '—'}</strong>
                   </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="new-profile-side">
-              <div className="new-section-card new-section-card--side">
-                <div className="new-section-card__head"><div><h3>Snapshot</h3><p className="new-section-card__sub">Your at-a-glance stats</p></div></div>
-                <div className="new-snapshot">
-                  <div><span>Applications</span><strong>{(me.applications || []).length}</strong></div>
-                  <div><span>Public apps</span><strong>{publicApplicationsCount}</strong></div>
-                  <div><span>Certifications</span><strong>{(me.licenses || []).length}</strong></div>
-                  <div><span>Public certs</span><strong>{publicLicensesCount}</strong></div>
                 </div>
               </div>
             </div>

@@ -1,21 +1,68 @@
 -- ============================================================================
--- AppTrack — Phase 0, Migration 001: Schema extensions
+-- AppTrack — Phase 0, Migration 001: Schema extensions (v2 — backend-aware)
 -- ----------------------------------------------------------------------------
--- Adds all tables for the counselor-driven redesign (spec sections 3-20).
--- IDEMPOTENT: safe to run multiple times (IF NOT EXISTS / guards everywhere).
--- Existing tables (profiles, applications, application_documents, licenses,
--- license_media, visibility_requests) are only EXTENDED, never dropped.
+-- AUDITED AGAINST THE LIVE DATABASE:
+--   Legacy/stale tables that already exist and are NEVER touched here:
+--     profiles, applications, application_documents, licenses, license_media,
+--     visibility_requests                      (the 6 tables the app uses today)
+--     students, education, recommendations, documents, profile2s, user_roles,
+--     admin_notes, change_requests, notifications, notification_settings
+--                                              (leftovers from earlier work)
+--   The NEW library table is named `document_files` to avoid any collision
+--   with the legacy `documents` table (this was the cause of a previous
+--   "column user_id does not exist" failure in migration 002).
 --
--- PRIVACY DESIGN (core principle #6):
---   Sensitive profile data (DOB, passport, addresses, household) lives in a
---   separate 1:1 table `profile_private` with strict RLS (see 002), so it can
---   never leak through a public profiles read.
+-- WHAT THIS SCRIPT DOES:
+--   1. Drops and recreates AppTrack's 33 NEW tables (they were created
+--      minutes ago and contain no data — safe). Legacy tables above are NOT
+--      in the drop list.
+--   2. Extends `profiles` and `applications` with new columns (additive only).
+--   3. Creates triggers and indexes.
+--
+-- IDEMPOTENT: safe to run multiple times.
 -- ============================================================================
+
+-- ============================================================================
+-- 0. Drop ONLY the new tables (fresh recreate; legacy tables untouched)
+-- ============================================================================
+drop table if exists public.reminders cascade;
+drop table if exists public.portfolio_items cascade;
+drop table if exists public.links cascade;
+drop table if exists public.scholarships cascade;
+drop table if exists public.aid_forms cascade;
+drop table if exists public.financial_profile cascade;
+drop table if exists public.recommendation_assignments cascade;
+drop table if exists public.recommenders cascade;
+drop table if exists public.document_links cascade;
+drop table if exists public.document_versions cascade;
+drop table if exists public.document_files cascade;
+drop table if exists public.application_essays cascade;
+drop table if exists public.essay_shares cascade;
+drop table if exists public.essay_comments cascade;
+drop table if exists public.essay_versions cascade;
+drop table if exists public.essays cascade;
+drop table if exists public.supervisor_contacts cascade;
+drop table if exists public.interviews cascade;
+drop table if exists public.application_requirements cascade;
+drop table if exists public.application_deadlines cascade;
+drop table if exists public.application_choices cascade;
+drop table if exists public.publications cascade;
+drop table if exists public.projects cascade;
+drop table if exists public.activities cascade;
+drop table if exists public.honors cascade;
+drop table if exists public.score_sending cascade;
+drop table if exists public.test_section_scores cascade;
+drop table if exists public.test_attempts cascade;
+drop table if exists public.grade_rows cascade;
+drop table if exists public.education_entries cascade;
+drop table if exists public.parents cascade;
+drop table if exists public.profile_private cascade;
+drop table if exists public.universities cascade;
 
 -- ============================================================================
 -- 1. UNIVERSITIES (seeded reference table for autocomplete)
 -- ============================================================================
-create table if not exists public.universities (
+create table public.universities (
   id         uuid primary key default gen_random_uuid(),
   name       text not null,
   country    text not null,          -- ISO 3166-1 alpha-2, e.g. 'AZ', 'US'
@@ -23,8 +70,51 @@ create table if not exists public.universities (
   created_at timestamptz not null default now(),
   unique (name, country)
 );
-create index if not exists idx_universities_name on public.universities (lower(name));
-create index if not exists idx_universities_country on public.universities (country);
+create index idx_universities_name on public.universities (lower(name));
+create index idx_universities_country on public.universities (country);
+
+-- ============================================================================
+-- 1b. DOCUMENT FILES — unified library (Section 12)  [created early:
+--      test_attempts/honors/projects/publications/applications hold FK refs to it]
+--     Named `document_files` (NOT `documents`) because a legacy `documents`
+--     table already exists in this database and must stay untouched.
+-- ============================================================================
+create table public.document_files (
+  id           uuid primary key default gen_random_uuid(),
+  user_id      uuid not null references public.profiles(id) on delete cascade,
+  title        text not null,
+  category     text not null check (category in
+    ('passport','national_id','photo',
+     'transcript','translated_transcript','diploma','enrollment_certificate','predicted_grades',
+     'test_report','english_certificate','cv_resume','essay_export',
+     'award_certificate','course_certificate',
+     'bank_statement','financial_aid_document','sponsor_letter',
+     'recommendation_copy','portfolio','research_proposal','writing_sample',
+     'university_form','decision_letter','other')),
+  issue_date   date,
+  expiry_date  date,             -- alerts: passport, scores, bank statements
+  language     text,
+  is_translated boolean not null default false,
+  is_certified  boolean not null default false,
+  is_apostille  boolean not null default false,
+  version      smallint not null default 1,
+  file_path    text not null,    -- Supabase Storage, PRIVATE bucket
+  mime_type    text,
+  size_bytes   bigint,
+  -- PRINCIPLE #6: sensitive categories can NEVER be public (enforced by CHECK
+  -- below + RLS in 002, so even direct API calls cannot flip it)
+  is_public    boolean not null default false,
+  created_at   timestamptz not null default now(),
+  updated_at   timestamptz not null default now(),
+  constraint document_files_public_only_for_showcase check (
+    is_public = false or category in
+      ('cv_resume','award_certificate','course_certificate','portfolio',
+       'research_proposal','writing_sample','university_form','other')
+  )
+);
+create index idx_document_files_user     on public.document_files (user_id);
+create index idx_document_files_category on public.document_files (category);
+create index idx_document_files_expiry   on public.document_files (expiry_date);
 
 -- ============================================================================
 -- 2. PROFILE — new columns (structured names, goals, graduate fields)
@@ -34,7 +124,7 @@ alter table public.profiles
   add column if not exists middle_name       text,
   add column if not exists family_name       text,
   add column if not exists preferred_name    text,
-  add column if not exists passport_name     text,   -- "exactly as in passport" (required by HKU/NTU/visa)
+  add column if not exists passport_name     text,   -- "exactly as in passport" (HKU/NTU/visa)
   add column if not exists native_script_name text,  -- optional
   add column if not exists pronouns          text,
   add column if not exists phone_country_code text,
@@ -59,15 +149,16 @@ alter table public.profiles
   add column if not exists orcid         text,
   add column if not exists google_scholar text,
   add column if not exists linkedin      text,
-  -- Counselor link (RLS anchor). `assigned_counselor` (text) stays for display.
+  -- Counselor link (RLS anchor for NEW tables only).
+  -- Legacy `assigned_counselor` (text) stays exactly as-is.
   add column if not exists counselor_id  uuid references public.profiles(id) on delete set null;
 
 -- ============================================================================
--- 3. PROFILE_PRIVATE — 1:1 sensitive data (NEVER public, RLS-enforced)
+-- 3. PROFILE_PRIVATE — 1:1 sensitive data (NEVER public, RLS-enforced in 002)
 --    Passport, DOB, addresses, household. Separate table = cannot leak
 --    through `select *` on profiles by another authenticated user.
 -- ============================================================================
-create table if not exists public.profile_private (
+create table public.profile_private (
   user_id            uuid primary key references public.profiles(id) on delete cascade,
   date_of_birth      date,
   country_of_birth   text,
@@ -86,7 +177,7 @@ create table if not exists public.profile_private (
 -- ============================================================================
 -- 4. PARENTS / GUARDIANS (private; up to 2 parents + 1 guardian)
 -- ============================================================================
-create table if not exists public.parents (
+create table public.parents (
   id              uuid primary key default gen_random_uuid(),
   user_id         uuid not null references public.profiles(id) on delete cascade,
   kind            text not null check (kind in ('mother','father','guardian')),
@@ -100,12 +191,12 @@ create table if not exists public.parents (
   created_at      timestamptz not null default now(),
   updated_at      timestamptz not null default now()
 );
-create index if not exists idx_parents_user on public.parents (user_id);
+create index idx_parents_user on public.parents (user_id);
 
 -- ============================================================================
 -- 5. EDUCATION
 -- ============================================================================
-create table if not exists public.education_entries (
+create table public.education_entries (
   id          uuid primary key default gen_random_uuid(),
   user_id     uuid not null references public.profiles(id) on delete cascade,
   entry_type  text not null check (entry_type in
@@ -152,10 +243,10 @@ create table if not exists public.education_entries (
   created_at  timestamptz not null default now(),
   updated_at  timestamptz not null default now()
 );
-create index if not exists idx_education_user on public.education_entries (user_id);
+create index idx_education_user on public.education_entries (user_id);
 
 -- Grades table: Subject x (Grade level x Semester) — HKU/NTU type-in forms
-create table if not exists public.grade_rows (
+create table public.grade_rows (
   id          uuid primary key default gen_random_uuid(),
   user_id     uuid not null references public.profiles(id) on delete cascade,
   entry_id    uuid not null references public.education_entries(id) on delete cascade,
@@ -168,13 +259,13 @@ create table if not exists public.grade_rows (
   created_at  timestamptz not null default now(),
   updated_at  timestamptz not null default now()
 );
-create index if not exists idx_grade_rows_entry on public.grade_rows (entry_id);
-create index if not exists idx_grade_rows_user  on public.grade_rows (user_id);
+create index idx_grade_rows_entry on public.grade_rows (entry_id);
+create index idx_grade_rows_user  on public.grade_rows (user_id);
 
 -- ============================================================================
 -- 6. TEST SCORES
 -- ============================================================================
-create table if not exists public.test_attempts (
+create table public.test_attempts (
   id             uuid primary key default gen_random_uuid(),
   user_id        uuid not null references public.profiles(id) on delete cascade,
   test_type      text not null check (test_type in
@@ -194,28 +285,28 @@ create table if not exists public.test_attempts (
   expires_on     date,           -- IELTS/TOEFL/Duolingo/PTE: +2y; GRE/GMAT: +5y
   is_best        boolean not null default false,  -- flagged automatically (app logic)
   notes          text,
-  report_document_id uuid,       -- uploaded score report (Documents library)
+  report_document_id uuid references public.document_files(id) on delete set null,
   created_at     timestamptz not null default now(),
   updated_at     timestamptz not null default now()
 );
-create index if not exists idx_test_attempts_user on public.test_attempts (user_id);
+create index idx_test_attempts_user on public.test_attempts (user_id);
 
-create table if not exists public.test_section_scores (
+create table public.test_section_scores (
   id         uuid primary key default gen_random_uuid(),
   user_id    uuid not null references public.profiles(id) on delete cascade,
   attempt_id uuid not null references public.test_attempts(id) on delete cascade,
-  section    text not null,      -- 'RW', 'Math', 'English', 'L', 'R', 'W', 'S', 'Verbal', 'Quant', 'AWA', subject name for AP/IB...
+  section    text not null,      -- 'RW','Math','English','L','R','W','S','Verbal','Quant','AWA', AP/IB subject...
   score      numeric,
   score_max  numeric,
   sort_order smallint not null default 0,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-create index if not exists idx_test_sections_attempt on public.test_section_scores (attempt_id);
-create index if not exists idx_test_sections_user    on public.test_section_scores (user_id);
+create index idx_test_sections_attempt on public.test_section_scores (attempt_id);
+create index idx_test_sections_user    on public.test_section_scores (user_id);
 
 -- Score sending tracker (per application)
-create table if not exists public.score_sending (
+create table public.score_sending (
   id             uuid primary key default gen_random_uuid(),
   user_id        uuid not null references public.profiles(id) on delete cascade,
   application_id uuid not null references public.applications(id) on delete cascade,
@@ -230,12 +321,12 @@ create table if not exists public.score_sending (
   updated_at     timestamptz not null default now(),
   unique (application_id, attempt_id)
 );
-create index if not exists idx_score_sending_user on public.score_sending (user_id);
+create index idx_score_sending_user on public.score_sending (user_id);
 
 -- ============================================================================
 -- 7. HONORS & AWARDS
 -- ============================================================================
-create table if not exists public.honors (
+create table public.honors (
   id           uuid primary key default gen_random_uuid(),
   user_id      uuid not null references public.profiles(id) on delete cascade,
   title        text not null check (char_length(title) <= 100),  -- Common App limit
@@ -251,7 +342,7 @@ create table if not exists public.honors (
   issuer       text,
   participants_context text,    -- e.g. '600 participants, top 5%'
   description  text,
-  certificate_document_id uuid,
+  certificate_document_id uuid references public.document_files(id) on delete set null,
   verification_url text,
   is_top5_commonapp boolean not null default false,
   top5_order   smallint,
@@ -259,12 +350,12 @@ create table if not exists public.honors (
   created_at   timestamptz not null default now(),
   updated_at   timestamptz not null default now()
 );
-create index if not exists idx_honors_user on public.honors (user_id);
+create index idx_honors_user on public.honors (user_id);
 
 -- ============================================================================
 -- 8. ACTIVITIES & EXPERIENCES (one unified list)
 -- ============================================================================
-create table if not exists public.activities (
+create table public.activities (
   id               uuid primary key default gen_random_uuid(),
   user_id          uuid not null references public.profiles(id) on delete cascade,
   activity_type    text not null default 'other_club',  -- Common App categories, see src/constants/activityTypes.js
@@ -301,12 +392,12 @@ create table if not exists public.activities (
   created_at       timestamptz not null default now(),
   updated_at       timestamptz not null default now()
 );
-create index if not exists idx_activities_user on public.activities (user_id);
+create index idx_activities_user on public.activities (user_id);
 
 -- ============================================================================
 -- 9. PROJECTS & RESEARCH
 -- ============================================================================
-create table if not exists public.projects (
+create table public.projects (
   id             uuid primary key default gen_random_uuid(),
   user_id        uuid not null references public.profiles(id) on delete cascade,
   title          text not null,
@@ -328,7 +419,7 @@ create table if not exists public.projects (
   demo_url       text,
   video_url      text,
   paper_url      text,           -- DOI / arXiv
-  report_document_id uuid,       -- report / poster / paper PDF
+  report_document_id uuid references public.document_files(id) on delete set null,
   mentor_name    text,           -- private
   related_activity_id uuid references public.activities(id) on delete set null,
   related_honor_id    uuid references public.honors(id) on delete set null,
@@ -338,12 +429,12 @@ create table if not exists public.projects (
   created_at     timestamptz not null default now(),
   updated_at     timestamptz not null default now()
 );
-create index if not exists idx_projects_user on public.projects (user_id);
+create index idx_projects_user on public.projects (user_id);
 
 -- ============================================================================
 -- 10. PUBLICATIONS (Master/PhD; optional for others)
 -- ============================================================================
-create table if not exists public.publications (
+create table public.publications (
   id            uuid primary key default gen_random_uuid(),
   user_id       uuid not null references public.profiles(id) on delete cascade,
   title         text not null,
@@ -357,14 +448,14 @@ create table if not exists public.publications (
   peer_reviewed boolean,
   status        text default 'in_preparation' check (status in
     ('in_preparation','submitted','under_review','accepted','published')),
-  pdf_document_id uuid,
+  pdf_document_id uuid references public.document_files(id) on delete set null,
   created_at    timestamptz not null default now(),
   updated_at    timestamptz not null default now()
 );
-create index if not exists idx_publications_user on public.publications (user_id);
+create index idx_publications_user on public.publications (user_id);
 
 -- ============================================================================
--- 11. APPLICATIONS — new columns on existing table
+-- 11. APPLICATIONS — new columns on the EXISTING table (additive only)
 -- ============================================================================
 alter table public.applications
   add column if not exists university_id uuid references public.universities(id) on delete set null,
@@ -402,7 +493,7 @@ alter table public.applications
   add column if not exists why_professors text,
   add column if not exists why_programs   text,
   add column if not exists why_links      text,
-  -- Progress (computed from checklist, cached here)
+  -- Progress (computed from the checklist, cached here)
   add column if not exists progress_percent smallint default 0
     check (progress_percent between 0 and 100),
   -- Decision extensions
@@ -410,7 +501,7 @@ alter table public.applications
   add column if not exists decision_at         timestamptz,
   add column if not exists reply_deadline_at   timestamptz,
   add column if not exists reply_deadline_tz   text,
-  add column if not exists decision_letter_document_id uuid,
+  add column if not exists decision_letter_document_id uuid references public.document_files(id) on delete set null,
   add column if not exists committed_at        timestamptz,
   -- Aid result
   add column if not exists aid_scholarship_name text,
@@ -422,10 +513,10 @@ alter table public.applications
   -- Aid policy
   add column if not exists aid_policy text check (aid_policy is null or aid_policy in
     ('need_blind','need_aware','merit_only','none_international','unknown')),
-  updated_at timestamptz not null default now();
+  add column if not exists updated_at timestamptz not null default now();
 
 -- Ranked program choices (HKU up to 3, NTU up to 5)
-create table if not exists public.application_choices (
+create table public.application_choices (
   id             uuid primary key default gen_random_uuid(),
   user_id        uuid not null references public.profiles(id) on delete cascade,
   application_id uuid not null references public.applications(id) on delete cascade,
@@ -437,10 +528,10 @@ create table if not exists public.application_choices (
   created_at     timestamptz not null default now(),
   updated_at     timestamptz not null default now()
 );
-create index if not exists idx_app_choices_application on public.application_choices (application_id);
+create index idx_app_choices_application on public.application_choices (application_id);
 
 -- Deadlines with ORIGINAL time zone (core principle #5)
-create table if not exists public.application_deadlines (
+create table public.application_deadlines (
   id               uuid primary key default gen_random_uuid(),
   user_id          uuid not null references public.profiles(id) on delete cascade,
   application_id   uuid not null references public.applications(id) on delete cascade,
@@ -452,12 +543,12 @@ create table if not exists public.application_deadlines (
   created_at       timestamptz not null default now(),
   updated_at       timestamptz not null default now()
 );
-create index if not exists idx_app_deadlines_application on public.application_deadlines (application_id);
-create index if not exists idx_app_deadlines_user        on public.application_deadlines (user_id);
-create index if not exists idx_app_deadlines_due         on public.application_deadlines (due_at);
+create index idx_app_deadlines_application on public.application_deadlines (application_id);
+create index idx_app_deadlines_user        on public.application_deadlines (user_id);
+create index idx_app_deadlines_due         on public.application_deadlines (due_at);
 
 -- Requirements checklist (generated by app from level+platform+country, editable)
-create table if not exists public.application_requirements (
+create table public.application_requirements (
   id             uuid primary key default gen_random_uuid(),
   user_id        uuid not null references public.profiles(id) on delete cascade,
   application_id uuid not null references public.applications(id) on delete cascade,
@@ -471,10 +562,10 @@ create table if not exists public.application_requirements (
   updated_at     timestamptz not null default now(),
   unique (application_id, req_key)
 );
-create index if not exists idx_app_reqs_application on public.application_requirements (application_id);
+create index idx_app_reqs_application on public.application_requirements (application_id);
 
 -- Interviews (repeatable per application)
-create table if not exists public.interviews (
+create table public.interviews (
   id             uuid primary key default gen_random_uuid(),
   user_id        uuid not null references public.profiles(id) on delete cascade,
   application_id uuid not null references public.applications(id) on delete cascade,
@@ -488,10 +579,10 @@ create table if not exists public.interviews (
   created_at     timestamptz not null default now(),
   updated_at     timestamptz not null default now()
 );
-create index if not exists idx_interviews_application on public.interviews (application_id);
+create index idx_interviews_application on public.interviews (application_id);
 
 -- PhD supervisor contact log (Section 18)
-create table if not exists public.supervisor_contacts (
+create table public.supervisor_contacts (
   id             uuid primary key default gen_random_uuid(),
   user_id        uuid not null references public.profiles(id) on delete cascade,
   application_id uuid not null references public.applications(id) on delete cascade,
@@ -506,12 +597,12 @@ create table if not exists public.supervisor_contacts (
   created_at     timestamptz not null default now(),
   updated_at     timestamptz not null default now()
 );
-create index if not exists idx_supervisor_contacts_application on public.supervisor_contacts (application_id);
+create index idx_supervisor_contacts_application on public.supervisor_contacts (application_id);
 
 -- ============================================================================
 -- 12. ESSAYS (new, highest priority — Section 10)
 -- ============================================================================
-create table if not exists public.essays (
+create table public.essays (
   id          uuid primary key default gen_random_uuid(),
   user_id     uuid not null references public.profiles(id) on delete cascade,
   title       text not null,
@@ -532,9 +623,9 @@ create table if not exists public.essays (
   created_at  timestamptz not null default now(),
   updated_at  timestamptz not null default now()
 );
-create index if not exists idx_essays_user on public.essays (user_id);
+create index idx_essays_user on public.essays (user_id);
 
-create table if not exists public.essay_versions (
+create table public.essay_versions (
   id         uuid primary key default gen_random_uuid(),
   user_id    uuid not null references public.profiles(id) on delete cascade,
   essay_id   uuid not null references public.essays(id) on delete cascade,
@@ -546,9 +637,9 @@ create table if not exists public.essay_versions (
   created_at timestamptz not null default now(),
   unique (essay_id, version)
 );
-create index if not exists idx_essay_versions_essay on public.essay_versions (essay_id);
+create index idx_essay_versions_essay on public.essay_versions (essay_id);
 
-create table if not exists public.essay_comments (
+create table public.essay_comments (
   id            uuid primary key default gen_random_uuid(),
   user_id       uuid not null references public.profiles(id) on delete cascade, -- essay owner
   essay_id      uuid not null references public.essays(id) on delete cascade,
@@ -563,10 +654,10 @@ create table if not exists public.essay_comments (
   created_at    timestamptz not null default now(),
   updated_at    timestamptz not null default now()
 );
-create index if not exists idx_essay_comments_essay on public.essay_comments (essay_id);
+create index idx_essay_comments_essay on public.essay_comments (essay_id);
 
 -- Explicit sharing ("share with specific user", NEVER public)
-create table if not exists public.essay_shares (
+create table public.essay_shares (
   id          uuid primary key default gen_random_uuid(),
   user_id     uuid not null references public.profiles(id) on delete cascade, -- essay owner
   essay_id    uuid not null references public.essays(id) on delete cascade,
@@ -575,10 +666,10 @@ create table if not exists public.essay_shares (
   created_at  timestamptz not null default now(),
   unique (essay_id, shared_with)
 );
-create index if not exists idx_essay_shares_essay on public.essay_shares (essay_id);
+create index idx_essay_shares_essay on public.essay_shares (essay_id);
 
 -- Link essays to applications (many-to-many) + per-university AI rules note
-create table if not exists public.application_essays (
+create table public.application_essays (
   id             uuid primary key default gen_random_uuid(),
   user_id        uuid not null references public.profiles(id) on delete cascade,
   application_id uuid not null references public.applications(id) on delete cascade,
@@ -587,80 +678,40 @@ create table if not exists public.application_essays (
   created_at     timestamptz not null default now(),
   unique (application_id, essay_id)
 );
-create index if not exists idx_application_essays_application on public.application_essays (application_id);
-create index if not exists idx_application_essays_essay       on public.application_essays (essay_id);
+create index idx_application_essays_application on public.application_essays (application_id);
+create index idx_application_essays_essay       on public.application_essays (essay_id);
 
--- ============================================================================
--- 13. DOCUMENTS — unified library (Section 12)
---     NOTE: legacy `application_documents` stays untouched until Phase 5.
--- ============================================================================
-create table if not exists public.documents (
-  id           uuid primary key default gen_random_uuid(),
-  user_id      uuid not null references public.profiles(id) on delete cascade,
-  title        text not null,
-  category     text not null check (category in
-    ('passport','national_id','photo',
-     'transcript','translated_transcript','diploma','enrollment_certificate','predicted_grades',
-     'test_report','english_certificate','cv_resume','essay_export',
-     'award_certificate','course_certificate',
-     'bank_statement','financial_aid_document','sponsor_letter',
-     'recommendation_copy','portfolio','research_proposal','writing_sample',
-     'university_form','decision_letter','other')),
-  issue_date   date,
-  expiry_date  date,             -- alerts: passport, scores, bank statements
-  language     text,
-  is_translated boolean not null default false,
-  is_certified  boolean not null default false,
-  is_apostille  boolean not null default false,
-  version      smallint not null default 1,
-  file_path    text not null,    -- Supabase Storage, PRIVATE bucket
-  mime_type    text,
-  size_bytes   bigint,
-  -- PRINCIPLE #6: sensitive categories can NEVER be public (enforced by CHECK
-  -- below + RLS in 002, so even direct API calls cannot flip it)
-  is_public    boolean not null default false,
-  created_at   timestamptz not null default now(),
-  updated_at   timestamptz not null default now(),
-  constraint documents_public_only_for_showcase check (
-    is_public = false or category in
-      ('cv_resume','award_certificate','course_certificate','portfolio',
-       'research_proposal','writing_sample','university_form','other')
-  )
-);
-create index if not exists idx_documents_user     on public.documents (user_id);
-create index if not exists idx_documents_category on public.documents (category);
-create index if not exists idx_documents_expiry   on public.documents (expiry_date);
 
-create table if not exists public.document_versions (
+create table public.document_versions (
   id          uuid primary key default gen_random_uuid(),
   user_id     uuid not null references public.profiles(id) on delete cascade,
-  document_id uuid not null references public.documents(id) on delete cascade,
+  document_id uuid not null references public.document_files(id) on delete cascade,
   version     smallint not null default 1,
   file_path   text not null,
   note        text,
   created_at  timestamptz not null default now(),
   unique (document_id, version)
 );
-create index if not exists idx_document_versions_document on public.document_versions (document_id);
+create index idx_document_versions_document on public.document_versions (document_id);
 
--- many-to-many: document ↔ application, with per-application status
-create table if not exists public.document_links (
+-- many-to-many: document file ↔ application, with per-application status
+create table public.document_links (
   id             uuid primary key default gen_random_uuid(),
   user_id        uuid not null references public.profiles(id) on delete cascade,
-  document_id    uuid not null references public.documents(id) on delete cascade,
+  document_id    uuid not null references public.document_files(id) on delete cascade,
   application_id uuid not null references public.applications(id) on delete cascade,
   status         text not null default 'needed' check (status in
     ('needed','uploaded_to_portal','sent','confirmed')),
   created_at     timestamptz not null default now(),
   unique (document_id, application_id)
 );
-create index if not exists idx_document_links_application on public.document_links (application_id);
-create index if not exists idx_document_links_document    on public.document_links (document_id);
+create index idx_document_links_application on public.document_links (application_id);
+create index idx_document_links_document    on public.document_links (document_id);
 
 -- ============================================================================
 -- 14. RECOMMENDATIONS (Section 13)
 -- ============================================================================
-create table if not exists public.recommenders (
+create table public.recommenders (
   id             uuid primary key default gen_random_uuid(),
   user_id        uuid not null references public.profiles(id) on delete cascade,
   title          text check (title is null or title in ('mr','ms','dr','prof')),
@@ -681,10 +732,10 @@ create table if not exists public.recommenders (
   created_at     timestamptz not null default now(),
   updated_at     timestamptz not null default now()
 );
-create index if not exists idx_recommenders_user on public.recommenders (user_id);
+create index idx_recommenders_user on public.recommenders (user_id);
 
 -- Per-application assignment: one recommender writes for many universities
-create table if not exists public.recommendation_assignments (
+create table public.recommendation_assignments (
   id             uuid primary key default gen_random_uuid(),
   user_id        uuid not null references public.profiles(id) on delete cascade,
   recommender_id uuid not null references public.recommenders(id) on delete cascade,
@@ -703,13 +754,13 @@ create table if not exists public.recommendation_assignments (
   updated_at     timestamptz not null default now(),
   unique (recommender_id, application_id)
 );
-create index if not exists idx_rec_assignments_application on public.recommendation_assignments (application_id);
-create index if not exists idx_rec_assignments_recommender on public.recommendation_assignments (recommender_id);
+create index idx_rec_assignments_application on public.recommendation_assignments (application_id);
+create index idx_rec_assignments_recommender on public.recommendation_assignments (recommender_id);
 
 -- ============================================================================
 -- 15. FINANCIAL AID & SCHOLARSHIPS (Section 14) — private, NEVER public
 -- ============================================================================
-create table if not exists public.financial_profile (
+create table public.financial_profile (
   user_id        uuid primary key references public.profiles(id) on delete cascade,
   currency       text not null default 'AZN',
   annual_income  numeric,
@@ -722,7 +773,7 @@ create table if not exists public.financial_profile (
   updated_at     timestamptz not null default now()
 );
 
-create table if not exists public.aid_forms (
+create table public.aid_forms (
   id             uuid primary key default gen_random_uuid(),
   user_id        uuid not null references public.profiles(id) on delete cascade,
   application_id uuid not null references public.applications(id) on delete cascade,
@@ -737,9 +788,9 @@ create table if not exists public.aid_forms (
   updated_at     timestamptz not null default now(),
   unique (application_id, form_type)
 );
-create index if not exists idx_aid_forms_application on public.aid_forms (application_id);
+create index idx_aid_forms_application on public.aid_forms (application_id);
 
-create table if not exists public.scholarships (
+create table public.scholarships (
   id             uuid primary key default gen_random_uuid(),
   user_id        uuid not null references public.profiles(id) on delete cascade,
   application_id uuid references public.applications(id) on delete set null,
@@ -759,12 +810,12 @@ create table if not exists public.scholarships (
   created_at     timestamptz not null default now(),
   updated_at     timestamptz not null default now()
 );
-create index if not exists idx_scholarships_user on public.scholarships (user_id);
+create index idx_scholarships_user on public.scholarships (user_id);
 
 -- ============================================================================
 -- 16. LINKS & PORTFOLIO (Section 16)
 -- ============================================================================
-create table if not exists public.links (
+create table public.links (
   id         uuid primary key default gen_random_uuid(),
   user_id    uuid not null references public.profiles(id) on delete cascade,
   link_type  text not null check (link_type in
@@ -777,9 +828,9 @@ create table if not exists public.links (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-create index if not exists idx_links_user on public.links (user_id);
+create index idx_links_user on public.links (user_id);
 
-create table if not exists public.portfolio_items (
+create table public.portfolio_items (
   id         uuid primary key default gen_random_uuid(),
   user_id    uuid not null references public.profiles(id) on delete cascade,
   title      text not null,
@@ -792,12 +843,12 @@ create table if not exists public.portfolio_items (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-create index if not exists idx_portfolio_user on public.portfolio_items (user_id);
+create index idx_portfolio_user on public.portfolio_items (user_id);
 
 -- ============================================================================
 -- 17. REMINDERS (Section 15: 30/14/7/3/1 days + day-of)
 -- ============================================================================
-create table if not exists public.reminders (
+create table public.reminders (
   id          uuid primary key default gen_random_uuid(),
   user_id     uuid not null references public.profiles(id) on delete cascade,
   entity_type text not null,     -- 'application_deadline','recommendation','scholarship','test_date','interview','reply_deposit'
@@ -807,8 +858,8 @@ create table if not exists public.reminders (
   sent_at     timestamptz,
   created_at  timestamptz not null default now()
 );
-create index if not exists idx_reminders_user on public.reminders (user_id);
-create index if not exists idx_reminders_due  on public.reminders (remind_at);
+create index idx_reminders_user on public.reminders (user_id);
+create index idx_reminders_due  on public.reminders (remind_at);
 
 -- ============================================================================
 -- 18. updated_at trigger (applies to every new table with updated_at)
@@ -830,9 +881,9 @@ begin
   foreach t in array array[
     'profile_private','parents','education_entries','grade_rows','test_attempts',
     'test_section_scores','score_sending','honors','activities','projects','publications',
-    'applications','application_choices','application_deadlines','application_requirements',
+    'application_choices','application_deadlines','application_requirements',
     'interviews','supervisor_contacts','essays','essay_versions','essay_comments',
-    'essay_shares','application_essays','documents','document_versions','document_links',
+    'essay_shares','application_essays','document_files','document_versions','document_links',
     'recommenders','recommendation_assignments','financial_profile','aid_forms','scholarships',
     'links','portfolio_items'
   ]
@@ -846,7 +897,7 @@ end;
 $$;
 
 -- ============================================================================
--- 19. Helpful indexes on existing tables
+-- 19. Helpful indexes on existing tables (safe, additive)
 -- ============================================================================
 create index if not exists idx_applications_student on public.applications (student_id);
 create index if not exists idx_app_documents_application on public.application_documents (application_id);

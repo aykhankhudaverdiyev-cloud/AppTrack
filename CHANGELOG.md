@@ -60,8 +60,57 @@ Styling follows the existing design language: purple gradient (`#7c3aed → #6d2
 
 ---
 
+## Phase 1 — My Profile rebuild + Profile completion fix
+
+**Status:** ready · **Date:** 2026-11-02
+
+### My Profile (spec §3) — `src/components/profile/MyProfileSection.jsx` + CSS
+New structured, level-aware profile editing rendered at the top of the
+My Profile tab (all English UI, autosaving per section with explicit dirty
+markers, `Saved/Saving…/Save failed` status pills):
+
+| Card | Fields | Storage |
+|---|---|---|
+| Name | Given / Middle / Family / Preferred / **Name exactly as in passport** (with HKU-NTU-visa hint) / Native script | `profiles` new columns |
+| Personal 🔒 always private | DOB, country of birth, citizenship(s), dual citizenship, passport number + expiry (**12-month-before-intended-start warning**), permanent/current address, gender (spec options), pronouns | `profile_private` + `profiles.gender/pronouns` |
+| Background | Languages + proficiency (rows editor), first-generation flag, household size, siblings | `profiles` + `profile_private` |
+| Parents / Guardians | CRUD list, max 2 parents + 1 guardian, living/deceased, education, occupation, employer, email; delete via ConfirmDialog | `parents` |
+| Goals | Applying for (level), start term, intended major 1/2, financial aid yes/no, gap year yes/no — **level drives the Graduate card visibility and the completion weights** | `profiles` |
+| Graduate (only Master/PhD) | Current degree, status, work experience years, research interests, ORCID, Google Scholar, LinkedIn | `profiles` |
+
+Supporting service: `src/Services/ProfileServiceV2.js` (whitelisted
+camelCase→snake_case writes; parallel reads; owner-only paths, RLS-enforced).
+
+### Profile completion fix (spec §2, acceptance criterion)
+- **Old bug:** counted 7 profile fields → showed 86% on an empty academic profile.
+- **New engine:** `src/utils/profileCompletion.js` — weighted, level-aware:
+  - Bachelor/Transfer/Exchange: Profile 20 · Education 25 · Tests 15 · Honors 10 · Activities 20 · Recommenders 10
+  - Master/PhD: Profile 15 · Education 25 · Tests 10 · Research/Publications 20 · Experience 15 · Recommenders 15
+- Empty profile now correctly shows **0%** (8/8 tests, `npm test`).
+- The Overview card lists the missing items; each item is a button that jumps
+  to the relevant tab.
+
+### Overview (spec §2, first slice)
+- Stat cards "Public Apps" / "Public Certs" (no action value) replaced by
+  **Submitted** (applications) and **Recommenders** counts.
+- "Assigned Mentor" → **"Assigned Counselor"** (single term everywhere).
+- Removed the duplicated **Snapshot** block from the Profile tab (spec §3).
+- Old "Profile Information" card renamed to **Counselor-managed** (Major,
+  University, Assigned Counselor, Overall Decision stay read-only there;
+  name/gender moved into the editable structured cards).
+
+### Notes
+- Academic counts (education/tests/honors/activities/projects/recommendations)
+  still come from the current localStorage lists until Phase 4 moves them to
+  the new DB tables — completion reflects them correctly in the meantime.
+- `useAutosave` fix: no save-on-mount (dirty flag is now explicit).
+- Pre-existing lint debt in `StudentDashboard.jsx` (22 errors: unused handlers,
+  legacy setState-in-effect) is untouched — separate cleanup, not this phase.
+
+
+---
+
 ## Upcoming phases
-- **Phase 1:** My Profile rebuild + profile-completion fix + Overview stat cards
 - **Phase 2:** Essays (highest priority — versions, counters, counselor comments)
 - **Phase 3:** Applications rebuild (ranked choices, round rules, checklist + progress %)
 - **Phase 4:** Education, Test Scores, Honors, Activities, Projects, Publications
