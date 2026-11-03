@@ -1,0 +1,31 @@
+/* Essays tab (spec §10) — builds on the .mps-* card styles */
+.essays__bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.essays__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.essays__row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.essays__actions { display: flex; gap: 8px; }
+.essays__editor {
+  width: 100%; box-sizing: border-box; padding: 14px 16px; border: 1.5px solid #e2e8f0; border-radius: 14px;
+  font: inherit; font-size: 0.95rem; line-height: 1.65; resize: vertical; min-height: 320px; color: #0f172a;
+}
+.essays__editor:focus { outline: none; border-color: #7c3aed; box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.15); }
+.essays__filters { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+.essays__chip { border: 1.5px solid #e2e8f0; background: #fff; color: #475569; border-radius: 999px; padding: 5px 14px; font: inherit; font-size: 0.78rem; font-weight: 600; cursor: pointer; }
+.essays__chip--active { background: linear-gradient(135deg, #7c3aed, #6d28d9); border-color: transparent; color: #fff; }
+.essays__item { display: flex; align-items: center; gap: 10px; border: 1.5px solid #e2e8f0; border-radius: 14px; padding: 4px 12px 4px 4px; }
+.essays__item:hover { border-color: #c4b5fd; }
+.essays__item-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; text-align: left; background: none; border: none; padding: 10px 12px; font: inherit; cursor: pointer; color: #0f172a; }
+.essays__item-main span, .essays__item-main small { font-size: 0.78rem; color: #64748b; }
+.essays__status { font-size: 0.72rem; font-weight: 600; padding: 3px 10px; border-radius: 999px; background: #f1f5f9; color: #475569; white-space: nowrap; }
+.essays__status--draft, .essays__status--revising { background: #fef3c7; color: #b45309; }
+.essays__status--counselor_review { background: #ede9fe; color: #6d28d9; }
+.essays__status--final, .essays__status--submitted { background: #dcfce7; color: #15803d; }
+.essays__comment { border: 1.5px solid #ddd6fe; background: #faf5ff; border-radius: 14px; padding: 12px 14px; }
+.essays__comment--resolved { border-color: #e2e8f0; background: #f8fafc; opacity: 0.75; }
+.essays__comment blockquote { margin: 0 0 6px; padding-left: 10px; border-left: 3px solid #a78bfa; color: #64748b; font-size: 0.82rem; }
+.essays__comment p { margin: 0 0 6px; font-size: 0.88rem; }
+.essays__suggestion { color: #6d28d9; }
+.essays__version { border: 1.5px solid #e2e8f0; border-radius: 12px; padding: 8px 12px; font-size: 0.85rem; }
+.essays__preview { white-space: pre-wrap; background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 12px; padding: 12px 14px; margin-top: 10px; font: inherit; font-size: 0.88rem; max-height: 320px; overflow: auto; }
+.essays__check { display: flex; align-items: center; gap: 8px; font-size: 0.88rem; font-weight: 600; }
+.essays__note { width: 100%; box-sizing: border-box; margin-top: 6px; padding: 8px 12px; border: 1.5px solid #e2e8f0; border-radius: 10px; font: inherit; font-size: 0.82rem; }
+@media (max-width: 640px) { .essays__item { flex-wrap: wrap; } }

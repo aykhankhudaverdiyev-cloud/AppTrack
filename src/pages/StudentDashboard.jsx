@@ -34,6 +34,7 @@ import LicenseModal from '../components/LicenseModal'
 import PublicStudentDrawer from '../components/PublicStudentDrawer'
 import StudentCard from '../components/StudentCard'
 import MyProfileSection from '../components/profile/MyProfileSection'
+import EssaysSection from '../components/essays/EssaysSection'
 import { computeProfileCompletion } from '../utils/profileCompletion'
 import './StudentDashboard.css'
 
@@ -75,6 +76,7 @@ const TAB_GROUPS = [
     label: 'Admissions',
     tabs: [
       { key: 'applications', label: 'Applications' },
+      { key: 'essays', label: 'Essays' },
       { key: 'documents', label: 'Documents' },
       { key: 'recommendations', label: 'Recommendations' },
       { key: 'portfolio', label: 'Portfolio' },
@@ -1078,6 +1080,11 @@ export default function StudentDashboard() {
               )}
             </div>
           </section>
+        )}
+
+        {/* ADMISSIONS: ESSAYS (spec §10) */}
+        {activeTab === 'essays' && (
+          <EssaysSection userId={user?.id} applications={me.applications || []} />
         )}
 
         {/* 11. ADMISSIONS: RECOMMENDATIONS */}

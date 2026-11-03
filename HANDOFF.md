@@ -69,7 +69,9 @@ site — Phase 0 is pure foundation.
   items (CV, awards, portfolio, projects, links) may be toggled public.
 - Portal passwords are never stored (URL + login email + applicant ID only).
 
-## Next: Phase 2 — Essays (§10, highest priority)
+**Phase 2 — Essays: first slice DONE** (Essays tab, versions, counters, comments view, application links — see CHANGELOG). Remaining: counselor comment UI (Phase 6), share-with-user, Phase 1 leftovers.
+
+## Next: Phase 3 — Applications (§11); Phase 1 leftovers still open
 
 Approved order. Phase 1 leftovers (do first or during Phase 2):
 - E.164 phone with country-code dropdown (Contact card still uses raw phone)

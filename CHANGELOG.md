@@ -4,6 +4,14 @@ Rebuild driven by the college-counselor specification (20 sections). Delivered i
 
 ---
 
+## Phase 2 — Essays (§10)
+- New **Essays** tab (Admissions group): list with status filter, over-limit warning, delete with confirmation.
+- Editor: autosave, type presets (Common App 650/250, UC PIQ 350, UCAS 4000 chars...), live word/char counter, prompt, private notes.
+- Versions: manual "Save version", auto snapshot on Counselor review / Final / Submitted, view + restore (current text is snapshotted first).
+- Counselor comments shown to the student (mark resolved/reopen); link essays to applications with a per-university AI-rules note.
+- Essays stay private (no visibility); service functions live in `ProfileServiceV2.js`. No schema changes.
+- Not yet: counselor-side commenting UI (Phase 6), share with specific user, Overview widgets, E.164 phone, "Request change".
+
 ## Phase 0 — Foundation: DB schema, RLS, timezone utils, shared form components
 
 **Status:** ready · **Date:** 2026-11-01

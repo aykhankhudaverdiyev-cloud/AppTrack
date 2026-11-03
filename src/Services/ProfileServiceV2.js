@@ -156,3 +156,140 @@ export async function deleteParent(userId, parentId) {
   if (error) throw error
   return true
 }
+
+/* ============================================================================
+   Essays (spec §10) — essays · essay_versions · essay_comments · application_essays
+   Essays are ALWAYS private (no visibility column); RLS = owner/counselor/admin.
+   ========================================================================== */
+const ESSAY_FIELD_MAP = {
+  title: "title",
+  essayType: "essay_type",
+  promptText: "prompt_text",
+  limitType: "limit_type",
+  limitValue: "limit_value",
+  minValue: "min_value",
+  status: "status",
+  content: "content",
+  notes: "notes",
+}
+
+export async function fetchEssays(userId) {
+  const { data, error } = await supabase
+    .from("essays")
+    .select("*")
+    .eq("user_id", userId)
+    .order("updated_at", { ascending: false })
+  if (error) throw error
+  return data || []
+}
+
+export async function createEssay(userId, fields) {
+  const { data, error } = await supabase
+    .from("essays")
+    .insert({ user_id: userId, ...pick(ESSAY_FIELD_MAP, fields) })
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
+export async function updateEssay(userId, essayId, fields) {
+  const { data, error } = await supabase
+    .from("essays")
+    .update(pick(ESSAY_FIELD_MAP, fields))
+    .eq("id", essayId)
+    .eq("user_id", userId)
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
+export async function deleteEssay(userId, essayId) {
+  const { error } = await supabase.from("essays").delete().eq("id", essayId).eq("user_id", userId)
+  if (error) throw error
+  return true
+}
+
+export async function fetchEssayVersions(essayId) {
+  const { data, error } = await supabase
+    .from("essay_versions")
+    .select("*")
+    .eq("essay_id", essayId)
+    .order("version", { ascending: false })
+  if (error) throw error
+  return data || []
+}
+
+/** Snapshot the given text as the next version number. */
+export async function saveEssayVersion(userId, essayId, content, wordCount, charCount) {
+  const { data: last, error: lastErr } = await supabase
+    .from("essay_versions")
+    .select("version")
+    .eq("essay_id", essayId)
+    .order("version", { ascending: false })
+    .limit(1)
+  if (lastErr) throw lastErr
+  const { data, error } = await supabase
+    .from("essay_versions")
+    .insert({
+      user_id: userId,
+      essay_id: essayId,
+      version: (last?.[0]?.version || 0) + 1,
+      content,
+      word_count: wordCount,
+      char_count: charCount,
+      created_by: userId,
+    })
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
+export async function fetchEssayComments(essayId) {
+  const { data, error } = await supabase
+    .from("essay_comments")
+    .select("*")
+    .eq("essay_id", essayId)
+    .order("created_at", { ascending: false })
+  if (error) throw error
+  return data || []
+}
+
+export async function setEssayCommentResolved(commentId, resolved) {
+  const { error } = await supabase.from("essay_comments").update({ resolved }).eq("id", commentId)
+  if (error) throw error
+  return true
+}
+
+export async function fetchEssayLinks(essayId) {
+  const { data, error } = await supabase.from("application_essays").select("*").eq("essay_id", essayId)
+  if (error) throw error
+  return data || []
+}
+
+export async function linkEssayToApplication(userId, essayId, applicationId) {
+  const { data, error } = await supabase
+    .from("application_essays")
+    .insert({ user_id: userId, essay_id: essayId, application_id: applicationId })
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
+export async function unlinkEssayFromApplication(linkId) {
+  const { error } = await supabase.from("application_essays").delete().eq("id", linkId)
+  if (error) throw error
+  return true
+}
+
+export async function updateEssayLinkNote(linkId, aiRulesNote) {
+  const { error } = await supabase
+    .from("application_essays")
+    .update({ ai_rules_note: aiRulesNote || null })
+    .eq("id", linkId)
+  if (error) throw error
+  return true
+}
