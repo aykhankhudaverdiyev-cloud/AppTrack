@@ -16,6 +16,11 @@ import {
   describeDeadline,
   suggestReminderTimes,
   getStudentTimeZone,
+  utcToZonedInput,
+  zonedInputToUtcIso,
+  describeStoredDeadline,
+  defaultTimeZoneForCountry,
+  COMMON_TIME_ZONES,
 } from './timezone.js'
 
 const BAKU = 'Asia/Baku'
@@ -117,4 +122,50 @@ test('getStudentTimeZone falls back sanely', () => {
   assert.equal(getStudentTimeZone('Asia/Tokyo'), 'Asia/Tokyo')
   const tz = getStudentTimeZone()
   assert.ok(typeof tz === 'string' && tz.length > 0)
+})
+
+/* ---------------- Phase 3: form <-> timestamptz bridge ---------------- */
+
+test('form round trip keeps the ORIGINAL wall clock in every zone', () => {
+  for (const tz of [HK, NY, BAKU, 'Europe/London', 'Asia/Taipei', 'UTC']) {
+    const iso = zonedInputToUtcIso('2027-01-15', '23:59', tz)
+    assert.ok(iso, `no ISO for ${tz}`)
+    assert.deepEqual(utcToZonedInput(iso, tz), { date: '2027-01-15', time: '23:59' })
+  }
+})
+
+test('zonedInputToUtcIso rejects incomplete or impossible input', () => {
+  assert.equal(zonedInputToUtcIso('', '23:59', HK), null)
+  assert.equal(zonedInputToUtcIso('2027-01-15', '', HK), null)
+  assert.equal(zonedInputToUtcIso('15/01/2027', '23:59', HK), null)
+  assert.equal(zonedInputToUtcIso('2027-01-15', '23:59', 'Not/A_Zone'), null)
+  assert.equal(utcToZonedInput(null, HK).date, '')
+})
+
+test('describeStoredDeadline works straight from a DB row (NY → next day in Baku)', () => {
+  const due = zonedTimeToUtc('2027-01-15', '23:59', NY)
+  const row = { due_at: due.toISOString(), original_timezone: NY, kind: 'application', label: 'Regular Decision' }
+  const d = describeStoredDeadline(row, BAKU, new Date('2027-01-01T00:00:00Z'))
+  assert.equal(d.dayShift, 1)
+  assert.match(d.originalText, /23:59/)
+  assert.match(d.localText, /08:59/)
+  assert.equal(d.isPast, false)
+  assert.equal(describeStoredDeadline({ due_at: null }, BAKU), null)
+  assert.equal(describeStoredDeadline({ due_at: 'not-a-date' }, BAKU), null)
+})
+
+test('country defaults and zone list are usable in a datalist', () => {
+  assert.equal(defaultTimeZoneForCountry('HK'), 'Asia/Hong_Kong')
+  assert.equal(defaultTimeZoneForCountry('TW'), 'Asia/Taipei')
+  assert.equal(defaultTimeZoneForCountry('US'), 'America/New_York')
+  assert.equal(defaultTimeZoneForCountry('zz'), 'Asia/Baku')
+  assert.ok(COMMON_TIME_ZONES.some((z) => z.key === 'Asia/Baku'))
+  assert.equal(new Set(COMMON_TIME_ZONES.map((z) => z.key)).size, COMMON_TIME_ZONES.length)
+})
+
+test('legacy date sync: main deadline keeps the ORIGINAL date, not the Baku date', () => {
+  const iso = zonedInputToUtcIso('2027-01-15', '23:59', NY)
+  // The legacy applications.deadline column is a DATE in the ORIGINAL zone.
+  assert.equal(utcToZonedInput(iso, NY).date, '2027-01-15')
+  assert.equal(utcToZonedInput(iso, BAKU).date, '2027-01-16')
 })

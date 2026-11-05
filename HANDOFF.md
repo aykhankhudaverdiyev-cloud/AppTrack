@@ -3,87 +3,128 @@
 > Read this first in every new session. It is the single source of truth for
 > where the counselor-spec rebuild stands and what comes next.
 
-## Current state (2026-11-02)
+## Current state (2026-11-03)
 
-**Phase 1 — COMPLETE (first slice).** My Profile rebuilt (structured cards,
-autosave, parents CRUD, level-aware Graduate block), profile completion is now
-weighted + level-aware (0% on empty, click-through missing items), Overview
-stat cards cleaned (Submitted/Recommenders replace Public Apps/Certs),
-"Assigned Mentor" renamed to "Assigned Counselor", Snapshot block removed.
-Details in CHANGELOG.md. Still on this branch: PR covers Phase 0 v2 + Phase 1.
+**Phase 3 — Applications (§11): COMPLETE on `arena/728c3903-apptrack`.**
+This branch is based on `main` @ `c5f1e65` (Phase 0 v2 + Phase 1). The full
+Applications workspace is implemented; no new SQL migration is needed — all
+tables/columns were already live from Phase 0.
 
-**Phase 0 — COMPLETE.** All 4 migrations ran successfully on the live Supabase
-project (`select count(*) from universities` → 123). No visual change to the
-site — Phase 0 is pure foundation.
+**Phase 2 — Essays (§10): COMPLETE on the separate branch
+`arena/28c2a1f8-apptrack`** (2 commits, no PR opened / not merged into `main`
+yet — the user merges). Phase 3 talks to the same live DB tables
+(`essays` + `application_essays`) and degrades gracefully if the Essays tab is
+not present in a build, so the two branches can be merged in either order.
+The `StudentDashboard.jsx` diff on that branch is only 7 lines (import, tab,
+render block), so conflicts with Phase 3 are small.
 
-| Piece | Status | Where |
-|---|---|---|
-| 33 new tables (+ FKs ordered, drop-guard recreate) | ✅ live in DB | `supabase/migrations/001_schema_extensions.sql` |
-| RLS on the 33 new tables (owner/counselor/admin) | ✅ live | `supabase/migrations/002_rls_policies.sql` |
-| Storage policies: `student-documents` private, `avatars` untouched (public, used via getPublicUrl) | ✅ live | `supabase/migrations/003_storage.sql` |
-| Universities seed (123 rows) | ✅ live | `supabase/migrations/004_seed_universities.sql` |
-| Timezone utils (HK 12:00 → Baku 08:00, NY 23:59 → Baku 08:59 next day) | ✅ 12/12 tests | `src/utils/timezone.js` + `.test.js` |
-| Shared form toolkit (CharWordCounter, ValidatedInput/Select, Field, MonthYearPicker, ConfirmDialog, SortableList, useAutosave) | ✅ ready, not yet wired into pages | `src/components/forms/`, `src/hooks/useAutosave.js` |
-| Common App constants (27 activity types, filter chips, CA/UC limits) | ✅ ready | `src/constants/activityTypes.js` |
-| Changelog | ✅ | `CHANGELOG.md` |
+### Phase 3 — what is implemented
+
+| Piece | Where |
+|---|---|
+| Additive application columns + public-column whitelist (privacy) | `src/store/studentsStore.js` (`APPLICATION_COLUMNS`, `PUBLIC_APPLICATION_COLUMNS`, `mapApplicationRow`, `saveApplication`) |
+| Full tabbed application editor: Basics · Portal & fee · Fit & research · Programmes · Deadlines · Checklist · Interviews · Decision & aid | `src/components/ApplicationModal.jsx` + `ApplicationModal.css` |
+| Rules, option lists mirroring DB CHECKs, checklist generator, progress maths, HKU 3 / NTU 5 | `src/utils/applicationRequirements.js` (+ tests) |
+| Pure form → DB payload conversion (legacy guarantees) | `src/utils/applicationPayload.js` (+ tests) |
+| Timezone form bridge, zone defaults, `describeStoredDeadline` | `src/utils/timezone.js` (+ tests) |
+| DB helpers for the 5 child tables, legacy `deadline` + `progress_percent` caches | `src/Services/ProfileServiceV2.js` (appended) |
+| Overview widgets: next deadline, pipeline, upcoming deadlines | `src/components/applications/AdmissionsOverview.jsx` (+ CSS in `StudentDashboard.css`) |
+| Enhanced application cards: fit/round/progress chips, next-deadline strip, quick tabs, delete confirmation | `src/pages/StudentDashboard.jsx` |
+
+Details:
+
+- **Legacy is untouched.** `university, program, major, term, deadline,
+  status, decision, recommendation, notes, visibility` and `student_id`/`user_id`
+  still write exactly as before. AdminDashboard, PublicStudentDrawer,
+  HomePage/Explore, `StatusBadge`, `VisibilityToggle` (admin-approved flow) and
+  the realtime channels still read the same shape. New columns are additive and
+  only written when the caller supplies them, so a legacy quick-save never
+  wipes Phase 3 data.
+- **Public privacy:** `getPublicStudents()` now selects an explicit whitelist
+  of legacy columns, so portal URL/email, applicant ID, fee, aid results,
+  decision conditions etc. can never leak through `select('*')` on public rows.
+- **University autocomplete** from the 123-row `universities` table; free text
+  always allowed, `university_id` set on an exact match, country auto-filled.
+  Country for free-text apps is kept in `localStorage` (no schema change).
+- **Programme choices** ranked with `SortableList` (drag + ↑↓). HKU max 3, NTU
+  (Nanyang / National Taiwan) max 5, enforced in UI and service.
+- **Deadlines** entered in the ORIGINAL zone (`zonedTimeToUtc`) and always shown
+  as original + student-local (Baku) with countdown and day-shift warning
+  (US 23:59 → next morning). The main `application` deadline keeps the legacy
+  `applications.deadline` DATE in sync using the **original** date. Incomplete
+  rows are not saved until they have a date/time.
+- **Checklist** generated from level + platform + country (Common App, UC, UCAS,
+  Coalition, QuestBridge, OUAC, graduate/PhD, aid, country documents), fully
+  editable, custom rows preserved on regenerate, essay requirements can be
+  linked to Phase 2 essays (`meta.essayId` + "Sync essay statuses"), and
+  `progress_percent` is recomputed + cached whenever the checklist changes.
+- **Interviews** repeatable, timezone-aware, with prep notes and thank-you date.
+- **Decision & aid** full block; the decision-letter document picker is
+  deliberately deferred to Phase 5 (the DB column exists).
+- **Portal passwords are NEVER stored** — URL + login email + applicant ID only,
+  with an explicit UI warning.
+- **Overview widgets** (Phase 1 leftovers): next-deadline card, application
+  pipeline (4 status groups + average checklist progress) and upcoming
+  deadlines (top 5 + legacy date-only rows with an "add a time zone" hint).
+- **"App Progress" stat card** now uses cached `progress_percent`, falling back
+  to the old status ratio for applications without a checklist.
+
+### Verification (this branch)
+
+- `npm test` → **45/45** tests pass (timezone 18, requirements 12,
+  payload 7, profile completion 8). `package.json` now runs `src/utils/*.test.js`.
+- `npm run build` → passes (with dummy Supabase env vars; chunk-size warning
+  is pre-existing).
+- `npx eslint` on all touched/new files → clean. `StudentDashboard.jsx` still
+  has the same **22 pre-existing errors** as before (unchanged count, no new
+  ones). Do not "fix" them as a side quest.
+- A jsdom + mocked-Supabase React smoke test rendered all 8 tabs with zero
+  runtime errors, including add-row actions, loaded HK/NY deadlines (day-shift
+  warning), the generated checklist and linked essays.
+- No live Supabase credentials in the sandbox → no real click-through smoke test
+  was possible. **Please smoke test:** create application → pick university → add
+  programme choice → add HK 12:00 / NY 23:59 deadline → generate checklist →
+  change a status → link an essay → check Overview next-deadline card, and
+  verify the admin/public views still render.
+
+## Known deferred items
+
+- Phase 1 leftovers still open: E.164 phone with country-code dropdown,
+  "Request change" on counselor-managed fields.
+- Phase 2 leftovers: counselor comment writing UI (Phase 6), `essay_shares`.
+- Phase 3 leftovers: `decision_letter_document_id` picker (Phase 5),
+  `supervisor_contacts` UI (§18 / Phase 6), `aid_policy` is on the form but a
+  global aid-policy library is Phase 5.
+- Legacy-table RLS + `public_directory` view are still deferred (together).
+
+## Order after this
+
+Phase 4 libraries (§4–9) → Phase 5 Docs/Recs/Aid/Deadlines (§12–15) →
+Phase 6 Links/Portfolio/CV/Counselor dashboard (§16–19).
 
 ## Critical repo facts (do not break these)
 
-1. **Live legacy tables the app depends on today** (never drop/alter without
-   the user's OK): `profiles, applications, application_documents, licenses,
-   license_media, visibility_requests`. Stale leftovers (untouched, ignored):
-   `students, education, recommendations, documents, profile2s, user_roles,
-   admin_notes, change_requests, notifications, notification_settings`.
-2. **`document_files`** is the new document-library table (NOT `documents` —
-   name collision with a legacy table caused a failed run once).
-3. **Visibility flow today is admin-approved**: student requests public/private
-   → row in `visibility_requests` → admin approve/decline flips the value.
-   This flow must keep working until the user decides otherwise.
-4. **`avatars` bucket is PUBLIC by design** — avatars render via
-   `getPublicUrl()`. Do not force it private.
-5. **RLS counselor anchor**: `profiles.counselor_id` (new uuid column, nullable).
-   The legacy `assigned_counselor` text column stays as-is.
-6. **Legacy-table RLS + `public_directory` view are DEFERRED** to a later phase
-   (together), so today's admin dashboard, realtime channels and public
-   explore keep working.
+1. Live legacy tables: `profiles, applications, application_documents,
+   licenses, license_media, visibility_requests`. Never drop/alter without OK.
+2. `document_files` is the new library table (NOT the stale `documents`).
+3. Visibility flow today is admin-approved (`visibility_requests`) — keep it.
+4. `avatars` bucket is PUBLIC by design (`getPublicUrl()`).
+5. RLS counselor anchor: `profiles.counselor_id`; legacy `assigned_counselor`
+   text column stays.
+6. All UI strings in **ENGLISH** (en-GB). Azerbaijani is chat-only.
+7. Sensitive data (passport, DOB, addresses, transcripts, essays) is private
+   and cannot be made public. Showcase items may be toggled public.
+8. Portal passwords are never stored.
 
 ## Standing rules (user-mandated)
 
-- **All UI strings in ENGLISH** (the site is English; counters, errors,
-  dialogs, calendar months included). Default locale en-GB.
-- **NO arena co-author trailers in commits.** The sandbox installs a
-  `.git/hooks/commit-msg` hook that appends
-  `Co-authored-by: arena-agent <...>` to every commit. Neutralize it at
-  session start:
-  `printf '#!/bin/sh\nexit 0\n' > .git/hooks/commit-msg`
-  Then verify with `git log -1 --format=%B | grep -ci arena` → must be 0
-  before every push. The user rebuilt main history once specifically to
-  remove these (see `scripts/remove-arena-contributors.sh`).
-- **The USER merges PRs** (Squash and merge on GitHub). Never merge for them —
-  a bot-merged PR is what put arena into contributors last time.
-- UI must keep the existing style: cards, purple gradient (#7c3aed → #6d28d9),
-  emoji icons, empty states.
-- Privacy: sensitive data (passport, DOB, addresses, household, transcripts,
-  score reports, recommendation letters, essays) is PRIVATE by default and
-  cannot be made public (CHECK constraints + RLS + no public path). Showcase
-  items (CV, awards, portfolio, projects, links) may be toggled public.
-- Portal passwords are never stored (URL + login email + applicant ID only).
-
-## Next: Phase 2 — Essays (§10, highest priority)
-
-Approved order. Phase 1 leftovers (do first or during Phase 2):
-- E.164 phone with country-code dropdown (Contact card still uses raw phone)
-- "Request change" button on counselor-managed fields
-- Overview: next-deadline card + application pipeline + upcoming deadlines
-  widgets (deadlines need Phase 3 application data to be useful)
-
-Then: Phase 3 Applications (§11) → Phase 4 libraries (§4-9) → Phase 5
-Docs/Recs/Aid/Deadlines (§12-15) → Phase 6 Links/Portfolio/CV/Counselor
-dashboard (§16-19).
-
-## How to verify the site after SQL work
-
-Login, applications, licenses, admin approval flow must all still work —
-migrations are additive; legacy tables untouched. The dev server can be run
-with `npm run dev`; tests: `npm test` (12 timezone tests); lint the new code:
-`npx eslint src/components/forms src/hooks src/utils src/constants`.
+- **NO arena co-author trailers.** Overwrite `.git/hooks/commit-msg` at session
+  start, commit with `git commit --no-verify`, then check
+  `git log origin/main..HEAD --format=%B | grep -ci arena` → **must be 0**
+  before pushing. Amend + force-push-with-lease if not.
+- The **USER merges PRs** (Squash and merge on GitHub). Never run
+  `gh pr merge` / `gh pr close`. Open a PR (`gh pr create`) only if asked.
+- Push only to the current session branch.
+- Keep the existing style: cards, purple gradient (#7c3aed → #6d28d9), emoji
+  icons, empty states. Prefer extending existing files over new ones.
+- Short answers in Azerbaijani; UI text in English.

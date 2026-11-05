@@ -223,3 +223,96 @@ export function suggestReminderTimes(dueAt, now = new Date()) {
     .map((days) => new Date(dueAt.getTime() - days * 86400000))
     .filter((t) => t.getTime() > now.getTime())
 }
+
+/* ============================================================================
+   Phase 3 — form <-> timestamptz bridge
+   ----------------------------------------------------------------------------
+   application_deadlines / interviews / reply_deadline_at all store an exact
+   UTC instant plus the ORIGINAL IANA zone. The form edits the wall-clock date
+   and time as printed on the university page; these helpers convert both ways
+   so the original wall clock always survives a save/load round trip.
+   ========================================================================== */
+
+/** Curated zones for the deadline form (free text is still allowed). */
+export const COMMON_TIME_ZONES = [
+  { key: 'Asia/Baku', label: 'Baku (GMT+4)' },
+  { key: 'Asia/Hong_Kong', label: 'Hong Kong (GMT+8)' },
+  { key: 'Asia/Taipei', label: 'Taipei (GMT+8)' },
+  { key: 'Asia/Singapore', label: 'Singapore (GMT+8)' },
+  { key: 'Asia/Tokyo', label: 'Tokyo (GMT+9)' },
+  { key: 'Asia/Seoul', label: 'Seoul (GMT+9)' },
+  { key: 'Asia/Dubai', label: 'Dubai (GMT+4)' },
+  { key: 'Europe/London', label: 'London (GMT+0/+1)' },
+  { key: 'Europe/Berlin', label: 'Central Europe (GMT+1/+2)' },
+  { key: 'Europe/Istanbul', label: 'Istanbul (GMT+3)' },
+  { key: 'America/New_York', label: 'US Eastern (GMT-5/-4)' },
+  { key: 'America/Chicago', label: 'US Central (GMT-6/-5)' },
+  { key: 'America/Denver', label: 'US Mountain (GMT-7/-6)' },
+  { key: 'America/Los_Angeles', label: 'US Pacific (GMT-8/-7)' },
+  { key: 'America/Toronto', label: 'Toronto (GMT-5/-4)' },
+  { key: 'Australia/Sydney', label: 'Sydney (GMT+10/+11)' },
+  { key: 'UTC', label: 'UTC' },
+]
+
+const COUNTRY_TIME_ZONES = {
+  AZ: 'Asia/Baku', TR: 'Europe/Istanbul', HK: 'Asia/Hong_Kong',
+  TW: 'Asia/Taipei', SG: 'Asia/Singapore', KR: 'Asia/Seoul',
+  JP: 'Asia/Tokyo', GB: 'Europe/London', IE: 'Europe/Dublin',
+  US: 'America/New_York', CA: 'America/Toronto', AU: 'Australia/Sydney',
+  DE: 'Europe/Berlin', FR: 'Europe/Paris', NL: 'Europe/Amsterdam',
+  SE: 'Europe/Stockholm', CH: 'Europe/Zurich', IT: 'Europe/Rome',
+  ES: 'Europe/Madrid', AE: 'Asia/Dubai', CN: 'Asia/Shanghai',
+}
+
+/** Sensible default zone of the university's ORIGINAL deadline clock. */
+export function defaultTimeZoneForCountry(country) {
+  return COUNTRY_TIME_ZONES[String(country || '').toUpperCase()] || 'Asia/Baku'
+}
+
+/** UTC instant (ISO string or Date) → {date:'YYYY-MM-DD', time:'HH:mm'} in a zone. */
+export function utcToZonedInput(instant, timeZone = 'UTC') {
+  if (!instant) return { date: '', time: '' }
+  const date = instant instanceof Date ? instant : new Date(instant)
+  if (Number.isNaN(date.getTime())) return { date: '', time: '' }
+  const p = getZonedParts(date, timeZone)
+  const two = (v) => String(v).padStart(2, '0')
+  return {
+    date: `${p.year}-${two(p.month)}-${two(p.day)}`,
+    time: `${two(p.hour)}:${two(p.minute)}`,
+  }
+}
+
+/** Wall-clock form values → ISO UTC string. Returns null for incomplete/invalid input. */
+export function zonedInputToUtcIso(dateStr, timeStr, timeZone = 'UTC') {
+  if (!dateStr || !timeStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr) || !/^\d{1,2}:\d{2}$/.test(timeStr)) {
+    return null
+  }
+  try {
+    const instant = zonedTimeToUtc(dateStr, timeStr.padStart(5, '0'), timeZone)
+    return Number.isNaN(instant.getTime()) ? null : instant.toISOString()
+  } catch {
+    return null
+  }
+}
+
+/**
+ * describeDeadline() straight from a DB row:
+ * { due_at, original_timezone, label?, kind? } → the same display object plus
+ * the parsed Date, or null when the row is unusable. Invalid IANA zones are
+ * tolerated so one bad row can never break the whole dashboard.
+ */
+export function describeStoredDeadline(row, studentTz, now = new Date()) {
+  if (!row?.due_at) return null
+  const dueAt = row.due_at instanceof Date ? row.due_at : new Date(row.due_at)
+  if (Number.isNaN(dueAt.getTime())) return null
+  const originalTimeZone = row.original_timezone || 'UTC'
+  try {
+    return {
+      ...describeDeadline({ dueAt, originalTimeZone }, getStudentTimeZone(studentTz), now),
+      dueAt,
+      originalTimeZone,
+    }
+  } catch {
+    return null
+  }
+}

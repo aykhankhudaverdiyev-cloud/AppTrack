@@ -110,9 +110,69 @@ camelCase→snake_case writes; parallel reads; owner-only paths, RLS-enforced).
 
 ---
 
+## Phase 2 — Essays (§10)
+
+**Status:** ready · **Date:** 2026-11-03 · **Branch:** `arena/28c2a1f8-apptrack`
+(not merged into `main` yet — the user merges).
+
+Essays tab in the Admissions group: status-filtered list, editor with a single
+autosave for meta + text, type presets (limits/minimums), live char/word counter,
+prompt and private notes; manual + automatic version snapshots with restore;
+read-only counselor comments with resolve/reopen; essay ↔ application links with
+per-university AI-rules notes. No schema change — `essays`, `essay_versions`,
+`essay_comments`, `application_essays` were already live from Phase 0.
+
+---
+
+## Phase 3 — Applications rebuild (spec §11)
+
+**Status:** ready · **Date:** 2026-11-03
+
+### What changed, where
+
+| File | Contents |
+|---|---|
+| `src/components/ApplicationModal.jsx` + `.css` | Rebuilt as an 8-tab workspace. Legacy fields remain in "Basics"; new tabs: Portal & fee, Fit & research, Programmes, Deadlines, Checklist, Interviews, Decision & aid. Top-level fields autosave (debounced `useAutosave`); child rows save on discrete actions/blur with an explicit "Save everything" fallback. |
+| `src/store/studentsStore.js` | `APPLICATION_COLUMNS` / `PUBLIC_APPLICATION_COLUMNS` whitelists; `mapApplicationRow()` extended with all new columns (camelCase); `saveApplication()` writes them **additively** (legacy callers cannot wipe them); `term` auto-sync from season/year; `updated_at`. |
+| `src/Services/ProfileServiceV2.js` | `searchUniversities`, `fetchUniversityById`, `fetchApplicationWorkspace`, `fetchStudentDeadlines`, `fetchApplicationEssayOptions`, `saveApplicationChoices`, `saveApplicationDeadlines`, `saveApplicationRequirements`, `saveApplicationInterviews`, `saveApplicationEssayLinks` + shared `syncRows` (client UUID upsert). |
+| `src/utils/applicationRequirements.js` | Option lists matching every DB CHECK, `getProgramChoiceLimit` (HKU 3 / NTU 5), `generateRequirements()` (level + platform + country), `computeRequirementProgress()`, essay-status mapping. |
+| `src/utils/applicationPayload.js` | Pure form → DB payload conversion with legacy-column guarantees (`term` sync, DB-safe null/number/bool, no UI-only keys). |
+| `src/utils/timezone.js` | `COMMON_TIME_ZONES`, `defaultTimeZoneForCountry`, `utcToZonedInput`, `zonedInputToUtcIso`, `describeStoredDeadline` (bad rows cannot break the UI). |
+| `src/components/applications/AdmissionsOverview.jsx` | Overview widgets: next deadline (original + local + countdown + day shift), application pipeline, upcoming deadlines. |
+| `src/pages/StudentDashboard.jsx` + `.css` | Loads all application columns + deadlines, realtime on deadlines/requirements, enhanced cards (fit/round/progress chips, next-deadline strip, quick Deadlines/Checklist buttons, delete confirmation), "App Progress" from cached progress. |
+
+### Acceptance criteria status
+
+| Criterion | Status |
+|---|---|
+| Legacy applications/admin/public views still work | ✅ additive mapping + explicit public whitelist |
+| University autocomplete + free text fallback | ✅ 123-row `universities` table |
+| Ranked programme choices, HKU ≤3 / NTU ≤5 | ✅ `SortableList` + UI + service enforcement |
+| Deadlines show original + Baku time, day-shift warning | ✅ 18/18 timezone tests incl. HK 12:00 → 08:00, NY 23:59 → 08:59 next day |
+| Legacy `applications.deadline` stays in sync | ✅ original-zone date from the main "application" deadline |
+| Checklist generated from level + platform + country, editable | ✅ 12/12 rules tests; custom rows survive regenerate |
+| `progress_percent` cached and feeding Overview | ✅ recomputed on every checklist save |
+| Essays linked into the checklist | ✅ `application_essays` + status sync (Phase 2 compatible) |
+| Interviews repeatable + timezone-aware | ✅ |
+| Decision + aid result block | ✅ (decision-letter picker → Phase 5) |
+| Portal passwords never stored | ✅ URL + login email + applicant ID only, with warning |
+| Overview next-deadline / pipeline / upcoming widgets | ✅ Phase 1 leftovers closed |
+
+### Notes
+
+- No migration needed: all tables/columns were live from Phase 0.
+- Public directory now uses an explicit legacy-column whitelist — portal
+  logins, applicant IDs, fee/aid results cannot leak via `select('*')`.
+- `npm test` → 45/45 (timezone 18, requirements 12, payload 7, profile
+  completion 8); `npm run build` passes; lint clean on touched files (the 22
+  pre-existing `StudentDashboard.jsx` errors are unchanged). A jsdom +
+  mocked-Supabase React smoke test rendered all 8 tabs with zero runtime errors.
+- Live Supabase click-through was not possible in this sandbox — see
+  `HANDOFF.md` for the smoke-test checklist.
+
+---
+
 ## Upcoming phases
-- **Phase 2:** Essays (highest priority — versions, counters, counselor comments)
-- **Phase 3:** Applications rebuild (ranked choices, round rules, checklist + progress %)
-- **Phase 4:** Education, Test Scores, Honors, Activities, Projects, Publications
-- **Phase 5:** Documents, Recommendations, Financial Aid, Deadlines calendar
-- **Phase 6:** Links & Portfolio, CV export (PDF), Counselor dashboard
+- **Phase 4:** Education, Test Scores, Honors, Activities, Projects, Publications (§4–9)
+- **Phase 5:** Documents, Recommendations, Financial Aid, Deadlines calendar (§12–15)
+- **Phase 6:** Links & Portfolio, CV export (PDF), Counselor dashboard, supervisor contacts, counselor essay comments (§16–19)

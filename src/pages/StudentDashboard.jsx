@@ -5,6 +5,8 @@ import { supabase } from '../lib/supabase'
 import LicenseMediaItem from '../components/LicenseMediaItem'
 import {
   getPublicStudents,
+  mapApplicationRow,
+  APPLICATION_COLUMNS,
   setVisibility,
   setPhoto,
   removePhoto,
@@ -34,7 +36,11 @@ import LicenseModal from '../components/LicenseModal'
 import PublicStudentDrawer from '../components/PublicStudentDrawer'
 import StudentCard from '../components/StudentCard'
 import MyProfileSection from '../components/profile/MyProfileSection'
+import AdmissionsOverview from '../components/applications/AdmissionsOverview'
+import { ConfirmDialog } from '../components/forms'
 import { computeProfileCompletion } from '../utils/profileCompletion'
+import { describeStoredDeadline, getStudentTimeZone } from '../utils/timezone'
+import { DEADLINE_KINDS, DEGREE_LEVELS, PLATFORMS, ROUNDS, FIT_OPTIONS, labelOf } from '../utils/applicationRequirements'
 import './StudentDashboard.css'
 
 const DOC_CATEGORIES = [
@@ -116,7 +122,10 @@ export default function StudentDashboard() {
   const [contactDraft, setContactDraft] = useState({ email: '', phone: '' })
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
 
-  const [appModal, setAppModal] = useState({ open: false, application: null })
+  const [appModal, setAppModal] = useState({ open: false, application: null, tab: 'basics', nonce: 0 })
+  const [deadlines, setDeadlines] = useState([])
+  const [now, setNow] = useState(() => new Date())
+  const [confirmDeleteApp, setConfirmDeleteApp] = useState(null)
   const [licenseModal, setLicenseModal] = useState({ open: false, license: null })
   const [expandedApplications, setExpandedApplications] = useState([])
   const [sectionModal, setSectionModal] = useState({ open: false, type: '' })
@@ -172,6 +181,12 @@ export default function StudentDashboard() {
   const appProgress = useMemo(() => {
     const apps = me.applications || []
     if (!apps.length) return 0
+    // Phase 3: progress_percent is cached from each requirements checklist.
+    // Legacy applications (no checklist yet) fall back to the status ratio.
+    const hasChecklists = apps.some(a => Number(a.progressPercent) > 0)
+    if (hasChecklists) {
+      return Math.round(apps.reduce((sum, a) => sum + (Number(a.progressPercent) || 0), 0) / apps.length)
+    }
     const done = apps.filter(a => ['Submitted', 'In Review', 'Closed'].includes(a.status)).length
     return Math.round((done / apps.length) * 100)
   }, [me.applications])
@@ -183,12 +198,13 @@ export default function StudentDashboard() {
         { data: profileData, error: profileError },
         { data: appsData, error: appsError },
         { data: licData, error: licError },
+        { data: deadlinesData, error: deadlinesError },
       ] = await Promise.all([
         supabase.from('profiles').select('*').eq('id', user.id).single(),
         supabase
           .from('applications')
           .select(
-            `id,student_id,university,program,major,term,deadline,status,decision,recommendation,notes,visibility,created_at,application_documents(id,application_id,user_id,category,name,file_path,file_url,size,visibility,created_at)`
+            `${APPLICATION_COLUMNS},application_documents(id,application_id,user_id,category,name,file_path,file_url,size,visibility,created_at)`
           )
           .eq('student_id', user.id)
           .order('created_at', { ascending: false }),
@@ -199,11 +215,18 @@ export default function StudentDashboard() {
           )
           .eq('user_id', user.id)
           .order('created_at', { ascending: false }),
+        supabase
+          .from('application_deadlines')
+          .select('id,application_id,kind,label,due_at,original_timezone')
+          .eq('user_id', user.id)
+          .order('due_at', { ascending: true }),
       ])
 
       if (profileError) throw profileError
       if (appsError) throw appsError
       if (licError) throw licError
+      // Deadlines are additive; a missing Phase 3 table must not break the page.
+      if (deadlinesError) console.warn('Could not load deadlines:', deadlinesError)
 
       const data = { ...profileData, applications: appsData || [], licenses: licData || [] }
       const visibility = {
@@ -221,7 +244,7 @@ export default function StudentDashboard() {
           acc[cat].push({ id: doc.id, name: doc.name || 'Document.pdf', path: doc.file_path || '', url: doc.file_url || '', size: doc.size || 0, visibility: doc.visibility || 'private', created_at: doc.created_at || '', application_id: doc.application_id || '', category: cat })
           return acc
         }, {})
-        return { id: app.id, student_id: app.student_id, university: app.university || '', program: app.program || '', major: app.major || '', term: app.term || '', deadline: app.deadline || '', status: app.status || 'Not Started', decision: app.decision || 'Pending', recommendation: app.recommendation || 'Pending', notes: app.notes || '', visibility: app.visibility || 'private', created_at: app.created_at || '', documents: docsByCategory }
+        return { ...mapApplicationRow(app), documents: docsByCategory }
       })
 
       const licenses = (data.licenses || []).map(lic => {
@@ -230,6 +253,7 @@ export default function StudentDashboard() {
       })
 
       setProfileRow(data || null)
+      setDeadlines(deadlinesData || [])
       setMe({ id: data.id, fullName: data.full_name || '', email: data.email || '', phone: data.phone || '', major: data.major || '', university: data.university || '', gender: data.gender || '', photoUrl: data.photo_url || '', photoPath: data.photo_path || '', notes: data.admin_notes || '', assignedCounselor: data.assigned_counselor || '', decision: data.decision || '', visibility, applications, licenses })
     } catch (error) {
       console.error('Failed to load profile:', error)
@@ -245,6 +269,12 @@ export default function StudentDashboard() {
     } catch (error) { console.error(error) }
   }, [user?.id])
 
+  // One clock for the countdown widgets; refreshed once a minute.
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 60_000)
+    return () => clearInterval(timer)
+  }, [])
+
   const togglePublicApplicationExpanded = useCallback(id => {
     setExpandedPublicApplications(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id])
   }, [])
@@ -256,6 +286,8 @@ export default function StudentDashboard() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles', filter: `id=eq.${user?.id}` }, loadMyProfile)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'applications', filter: `student_id=eq.${user?.id}` }, loadMyProfile)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'application_documents', filter: `user_id=eq.${user?.id}` }, loadMyProfile)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'application_deadlines', filter: `user_id=eq.${user?.id}` }, loadMyProfile)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'application_requirements', filter: `user_id=eq.${user?.id}` }, loadMyProfile)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'licenses', filter: `user_id=eq.${user?.id}` }, loadMyProfile)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'license_media', filter: `user_id=eq.${user?.id}` }, loadMyProfile)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles', filter: `profile_visibility=eq.public` }, loadPublicStudents)
@@ -360,10 +392,18 @@ export default function StudentDashboard() {
     try { await setProfile(user.id, { email: contactDraft.email, phone: contactDraft.phone }); setMe(p => ({ ...p, email: contactDraft.email, phone: contactDraft.phone })); setEditingContact(false) } catch (e) { console.error(e) }
   }, [user?.id, contactDraft])
 
+  // Returns the saved row: the Phase 3 modal stays open after creating a new
+  // application so the student can immediately add deadlines and a checklist.
   const handleSaveApplication = useCallback(async payload => {
-    if (!user?.id) return
-    try { await saveApplication(user.id, payload); await loadMyProfile(); setAppModal({ open: false, application: null }) } catch (e) { console.error(e); throw e }
+    if (!user?.id) return null
+    const saved = await saveApplication(user.id, payload)
+    await loadMyProfile()
+    return saved
   }, [user?.id, loadMyProfile])
+
+  const openApplicationModal = useCallback((application = null, tab = 'basics') => {
+    setAppModal({ open: true, application, tab, nonce: Date.now() })
+  }, [])
 
   const handleDeleteApplication = useCallback(async id => {
     if (!user?.id) return
@@ -695,10 +735,23 @@ export default function StudentDashboard() {
                       <span className="new-overview-item__badge new-overview-item__badge--slate">{appProgress}%</span>
                     </div>
                     <div className="new-progress-bar"><div className="new-progress-bar__fill new-progress-bar__fill--sky" style={{ width: `${appProgress}%` }} /></div>
-                    <p className="new-overview-item__hint">Add an application to start tracking progress.</p>
+                    <p className="new-overview-item__hint">Average checklist completion across your applications.</p>
                   </div>
                 </div>
               </div>
+
+              {/* Phase 3: next deadline, pipeline and upcoming deadlines */}
+              <AdmissionsOverview
+                applications={me.applications || []}
+                deadlines={deadlines}
+                now={now}
+                profileTimeZone={profileRow?.time_zone}
+                onOpenApplications={() => setActiveTab('applications')}
+                onOpenApplication={(id) => {
+                  const application = (me.applications || []).find(a => a.id === id)
+                  if (application) openApplicationModal(application, 'deadlines')
+                }}
+              />
 
               {/* Quick Profile */}
               <div className="new-section-card">
@@ -987,9 +1040,9 @@ export default function StudentDashboard() {
             <div className="section-head section-head--stack">
               <div>
                 <h3>My Applications</h3>
-                <p className="section-head__sub">Add, edit, upload PDFs, and choose what is public.</p>
+                <p className="section-head__sub">Universities, ranked programmes, deadlines, checklists, decisions and documents.</p>
               </div>
-              <button type="button" className="solid-btn solid-btn--sm" onClick={() => setAppModal({ open: true, application: null })}>
+              <button type="button" className="solid-btn solid-btn--sm" onClick={() => openApplicationModal(null)}>
                 <span className="btn-plus">＋</span> New application
               </button>
             </div>
@@ -1004,6 +1057,9 @@ export default function StudentDashboard() {
                         <div className="application-card__id-text"><h4>{application.university}</h4><p>{application.program || application.major}</p></div>
                       </div>
                       <div className="application-card__top-meta">
+                        {application.fit && <span className={`app-v2-chip app-v2-chip--${application.fit}`}>🎯 {labelOf(FIT_OPTIONS, application.fit)}</span>}
+                        {application.round && <span className="app-v2-chip">🏁 {labelOf(ROUNDS, application.round)}</span>}
+                        <span className="app-v2-chip app-v2-chip--progress">✅ {Number(application.progressPercent) || 0}%</span>
                         <VisibilityChip value={application.visibility} />
                         <StatusBadge value={application.status} />
                         <span className="chevron">{expanded ? '▲' : '▼'}</span>
@@ -1014,10 +1070,19 @@ export default function StudentDashboard() {
                         <div className="application-toolbar">
                           <VisibilityToggle value={application.visibility} onChange={v => handleApplicationVisibility(application.id, v)} />
                           <div className="application-toolbar__actions">
-                            <button type="button" className="mini-btn" onClick={() => setAppModal({ open: true, application })}>✎ Edit</button>
-                            <button type="button" className="mini-btn mini-btn--danger" onClick={() => handleDeleteApplication(application.id)}>🗑 Delete</button>
+                            <button type="button" className="mini-btn" onClick={() => openApplicationModal(application)}>✎ Edit details</button>
+                            <button type="button" className="mini-btn" onClick={() => openApplicationModal(application, 'deadlines')}>⏰ Deadlines</button>
+                            <button type="button" className="mini-btn" onClick={() => openApplicationModal(application, 'checklist')}>✅ Checklist</button>
+                            <button type="button" className="mini-btn mini-btn--danger" onClick={() => setConfirmDeleteApp(application)}>🗑 Delete</button>
                           </div>
                         </div>
+                        <ApplicationV2Summary
+                          application={application}
+                          now={now}
+                          deadlines={deadlines.filter(d => d.application_id === application.id)}
+                          studentTz={getStudentTimeZone(profileRow?.time_zone)}
+                          onOpen={(tab) => openApplicationModal(application, tab)}
+                        />
                         <div className="application-card__meta">
                           <div className="meta-cell"><span>Term</span><strong>{application.term || '—'}</strong></div>
                           <div className="meta-cell"><span>Major</span><strong>{application.major || '—'}</strong></div>
@@ -1025,6 +1090,7 @@ export default function StudentDashboard() {
                           <div className="meta-cell"><span>Recommendation</span><strong>{application.recommendation}</strong></div>
                           <div className="meta-cell"><span>Deadline</span><strong>{application.deadline || '—'}</strong></div>
                           <div className="meta-cell"><span>Status</span><strong>{application.status}</strong></div>
+                          <div className="meta-cell"><span>Platform</span><strong>{labelOf(PLATFORMS, application.platform, '—')}</strong></div>
                         </div>
                         {application.notes && <div className="application-notes"><span>Notes</span><p>{application.notes}</p></div>}
                         <div className="doc-groups">
@@ -1042,7 +1108,7 @@ export default function StudentDashboard() {
                   <div className="empty-state__icon">🎓</div>
                   <h4>No applications yet</h4>
                   <p>Create your first university application.</p>
-                  <button type="button" className="solid-btn solid-btn--sm" onClick={() => setAppModal({ open: true, application: null })}>New application</button>
+                  <button type="button" className="solid-btn solid-btn--sm" onClick={() => openApplicationModal(null)}>New application</button>
                 </div>
               )}
             </div>
@@ -1208,10 +1274,29 @@ export default function StudentDashboard() {
       />
 
       <ApplicationModal
+        key={`${appModal.application?.id || 'new'}-${appModal.nonce}`}
         open={appModal.open}
+        userId={user?.id}
+        studentId={me.id}
         application={appModal.application}
-        onClose={() => setAppModal({ open: false, application: null })}
+        initialTab={appModal.tab}
+        profileTimeZone={profileRow?.time_zone}
+        applyingLevel={profileRow?.applying_level}
+        financialAid={Boolean(profileRow?.will_apply_financial_aid)}
+        onClose={() => setAppModal({ open: false, application: null, tab: 'basics', nonce: 0 })}
         onSave={handleSaveApplication}
+      />
+
+      <ConfirmDialog
+        open={Boolean(confirmDeleteApp)}
+        title="Delete this application?"
+        message={`${confirmDeleteApp?.university || 'This application'} and all of its deadlines, programme choices, checklist items, interviews and linked essays will be removed.`}
+        onCancel={() => setConfirmDeleteApp(null)}
+        onConfirm={() => {
+          const id = confirmDeleteApp?.id
+          setConfirmDeleteApp(null)
+          if (id) handleDeleteApplication(id)
+        }}
       />
 
       <LicenseModal
@@ -1232,6 +1317,53 @@ export default function StudentDashboard() {
 }
 
 /* ─── Small helper components ─── */
+
+/** Phase 3 strip inside an expanded legacy application card. */
+function ApplicationV2Summary({ application, deadlines = [], studentTz, now, onOpen }) {
+  const pct = Number(application.progressPercent) || 0
+  const next = deadlines
+    .filter(d => new Date(d.due_at).getTime() >= now.getTime())
+    .sort((a, b) => new Date(a.due_at) - new Date(b.due_at))[0]
+  const d = next ? describeStoredDeadline(next, studentTz) : null
+  const fee = application.feeAmount !== '' && application.feeAmount != null
+    ? `${application.feeAmount} ${application.feeCurrency || ''}`.trim()
+    : ''
+  return (
+    <div className="app-v2-summary">
+      <div className="app-v2-summary__progress">
+        <div className="app-v2-summary__label"><span>✅ Checklist progress</span><b>{pct}%</b></div>
+        <div className="new-progress-bar"><div className="new-progress-bar__fill new-progress-bar__fill--sky" style={{ width: `${pct}%` }} /></div>
+        <button type="button" className="ao-link" onClick={() => onOpen('checklist')}>Open checklist →</button>
+      </div>
+      <div className="app-v2-summary__deadline">
+        <span className="app-v2-summary__label">⏰ Next deadline</span>
+        {d ? (
+          <>
+            <strong>{labelOf(DEADLINE_KINDS, next.kind)}{next.label ? ` · ${next.label}` : ''}</strong>
+            <span>🏫 {d.originalText}</span>
+            <span>📍 {d.localText} (your time)</span>
+            <span className={d.isUrgent ? 'ao-urgent' : ''}>⏳ {d.countdownText}</span>
+            {d.dayShift !== 0 && <span className="mps-warning">⚠️ Different day in your time zone</span>}
+          </>
+        ) : (
+          <span className="ao-muted">{application.deadline ? `Legacy date: ${application.deadline}` : 'No deadline yet'}</span>
+        )}
+        <button type="button" className="ao-link" onClick={() => onOpen('deadlines')}>Manage deadlines →</button>
+      </div>
+      <div className="app-v2-summary__meta">
+        <span className="app-v2-summary__label">🎓 Details</span>
+        <span>Degree: {labelOf(DEGREE_LEVELS, application.degreeLevel, '—')}</span>
+        <span>Platform: {labelOf(PLATFORMS, application.platform, '—')}</span>
+        <span>Round: {labelOf(ROUNDS, application.round, '—')}</span>
+        {application.isBinding && <span className="mps-warning">⚠️ Binding round</span>}
+        {fee && <span>Fee: {fee}{application.feeWaiverGranted ? ' (waived)' : ''}</span>}
+        {application.portalUrl && (
+          <a className="pill-link" href={application.portalUrl} target="_blank" rel="noreferrer">Portal ↗</a>
+        )}
+      </div>
+    </div>
+  )
+}
 
 function QuickItem({ icon, label, value, placeholder, muted, isDecision }) {
   const empty = !value || value === 'Not assigned' || value === 'Pending'

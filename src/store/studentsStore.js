@@ -59,7 +59,140 @@ function mapProfileToStudent(row) {
   }
 }
 
-function mapApplicationRow(row) {
+/**
+ * Phase 3 — additive columns on the LIVE `applications` table.
+ * The owner/admin dashboards may read every column; the PUBLIC directory must
+ * keep using PUBLIC_APPLICATION_COLUMNS so portal logins, applicant IDs, fee
+ * and aid results can never leak through `select('*')` on public rows.
+ */
+export const APPLICATION_COLUMNS = [
+  "id", "student_id", "user_id", "university", "program", "major", "term",
+  "deadline", "status", "decision", "recommendation", "notes", "visibility",
+  "created_at", "university_id", "campus", "degree_level", "term_season",
+  "term_year", "deferred_entry", "platform", "round", "is_binding",
+  "portal_url", "portal_email", "applicant_id", "portal_activated",
+  "fee_amount", "fee_currency", "fee_waiver_requested", "fee_waiver_granted",
+  "fee_paid_on", "fit", "fit_reason", "acceptance_rate", "why_courses",
+  "why_professors", "why_programs", "why_links", "progress_percent",
+  "decision_conditions", "decision_at", "reply_deadline_at", "reply_deadline_tz",
+  "decision_letter_document_id", "committed_at", "aid_scholarship_name",
+  "aid_amount", "aid_currency", "aid_period", "aid_renewal_conditions",
+  "net_cost_per_year", "aid_policy", "updated_at",
+].join(",")
+
+export const PUBLIC_APPLICATION_COLUMNS = [
+  "id", "student_id", "university", "program", "major", "term", "deadline",
+  "status", "decision", "recommendation", "notes", "visibility", "created_at",
+].join(",")
+
+/** camelCase → snake_case whitelist (new columns only; legacy keys stay above). */
+const APPLICATION_FIELD_MAP = {
+  universityId: ["university_id", "uuid"],
+  campus: ["campus", "text"],
+  degreeLevel: ["degree_level", "text"],
+  termSeason: ["term_season", "text"],
+  termYear: ["term_year", "number"],
+  deferredEntry: ["deferred_entry", "bool"],
+  platform: ["platform", "text"],
+  round: ["round", "text"],
+  isBinding: ["is_binding", "bool"],
+  portalUrl: ["portal_url", "text"],
+  portalEmail: ["portal_email", "text"],
+  applicantId: ["applicant_id", "text"],
+  portalActivated: ["portal_activated", "bool"],
+  feeAmount: ["fee_amount", "number"],
+  feeCurrency: ["fee_currency", "text"],
+  feeWaiverRequested: ["fee_waiver_requested", "bool"],
+  feeWaiverGranted: ["fee_waiver_granted", "bool"],
+  feePaidOn: ["fee_paid_on", "date"],
+  fit: ["fit", "text"],
+  fitReason: ["fit_reason", "text"],
+  acceptanceRate: ["acceptance_rate", "number"],
+  whyCourses: ["why_courses", "text"],
+  whyProfessors: ["why_professors", "text"],
+  whyPrograms: ["why_programs", "text"],
+  whyLinks: ["why_links", "text"],
+  progressPercent: ["progress_percent", "number"],
+  decisionConditions: ["decision_conditions", "text"],
+  decisionAt: ["decision_at", "timestamp"],
+  replyDeadlineAt: ["reply_deadline_at", "timestamp"],
+  replyDeadlineTz: ["reply_deadline_tz", "text"],
+  decisionLetterDocumentId: ["decision_letter_document_id", "uuid"],
+  committedAt: ["committed_at", "timestamp"],
+  aidScholarshipName: ["aid_scholarship_name", "text"],
+  aidAmount: ["aid_amount", "number"],
+  aidCurrency: ["aid_currency", "text"],
+  aidPeriod: ["aid_period", "text"],
+  aidRenewalConditions: ["aid_renewal_conditions", "text"],
+  netCostPerYear: ["net_cost_per_year", "number"],
+  aidPolicy: ["aid_policy", "text"],
+}
+
+function normalizeApplicationValue(value, kind) {
+  switch (kind) {
+    case "bool":
+      return Boolean(value)
+    case "number": {
+      if (value === "" || value === null || value === undefined) return null
+      const n = Number(value)
+      return Number.isFinite(n) ? n : null
+    }
+    case "date":
+    case "timestamp":
+    case "uuid":
+    case "text":
+    default:
+      return value === "" || value === null || value === undefined ? null : value
+  }
+}
+
+/** Map the new columns into the shape the UI uses (additive, legacy untouched). */
+function mapApplicationV2(row) {
+  return {
+    universityId: row.university_id || null,
+    campus: row.campus || "",
+    degreeLevel: row.degree_level || "",
+    termSeason: row.term_season || "",
+    termYear: row.term_year ?? "",
+    deferredEntry: Boolean(row.deferred_entry),
+    platform: row.platform || "",
+    round: row.round || "",
+    isBinding: Boolean(row.is_binding),
+    portalUrl: row.portal_url || "",
+    portalEmail: row.portal_email || "",
+    applicantId: row.applicant_id || "",
+    portalActivated: Boolean(row.portal_activated),
+    feeAmount: row.fee_amount ?? "",
+    feeCurrency: row.fee_currency || "",
+    feeWaiverRequested: Boolean(row.fee_waiver_requested),
+    feeWaiverGranted: Boolean(row.fee_waiver_granted),
+    feePaidOn: row.fee_paid_on || "",
+    fit: row.fit || "",
+    fitReason: row.fit_reason || "",
+    acceptanceRate: row.acceptance_rate ?? "",
+    whyCourses: row.why_courses || "",
+    whyProfessors: row.why_professors || "",
+    whyPrograms: row.why_programs || "",
+    whyLinks: row.why_links || "",
+    progressPercent: Number(row.progress_percent) || 0,
+    decisionConditions: row.decision_conditions || "",
+    decisionAt: row.decision_at || "",
+    replyDeadlineAt: row.reply_deadline_at || "",
+    replyDeadlineTz: row.reply_deadline_tz || "",
+    decisionLetterDocumentId: row.decision_letter_document_id || "",
+    committedAt: row.committed_at || "",
+    aidScholarshipName: row.aid_scholarship_name || "",
+    aidAmount: row.aid_amount ?? "",
+    aidCurrency: row.aid_currency || "",
+    aidPeriod: row.aid_period || "",
+    aidRenewalConditions: row.aid_renewal_conditions || "",
+    netCostPerYear: row.net_cost_per_year ?? "",
+    aidPolicy: row.aid_policy || "",
+    updatedAt: row.updated_at || "",
+  }
+}
+
+export function mapApplicationRow(row) {
   return {
     id: row.id,
     student_id: row.student_id,
@@ -75,6 +208,7 @@ function mapApplicationRow(row) {
     visibility: row.visibility || "private",
     created_at: row.created_at || "",
     documents: row.documents || {},
+    ...mapApplicationV2(row),
   }
 }
 
@@ -213,21 +347,7 @@ export async function getStudents() {
 
     supabase
       .from("applications")
-      .select(`
-        id,
-        student_id,
-        university,
-        program,
-        major,
-        term,
-        deadline,
-        status,
-        decision,
-        recommendation,
-        notes,
-        visibility,
-        created_at
-      `)
+      .select(APPLICATION_COLUMNS)
       .order("created_at", { ascending: false }),
 
     supabase
@@ -284,7 +404,7 @@ export async function getPublicStudents() {
 
     supabase
       .from("applications")
-      .select("*")
+      .select(PUBLIC_APPLICATION_COLUMNS)
       .eq("visibility", "public")
       .order("created_at", { ascending: false }),
 
@@ -447,16 +567,12 @@ export async function setProfile(studentId, payload) {
 }
 
 export async function setPhoto(studentId, photoUrlOrObj, maybePhotoPath) {
-  let photo_url = ""
-  let photo_path = ""
-
-  if (typeof photoUrlOrObj === "object" && photoUrlOrObj !== null) {
-    photo_url = photoUrlOrObj.photo_url || photoUrlOrObj.photoUrl || ""
-    photo_path = photoUrlOrObj.photo_path || photoUrlOrObj.photoPath || ""
-  } else {
-    photo_url = photoUrlOrObj || ""
-    photo_path = maybePhotoPath || ""
-  }
+  const photo_url = typeof photoUrlOrObj === "object" && photoUrlOrObj !== null
+    ? photoUrlOrObj.photo_url || photoUrlOrObj.photoUrl || ""
+    : photoUrlOrObj || ""
+  const photo_path = typeof photoUrlOrObj === "object" && photoUrlOrObj !== null
+    ? photoUrlOrObj.photo_path || photoUrlOrObj.photoPath || ""
+    : maybePhotoPath || ""
 
   const { data, error } = await supabase
     .from("profiles")
@@ -521,6 +637,8 @@ export async function updateNotes(studentId, notes) {
 }
 
 export async function saveApplication(studentId, payload) {
+  // Legacy columns: unchanged (AdminDashboard, public drawer, realtime and the
+  // visibility-request flow all read this exact shape).
   const dataToSave = {
     student_id: studentId,
     user_id: studentId,
@@ -536,7 +654,24 @@ export async function saveApplication(studentId, payload) {
     visibility: payload.visibility || "private",
   }
 
+  // Phase 3 columns are ADDITIVE and only written when the caller actually
+  // provides them: a legacy caller (admin quick form) can never wipe them.
+  for (const [camel, [snake, kind]] of Object.entries(APPLICATION_FIELD_MAP)) {
+    if (Object.prototype.hasOwnProperty.call(payload, camel)) {
+      dataToSave[snake] = normalizeApplicationValue(payload[camel], kind)
+    } else if (Object.prototype.hasOwnProperty.call(payload, snake)) {
+      dataToSave[snake] = normalizeApplicationValue(payload[snake], kind)
+    }
+  }
+
+  // Keep the legacy `term` text in sync with the structured season/year so old
+  // views always show something meaningful (manual text still wins if empty).
+  if (!dataToSave.term && payload.termSeason && payload.termYear) {
+    dataToSave.term = `${payload.termSeason} ${payload.termYear}`
+  }
+
   if (payload.id) {
+    dataToSave.updated_at = new Date().toISOString()
     const { data, error } = await supabase
       .from("applications")
       .update(dataToSave)
