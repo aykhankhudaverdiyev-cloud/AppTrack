@@ -12,6 +12,8 @@
 import { supabase } from "../lib/supabase"
 import { zonedInputToUtcIso, utcToZonedInput } from "../utils/timezone"
 import { computeRequirementProgress } from "../utils/applicationRequirements"
+import { notifyDataChanged } from "../store/studentsStore"
+import { mapLegacyAcademicItem, isValidSatSectionScore, scoreExpiryDate } from "../utils/academicRules"
 
 /** camelCase → snake_case whitelist for the new profiles columns. */
 const PROFILE_FIELD_MAP = {
@@ -287,11 +289,11 @@ export async function fetchStudentDeadlines(userId) {
  * Replace a whole child list. Client-generated UUIDs make this a single
  * upsert + one delete, with no server round trip needed to learn new IDs.
  */
-async function syncRows(table, userId, applicationId, rows, toRow) {
+async function syncRows(table, userId, applicationId, rows, toRow, parentKey = "application_id") {
   const payload = rows.map((row, index) => ({
     id: row.id || newApplicationRowId(),
     user_id: userId,
-    application_id: applicationId,
+    [parentKey]: applicationId,
     ...toRow(row, index),
   }))
 
@@ -299,19 +301,24 @@ async function syncRows(table, userId, applicationId, rows, toRow) {
     .from(table)
     .select("id")
     .eq("user_id", userId)
-    .eq("application_id", applicationId)
+    .eq(parentKey, applicationId)
   if (fetchError) throw fetchError
 
   const keep = new Set(payload.map((p) => p.id))
   const stale = (existing || []).map((r) => r.id).filter((id) => !keep.has(id))
-  if (stale.length) {
-    const { error } = await supabase.from(table).delete().in("id", stale).eq("user_id", userId)
+  const removeStale = async () => {
+    if (!stale.length) return
+    const { error } = await supabase.from(table).delete().in("id", stale).eq("user_id", userId).eq(parentKey, applicationId)
     if (error) throw error
   }
+  // Application child tables have additional unique keys; preserve their Phase 3
+  // deletion order. Academic child tables can safely upsert before deleting.
+  if (parentKey === "application_id") await removeStale()
   if (payload.length) {
     const { error } = await supabase.from(table).upsert(payload, { onConflict: "id" })
     if (error) throw error
   }
+  if (parentKey !== "application_id") await removeStale()
   return payload.map((p) => p.id)
 }
 
@@ -416,4 +423,139 @@ export async function saveApplicationEssayLinks(userId, applicationId, links = [
     ai_rules_note: row.aiRulesNote || null,
   }))
   return clean
+}
+
+/* Academic library (owner-scoped; no public query paths). Payloads use DB
+   column names. Whitelists prevent accidentally changing ownership or metadata. */
+const ACADEMIC_COLUMNS = {
+  education_entries: 'entry_type institution_name country city ceeb_code language_of_instruction start_date end_date is_current qualification grading_scale overall_average scale_maximum class_rank class_size school_does_not_rank current_year_courses predicted_grades mid_year_grades school_counselor_name school_counselor_email school_counselor_phone degree major minor gpa gpa_scale credits_completed honours_classification rank_percentile thesis_title thesis_supervisor thesis_abstract credential_eval_status credential_eval_provider credential_eval_number sort_order',
+  test_attempts: 'test_type status attempt_number test_date overall_score overall_max trf_number is_home_edition is_mybest national_exam_name expires_on is_best notes report_document_id',
+  honors: 'title levels grade_levels received_month received_year category result subject issuer participants_context description certificate_document_id verification_url is_top5_commonapp top5_order sort_order',
+  activities: 'activity_type position organization_name description long_description grade_levels timing hours_per_week weeks_per_year start_date end_date ongoing city country participation_mode impact_metrics supervisor_name supervisor_email is_paid employment_type industry earnings_for_family research_mentor research_institution research_question output_status plan_to_continue sort_order',
+  projects: 'title project_type role_type team_size my_contribution start_date end_date status problem method result result_metrics tech_tags github_url demo_url video_url paper_url report_document_id mentor_name related_activity_id related_honor_id visibility short_description link',
+  publications: 'title authors my_author_position venue pub_year doi_url pub_type peer_reviewed status pdf_document_id',
+  grade_rows: 'subject grade_level semester grade is_predicted sort_order',
+  test_section_scores: 'section score score_max sort_order',
+  score_sending: 'application_id attempt_id requirement self_reported official_sent sent_on delivery_confirmed',
+}
+
+function academicFields(table, row) {
+  return Object.fromEntries(ACADEMIC_COLUMNS[table].split(' ')
+    .filter((key) => Object.hasOwn(row, key))
+    .map((key) => [key, row[key]]))
+}
+
+export async function fetchAcademicLibrary(userId) {
+  const tables = Object.keys(ACADEMIC_COLUMNS)
+  const results = await Promise.all(tables.map((table) =>
+    supabase.from(table).select('*').eq('user_id', userId)))
+  for (const result of results) if (result.error) throw result.error
+  return Object.fromEntries(tables.map((table, index) => [table, results[index].data || []]))
+}
+
+async function saveAcademicRow(table, userId, row) {
+  const fields = academicFields(table, row)
+  if (table === 'projects' && fields.role_type === 'team' && !String(fields.my_contribution || '').trim()) {
+    throw new Error('Describe your contribution to the team project.')
+  }
+  const query = row.id
+    ? supabase.from(table).update(fields).eq('id', row.id).eq('user_id', userId)
+    : supabase.from(table).insert({ ...fields, user_id: userId })
+  const { data, error } = await query.select().single()
+  if (error) throw error
+  notifyDataChanged()
+  return data
+}
+
+export const saveEducationEntry = (userId, row) => saveAcademicRow('education_entries', userId, row)
+export const saveTestAttempt = (userId, row) => saveAcademicRow('test_attempts', userId, {
+  ...row,
+  ...(Object.hasOwn(row, 'test_type') && Object.hasOwn(row, 'test_date')
+    ? { expires_on: scoreExpiryDate(row.test_type, row.test_date) } : {}),
+})
+export const saveHonor = (userId, row) => saveAcademicRow('honors', userId, row)
+export const saveActivity = (userId, row) => saveAcademicRow('activities', userId, row)
+export const saveProject = (userId, row) => saveAcademicRow('projects', userId, row)
+export const savePublication = (userId, row) => saveAcademicRow('publications', userId, row)
+
+export async function saveScoreSending(userId, row) {
+  const fields = academicFields('score_sending', row)
+  const { data, error } = await supabase.from('score_sending')
+    .upsert({ ...fields, user_id: userId }, { onConflict: 'application_id,attempt_id' })
+    .select().single()
+  if (error) throw error
+  notifyDataChanged()
+  return data
+}
+
+async function syncAcademicRows(table, parentKey, userId, parentId, rows) {
+  const ids = await syncRows(table, userId, parentId, rows,
+    (row, index) => ({ ...academicFields(table, row), sort_order: row.sort_order ?? index }), parentKey)
+  notifyDataChanged()
+  return ids
+}
+export const syncGradeRows = (userId, entryId, rows = []) => syncAcademicRows('grade_rows', 'entry_id', userId, entryId, rows)
+export async function syncSectionScores(userId, attemptId, rows = []) {
+  const { data, error } = await supabase.from('test_attempts').select('test_type').eq('id', attemptId).eq('user_id', userId).single()
+  if (error) throw error
+  if (data.test_type === 'SAT' && rows.some((row) => !isValidSatSectionScore(row.score))) {
+    throw new Error('SAT section scores must be 200–800 in steps of 10.')
+  }
+  return syncAcademicRows('test_section_scores', 'attempt_id', userId, attemptId, rows)
+}
+
+export async function deleteAcademicRow(table, userId, id) {
+  if (!Object.hasOwn(ACADEMIC_COLUMNS, table)) throw new Error('Invalid academic table')
+  const { error } = await supabase.from(table).delete().eq('id', id).eq('user_id', userId)
+  if (error) throw error
+  notifyDataChanged()
+}
+export const deleteEducationEntry = (userId, id) => deleteAcademicRow('education_entries', userId, id)
+
+/** One-time import. Call only after the DB-backed UI is ready. Original keys
+ * remain as a backup. A persisted per-item UUID ledger makes retries safe when
+ * an earlier request succeeded but its response was lost. */
+export async function importLegacyAcademicLibrary(userId, storage = globalThis.localStorage) {
+  const flagKey = `apptrack.academic_migrated.${userId}`
+  const ledgerKey = `apptrack.academic_migration_ids.${userId}`
+  if (storage.getItem(flagKey) === '1') return 0
+  const tableByKind = {
+    education: 'education_entries', test_scores: 'test_attempts', honors: 'honors',
+    volunteering: 'activities', experience: 'activities', projects: 'projects',
+  }
+  const ledger = JSON.parse(storage.getItem(ledgerKey) || '{}')
+  const snapshot = {}
+  const batches = {}
+  let count = 0
+  for (const [kind, table] of Object.entries(tableByKind)) {
+    const raw = storage.getItem(`apptrack.${kind}.${userId}`)
+    snapshot[kind] = raw
+    if (raw === null) continue
+    const items = JSON.parse(raw)
+    if (!Array.isArray(items) || items.some((item) => !item || typeof item !== 'object' || Array.isArray(item))) {
+      throw new Error(`Could not import ${kind}: saved data is invalid. Your original data was retained.`)
+    }
+    items.forEach((item, index) => {
+      const key = JSON.stringify([kind, index, item])
+      const id = ledger[key] || newApplicationRowId()
+      ledger[key] = id
+      ;(batches[table] ||= []).push({ ...mapLegacyAcademicItem(kind, item), id, user_id: userId })
+      count += 1
+    })
+  }
+  // If storage is unavailable, abort before any writes rather than risk duplicates.
+  storage.setItem(ledgerKey, JSON.stringify(ledger))
+  for (const [table, rows] of Object.entries(batches)) {
+    if (!rows.length) continue
+    const { error } = await supabase.from(table).upsert(rows, { onConflict: 'id', ignoreDuplicates: true })
+    if (error) throw error
+  }
+  for (const [kind, original] of Object.entries(snapshot)) {
+    if (storage.getItem(`apptrack.${kind}.${userId}`) !== original) {
+      throw new Error('Saved academic items changed during import. Please retry.')
+    }
+  }
+  storage.setItem(flagKey, '1')
+  if (count) notifyDataChanged()
+  return count
 }

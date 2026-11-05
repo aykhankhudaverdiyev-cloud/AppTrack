@@ -37,6 +37,9 @@ import PublicStudentDrawer from '../components/PublicStudentDrawer'
 import StudentCard from '../components/StudentCard'
 import MyProfileSection from '../components/profile/MyProfileSection'
 import AdmissionsOverview from '../components/applications/AdmissionsOverview'
+import AcademicSection from '../components/academic/AcademicSection'
+import { fetchAcademicLibrary, importLegacyAcademicLibrary } from '../Services/ProfileServiceV2'
+import { computeAcademicCounts } from '../utils/academicRules'
 import { ConfirmDialog } from '../components/forms'
 import { computeProfileCompletion } from '../utils/profileCompletion'
 import { describeStoredDeadline, getStudentTimeZone } from '../utils/timezone'
@@ -130,24 +133,57 @@ export default function StudentDashboard() {
   const [expandedApplications, setExpandedApplications] = useState([])
   const [sectionModal, setSectionModal] = useState({ open: false, type: '' })
 
-  // Student-managed lightweight sections (persisted locally)
-  const [education, setEducation] = useState(() => loadLS(`apptrack.education.${user?.id}`, []))
-  const [testScores, setTestScores] = useState(() => loadLS(`apptrack.test_scores.${user?.id}`, []))
-  const [honors, setHonors] = useState(() => loadLS(`apptrack.honors.${user?.id}`, []))
-  const [volunteering, setVolunteering] = useState(() => loadLS(`apptrack.volunteering.${user?.id}`, []))
-  const [experience, setExperience] = useState(() => loadLS(`apptrack.experience.${user?.id}`, []))
-  const [projects, setProjects] = useState(() => loadLS(`apptrack.projects.${user?.id}`, []))
+  // Academic data is owner-scoped in Supabase; the remaining two lists are Phase 5/6.
+  const [academic, setAcademic] = useState({})
+  const [academicLoading, setAcademicLoading] = useState(true)
+  const [academicError, setAcademicError] = useState('')
+  const [academicRetry, setAcademicRetry] = useState(0)
+  const [academicNotice, setAcademicNotice] = useState('')
   const [recommendations, setRecommendations] = useState(() => loadLS(`apptrack.recommendations.${user?.id}`, []))
   const [portfolio, setPortfolio] = useState(() => loadLS(`apptrack.portfolio.${user?.id}`, []))
-
-  useEffect(() => { if (user?.id) saveLS(`apptrack.education.${user.id}`, education) }, [education, user?.id])
-  useEffect(() => { if (user?.id) saveLS(`apptrack.test_scores.${user.id}`, testScores) }, [testScores, user?.id])
-  useEffect(() => { if (user?.id) saveLS(`apptrack.honors.${user.id}`, honors) }, [honors, user?.id])
-  useEffect(() => { if (user?.id) saveLS(`apptrack.volunteering.${user.id}`, volunteering) }, [volunteering, user?.id])
-  useEffect(() => { if (user?.id) saveLS(`apptrack.experience.${user.id}`, experience) }, [experience, user?.id])
-  useEffect(() => { if (user?.id) saveLS(`apptrack.projects.${user.id}`, projects) }, [projects, user?.id])
   useEffect(() => { if (user?.id) saveLS(`apptrack.recommendations.${user.id}`, recommendations) }, [recommendations, user?.id])
   useEffect(() => { if (user?.id) saveLS(`apptrack.portfolio.${user.id}`, portfolio) }, [portfolio, user?.id])
+
+  useEffect(() => {
+    if (!user?.id) return undefined
+    let cancelled = false
+    let ready = false
+    let revision = 0
+    const reload = async () => {
+      if (!ready) return
+      const current = ++revision
+      try {
+        const data = await fetchAcademicLibrary(user.id)
+        if (!cancelled && current === revision) { setAcademic(data); setAcademicError(''); setAcademicLoading(false) }
+      } catch (e) {
+        if (!cancelled && current === revision) { setAcademicError(e.message || 'Unable to load academic library.'); setAcademicLoading(false) }
+      }
+    }
+    const initialise = async () => {
+      await Promise.resolve()
+      if (cancelled) return
+      setAcademicLoading(true)
+      setAcademic({})
+      setAcademicError('')
+      setAcademicNotice('')
+      try {
+        const count = await importLegacyAcademicLibrary(user.id)
+        if (cancelled) return
+        if (count) setAcademicNotice(`Migrated your ${count} saved items. Your original browser data is retained.`)
+        ready = true
+        await reload()
+      } catch (e) {
+        if (!cancelled) { setAcademicError(`Academic import failed: ${e.message}. Original browser data was retained.`); setAcademicLoading(false) }
+      }
+    }
+    initialise()
+    const tables = ['education_entries', 'grade_rows', 'test_attempts', 'test_section_scores', 'score_sending', 'honors', 'activities', 'projects', 'publications']
+    let channel = supabase.channel(`academic-library-${user.id}`)
+    for (const table of tables) channel = channel.on('postgres_changes', { event: '*', schema: 'public', table, filter: `user_id=eq.${user.id}` }, reload)
+    channel.subscribe()
+    onDataChanged(reload)
+    return () => { cancelled = true; supabase.removeChannel(channel); offDataChanged(reload) }
+  }, [user?.id, academicRetry])
 
   const startEditingContact = useCallback(() => {
     setContactDraft({ email: me.email, phone: me.phone })
@@ -169,13 +205,9 @@ export default function StudentDashboard() {
       gradCurrentDegree: profileRow?.grad_current_degree,
       researchInterests: profileRow?.research_interests?.length ? profileRow.research_interests : null,
     },
-    educationCount: education.length,
-    testsCount: testScores.length,
-    honorsCount: honors.length,
-    activitiesCount: volunteering.length + experience.length,
-    researchCount: projects.length,
+    ...computeAcademicCounts(academic, profileRow?.applying_level),
     recommendersCount: recommendations.length,
-  }), [profileRow, me, education, testScores, honors, volunteering, experience, projects, recommendations])
+  }), [profileRow, me, academic, recommendations])
   const profileCompletion = completion.percent
 
   const appProgress = useMemo(() => {
@@ -453,22 +485,10 @@ export default function StudentDashboard() {
   // LinkedIn-style modal handlers (No more window.prompt!)
   const handleSaveSectionItem = (type, data) => {
     const id = Date.now()
-    if (type === 'education') setEducation(p => [...p, { id, ...data }])
-    if (type === 'test_score') setTestScores(p => [...p, { id, ...data }])
-    if (type === 'honor') setHonors(p => [...p, { id, ...data }])
-    if (type === 'volunteering') setVolunteering(p => [...p, { id, ...data }])
-    if (type === 'experience') setExperience(p => [...p, { id, ...data }])
-    if (type === 'project') setProjects(p => [...p, { id, ...data }])
     if (type === 'recommendation') setRecommendations(p => [...p, { id, ...data }])
     if (type === 'portfolio') setPortfolio(p => [...p, { id, ...data }])
   }
 
-  const removeEducation = id => setEducation(prev => prev.filter(e => e.id !== id))
-  const removeTestScore = id => setTestScores(prev => prev.filter(t => t.id !== id))
-  const removeHonor = id => setHonors(prev => prev.filter(h => h.id !== id))
-  const removeVolunteering = id => setVolunteering(prev => prev.filter(v => v.id !== id))
-  const removeExperience = id => setExperience(prev => prev.filter(e => e.id !== id))
-  const removeProject = id => setProjects(prev => prev.filter(p => p.id !== id))
   const removeRecommendation = id => setRecommendations(prev => prev.filter(r => r.id !== id))
   const removePortfolioLink = id => setPortfolio(prev => prev.filter(p => p.id !== id))
 
@@ -889,150 +909,8 @@ export default function StudentDashboard() {
           </div>
         )}
 
-        {/* 3. ACADEMIC: EDUCATION */}
-        {activeTab === 'education' && (
-          <SimpleListSection
-            title="Education"
-            subtitle="Schools, universities, degrees and years."
-            emptyIcon="🎓"
-            emptyTitle="No education added"
-            emptyDesc="Add your school or university."
-            addLabel="Add education"
-            onAdd={() => setSectionModal({ open: true, type: 'education' })}
-            items={education}
-            renderItem={e => (
-              <div className="simple-item">
-                <div className="simple-item__logo">🎓</div>
-                <div className="simple-item__body">
-                  <h4>{e.school}</h4>
-                  <p>{[e.degree, e.years].filter(Boolean).join(' · ')}</p>
-                </div>
-                <button type="button" className="icon-btn icon-btn--danger" onClick={() => removeEducation(e.id)}>🗑</button>
-              </div>
-            )}
-          />
-        )}
-
-        {/* 4. ACADEMIC: TEST SCORES */}
-        {activeTab === 'test_scores' && (
-          <SimpleListSection
-            title="Test Scores"
-            subtitle="Standardized tests (IELTS, TOEFL, SAT, AP, IB, etc.)."
-            emptyIcon="📝"
-            emptyTitle="No test scores added"
-            emptyDesc="Add your standardized test results."
-            addLabel="Add test score"
-            onAdd={() => setSectionModal({ open: true, type: 'test_score' })}
-            items={testScores}
-            renderItem={t => (
-              <div className="simple-item">
-                <div className="simple-item__logo">📝</div>
-                <div className="simple-item__body">
-                  <h4>{t.test} — {t.score}</h4>
-                  <p>{t.date ? `Date: ${t.date}` : 'Standardized Exam'}</p>
-                </div>
-                <button type="button" className="icon-btn icon-btn--danger" onClick={() => removeTestScore(t.id)}>🗑</button>
-              </div>
-            )}
-          />
-        )}
-
-        {/* 5. ACADEMIC: HONORS & AWARDS */}
-        {activeTab === 'honors' && (
-          <SimpleListSection
-            title="Honors & Awards"
-            subtitle="Academic competitions, olympiads, and recognitions."
-            emptyIcon="🏆"
-            emptyTitle="No honors or awards"
-            emptyDesc="Add your academic awards or certificates."
-            addLabel="Add honor / award"
-            onAdd={() => setSectionModal({ open: true, type: 'honor' })}
-            items={honors}
-            renderItem={h => (
-              <div className="simple-item">
-                <div className="simple-item__logo">🏆</div>
-                <div className="simple-item__body">
-                  <h4>{h.title}</h4>
-                  <p>{[h.issuer, h.year].filter(Boolean).join(' · ')}</p>
-                </div>
-                <button type="button" className="icon-btn icon-btn--danger" onClick={() => removeHonor(h.id)}>🗑</button>
-              </div>
-            )}
-          />
-        )}
-
-        {/* 6. ACTIVITIES: VOLUNTEERING */}
-        {activeTab === 'volunteering' && (
-          <SimpleListSection
-            title="Volunteering"
-            subtitle="Community service and non-profit volunteer work."
-            emptyIcon="🤝"
-            emptyTitle="No volunteering added"
-            emptyDesc="Add your volunteer experiences."
-            addLabel="Add volunteering"
-            onAdd={() => setSectionModal({ open: true, type: 'volunteering' })}
-            items={volunteering}
-            renderItem={v => (
-              <div className="simple-item">
-                <div className="simple-item__logo">🤝</div>
-                <div className="simple-item__body">
-                  <h4>{v.organization}</h4>
-                  <p>{[v.role, v.hours].filter(Boolean).join(' · ')}</p>
-                </div>
-                <button type="button" className="icon-btn icon-btn--danger" onClick={() => removeVolunteering(v.id)}>🗑</button>
-              </div>
-            )}
-          />
-        )}
-
-        {/* 7. ACTIVITIES: INTERNSHIPS & JOBS */}
-        {activeTab === 'experience' && (
-          <SimpleListSection
-            title="Internships & Jobs"
-            subtitle="Internships, summer jobs, and professional experience."
-            emptyIcon="💼"
-            emptyTitle="No experience added"
-            emptyDesc="Add your first experience."
-            addLabel="Add experience"
-            onAdd={() => setSectionModal({ open: true, type: 'experience' })}
-            items={experience}
-            renderItem={e => (
-              <div className="simple-item">
-                <div className="simple-item__logo">💼</div>
-                <div className="simple-item__body">
-                  <h4>{e.role}</h4>
-                  <p>{[e.company, e.period].filter(Boolean).join(' · ')}</p>
-                </div>
-                <button type="button" className="icon-btn icon-btn--danger" onClick={() => removeExperience(e.id)}>🗑</button>
-              </div>
-            )}
-          />
-        )}
-
-        {/* 8. ACTIVITIES: PROJECTS & RESEARCH */}
-        {activeTab === 'projects' && (
-          <SimpleListSection
-            title="Projects & Research"
-            subtitle="Notable projects, research papers, and products you built."
-            emptyIcon="🛠️"
-            emptyTitle="No projects yet"
-            emptyDesc="Add your first project."
-            addLabel="Add project"
-            onAdd={() => setSectionModal({ open: true, type: 'project' })}
-            items={projects}
-            renderItem={p => (
-              <div className="simple-item">
-                <div className="simple-item__logo">🛠️</div>
-                <div className="simple-item__body">
-                  <h4>{p.name}</h4>
-                  {p.description && <p>{p.description}</p>}
-                  {p.url && <a className="pill-link" href={p.url} target="_blank" rel="noreferrer">Open ↗</a>}
-                </div>
-                <button type="button" className="icon-btn icon-btn--danger" onClick={() => removeProject(p.id)}>🗑</button>
-              </div>
-            )}
-          />
-        )}
+        {academicNotice && ['education', 'test_scores', 'honors', 'volunteering', 'experience', 'projects'].includes(activeTab) && <p role="status">{academicNotice}</p>}
+        <AcademicSection activeTab={activeTab} userId={user?.id} library={{ ...academic, applications: me.applications || [] }} loading={academicLoading} error={academicError} onRetry={() => setAcademicRetry(n => n + 1)} level={profileRow?.applying_level} />
 
         {/* 9. ADMISSIONS: APPLICATIONS */}
         {activeTab === 'applications' && (

@@ -3,6 +3,29 @@
 > Read this first in every new session. It is the single source of truth for
 > where the counselor-spec rebuild stands and what comes next.
 
+## Phase 4 — implemented; live smoke test pending (2026-11-05)
+
+- `src/components/academic/AcademicSection.jsx` provides the six existing
+  academic/activity views, unified activity filters, graduate publications,
+  education grade grid, score sending, project links and Top 5 ordering.
+- `StudentDashboard.jsx` loads owner-scoped academic rows, subscribes to changes
+  and uses `computeAcademicCounts` for completion. Graduate experience counts
+  work/internship/career/research activities; research counts publications,
+  research-paper projects and research activities.
+- `ProfileServiceV2.js` contains academic CRUD, child sync, SAT validation,
+  expiry and an idempotent localStorage import. Import keeps the original local
+  keys and a retry ledger; recommendation/portfolio keys are untouched.
+- `useAutosave` tracks revisions so edits during an in-flight save are retried.
+- Verification: 50 tests pass, touched new files lint clean, existing dashboard
+  still has 22 pre-existing lint errors. Build passes with Supabase variables
+  set. Six academic tabs rendered with representative data in server-side React.
+  Mocked import partial-failure/retry was tested. **No live Supabase or browser
+  click-through was possible**: verify CRUD, reload, migration, realtime, score
+  sending, Top 5, child rows and privacy against a real student account before
+  merging. Document pickers remain Phase 5; public project exposure is not added.
+- `origin/main` is `f3334ca`; Phase 3 is present. Essays components are not
+  present on this base. Phase 5 remains next after Phase 4 verification.
+
 ## Current state (2026-11-03)
 
 **Phase 3 — Applications (§11): COMPLETE on `arena/728c3903-apptrack`.**

@@ -15,10 +15,14 @@ export function useAutosave(payload, saveFn, { delay = 1200, enabled = true } = 
   const [saving, setSaving] = useState(false)
   const [savedAt, setSavedAt] = useState(null)
   const [error, setError] = useState(null)
+  const [isDirty, setIsDirty] = useState(false)
   const timerRef = useRef(null)
   const latestRef = useRef(payload)
   const dirtyRef = useRef(false)
   const savingRef = useRef(false)
+  const revisionRef = useRef(0)
+  const saveFnRef = useRef(saveFn)
+  useEffect(() => { saveFnRef.current = saveFn }, [saveFn])
 
   // Keep the latest payload available to the debounced flush without
   // re-creating the callback (write happens in an effect, not during render).
@@ -33,22 +37,28 @@ export function useAutosave(payload, saveFn, { delay = 1200, enabled = true } = 
     }
     if (!dirtyRef.current || savingRef.current) return
     savingRef.current = true
+    const revision = revisionRef.current
     setSaving(true)
     setError(null)
     try {
-      await saveFn(latestRef.current)
-      dirtyRef.current = false
+      await saveFnRef.current(latestRef.current)
+      if (revisionRef.current === revision) { dirtyRef.current = false; setIsDirty(false) }
       setSavedAt(new Date())
     } catch (e) {
       setError(e)
     } finally {
       savingRef.current = false
       setSaving(false)
+      if (dirtyRef.current && revisionRef.current !== revision) {
+        timerRef.current = setTimeout(() => flush(), delay)
+      }
     }
-  }, [saveFn])
+  }, [delay])
 
   const markDirty = useCallback(() => {
     dirtyRef.current = true
+    setIsDirty(true)
+    revisionRef.current += 1
   }, [])
 
   // Debounced autosave on every payload change.
@@ -65,7 +75,7 @@ export function useAutosave(payload, saveFn, { delay = 1200, enabled = true } = 
     }
   }, [payload, delay, enabled, flush])
 
-  return { saving, savedAt, error, markDirty, flush }
+  return { saving, savedAt, error, isDirty, markDirty, flush }
 }
 
 /**
