@@ -172,7 +172,21 @@ per-university AI-rules notes. No schema change — `essays`, `essay_versions`,
 
 ---
 
+## Phase 4 — Academic libraries (code complete; live verification pending)
+
+The existing academic tabs now use owner-scoped database libraries with education
+and grade grid, tests and score sending, honors, unified activities, projects and
+publications. Legacy localStorage entries are imported with retry-safe IDs;
+original browser keys remain as backups. Completion and realtime refresh use the
+new rows. Autosave tracks changes made during an in-flight save. No public
+project data path or document picker was added.
+
+Tests: 50 passing; configured production build passes; six tabs rendered with
+representative data in a React server-render smoke test. Live Supabase and browser
+click-through remain to be verified before merge; see `HANDOFF.md`.
+
+---
+
 ## Upcoming phases
-- **Phase 4:** Education, Test Scores, Honors, Activities, Projects, Publications (§4–9)
 - **Phase 5:** Documents, Recommendations, Financial Aid, Deadlines calendar (§12–15)
 - **Phase 6:** Links & Portfolio, CV export (PDF), Counselor dashboard, supervisor contacts, counselor essay comments (§16–19)
