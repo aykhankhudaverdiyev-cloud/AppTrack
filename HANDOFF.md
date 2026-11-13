@@ -3,6 +3,28 @@
 > Read this first in every new session. It is the single source of truth for
 > where the counselor-spec rebuild stands and what comes next.
 
+## Activities & Experiences — redesigned (2026-11-13)
+
+- The ACTIVITIES nav group is now **Activities** + **Projects & Research**.
+  The old Volunteering / Internships tabs and their `?tab=` keys redirect to
+  `/student?tab=activities&type=volunteering|work`.
+- Everything lives in `public.activities` (migration
+  `006_activities_redesign.sql` = Supabase migration `activities_redesign`):
+  nine CHECK-locked categories, `organization_description` (≤250),
+  `long_description` (≤350), date/grade checks, `(user_id, sort_order)` index
+  and `reorder_activities(uuid[])` (`security invoker`, so owner RLS applies).
+- Frontend: `src/components/activities/ActivitiesSection.jsx` (list, chips,
+  drag ranking, menu, toasts, states) + `ActivityPanel.jsx` (single add/edit
+  panel, 800 ms autosave, inline validation), `src/Services/activitiesApi.js`
+  (only module touching the table), `src/hooks/useActivities.js` (optimistic
+  writes with rollback), `src/utils/activities.js` (+ `activities.test.js`).
+- `?tab=` / `?type=` / `?id=` are URL-synced, so refresh keeps the view.
+- Do NOT write `activities.description` (150-char legacy column) from the new
+  UI; "What you did" is `long_description`.
+- `.env.local` (git-ignored) is required locally: without
+  `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` the production build
+  tree-shakes the entire app.
+
 ## Phase 4 — implemented; live smoke test pending (2026-11-05)
 
 - `src/components/academic/AcademicSection.jsx` provides the six existing
@@ -138,7 +160,10 @@ Phase 6 Links/Portfolio/CV/Counselor dashboard (§16–19).
 7. Sensitive data (passport, DOB, addresses, transcripts, essays) is private
    and cannot be made public. Showcase items may be toggled public.
 8. Portal passwords are never stored.
-9. **No single university per student.** `profiles.university`,
+9. **Activities are one ranked list.** Nine fixed `activity_type` values,
+   `sort_order` = 1-based rank (`reorder_activities` RPC), max 20 entries,
+   10 is only guidance. Never re-introduce a second activities data path.
+10. **No single university per student.** `profiles.university`,
    `profiles.major` and `profiles.committed_university` were dropped in
    migration `005` — a student's universities live in `applications`
    (`university`, `university_id`, `program`, `major`), intended majors in

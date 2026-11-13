@@ -119,7 +119,7 @@ export function computeProfileCompletion(summary) {
 
     const experienceOk = activitiesCount > 0
     sections.push(section('experience', 'Work & Research Experience', weights.experience, experienceOk))
-    if (!experienceOk) missingItems.push({ label: 'Add work or research experience', tab: 'volunteering' })
+    if (!experienceOk) missingItems.push({ label: 'Add work or research experience', tab: 'activities' })
   } else {
     const honorsOk = honorsCount > 0
     sections.push(section('honors', 'Honors & Awards', weights.honors, honorsOk))
@@ -127,7 +127,7 @@ export function computeProfileCompletion(summary) {
 
     const activitiesOk = activitiesCount > 0
     sections.push(section('activities', 'Activities & Experiences', weights.activities, activitiesOk))
-    if (!activitiesOk) missingItems.push({ label: 'Add an activity or experience', tab: 'volunteering' })
+    if (!activitiesOk) missingItems.push({ label: 'Add an activity or experience', tab: 'activities' })
   }
 
   // ---- Recommenders ----

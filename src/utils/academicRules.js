@@ -1,5 +1,4 @@
 /** Academic library rules; values match the Phase 0 database constraints. */
-export { COMMON_APP_LIMITS, UC_LIMITS, ACTIVITY_TYPES, ACTIVITY_FILTER_CHIPS } from '../constants/activityTypes.js'
 
 export const EDUCATION_TYPES = ['secondary_school', 'university', 'pre_college', 'foundation_year']
 export const CREDENTIAL_EVALUATION_STATUSES = ['not_needed', 'in_progress', 'completed']
@@ -81,9 +80,9 @@ export function mapLegacyAcademicItem(kind, item) {
       return { title: (text(item.title) || 'Imported award').slice(0, 100), issuer: text(item.issuer) || null, received_year: /^\d{4}$/.test(year) ? Number(year) : null, description: backup }
     }
     case 'volunteering':
-      return { activity_type: 'community_service', position: text(item.role).slice(0, 50) || null, organization_name: text(item.organization).slice(0, 100) || null, long_description: backup }
+      return { activity_type: 'volunteering', position: text(item.role).slice(0, 50) || null, organization_name: text(item.organization).slice(0, 100) || null, long_description: backup }
     case 'experience':
-      return { activity_type: 'work_paid', position: text(item.role).slice(0, 50) || null, organization_name: text(item.company).slice(0, 100) || null, long_description: backup }
+      return { activity_type: 'work', position: text(item.role).slice(0, 50) || null, organization_name: text(item.company).slice(0, 100) || null, long_description: backup }
     case 'projects':
       return { title: text(item.name) || 'Imported project', short_description: [text(item.description), backup].filter(Boolean).join('\n'), link: text(item.url) || null }
     default:

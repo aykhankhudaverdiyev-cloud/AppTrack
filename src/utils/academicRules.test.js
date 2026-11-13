@@ -39,5 +39,8 @@ test('legacy mappings preserve source details and respect schema limits', async 
   const work = mapLegacyAcademicItem('experience', { role: 'R'.repeat(60), company: 'Example', period: 'Summer 2023' })
   assert.equal(work.position.length, 50)
   assert.match(work.long_description, /Summer 2023/)
+  // Legacy items must land in the nine fixed categories (migration 006).
+  assert.equal(work.activity_type, 'work')
+  assert.equal(mapLegacyAcademicItem('volunteering', { organization: 'X' }).activity_type, 'volunteering')
   assert.throws(() => mapLegacyAcademicItem('other', {}))
 })
