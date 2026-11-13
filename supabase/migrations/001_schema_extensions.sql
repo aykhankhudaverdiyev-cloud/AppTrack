@@ -140,7 +140,7 @@ alter table public.profiles
   add column if not exists intended_major_2  text,
   add column if not exists will_apply_financial_aid boolean,
   add column if not exists gap_year_planned  boolean,
-  add column if not exists committed_university text, -- shown only after an offer is Committed
+  add column if not exists committed_university text, -- DEPRECATED: dropped again in 005 (single-university concept removed)
   -- Graduate only
   add column if not exists grad_current_degree  text,
   add column if not exists grad_degree_status   text,

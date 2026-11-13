@@ -91,6 +91,14 @@ const TAB_GROUPS = [
   },
 ]
 
+const LEVEL_LABELS = {
+  bachelor_first_year: 'Bachelor (first-year)',
+  transfer: 'Transfer',
+  master: 'Master',
+  phd: 'PhD',
+  exchange: 'Exchange / Visiting',
+}
+
 function loadLS(key, fallback) {
   try {
     const raw = localStorage.getItem(key)
@@ -107,7 +115,7 @@ export default function StudentDashboard() {
   const navigate = useNavigate()
 
   const [me, setMe] = useState({
-    id: '', fullName: '', email: '', phone: '', major: '', university: '',
+    id: '', fullName: '', email: '', phone: '',
     gender: '', photoUrl: '', photoPath: '', notes: '', assignedCounselor: '',
     decision: '', visibility: {}, applications: [], licenses: [],
   })
@@ -286,7 +294,7 @@ export default function StudentDashboard() {
 
       setProfileRow(data || null)
       setDeadlines(deadlinesData || [])
-      setMe({ id: data.id, fullName: data.full_name || '', email: data.email || '', phone: data.phone || '', major: data.major || '', university: data.university || '', gender: data.gender || '', photoUrl: data.photo_url || '', photoPath: data.photo_path || '', notes: data.admin_notes || '', assignedCounselor: data.assigned_counselor || '', decision: data.decision || '', visibility, applications, licenses })
+      setMe({ id: data.id, fullName: data.full_name || '', email: data.email || '', phone: data.phone || '', gender: data.gender || '', photoUrl: data.photo_url || '', photoPath: data.photo_path || '', notes: data.admin_notes || '', assignedCounselor: data.assigned_counselor || '', decision: data.decision || '', visibility, applications, licenses })
     } catch (error) {
       console.error('Failed to load profile:', error)
     } finally {
@@ -529,7 +537,7 @@ export default function StudentDashboard() {
               </div>
               <div className="new-header__profile-meta">
                 <strong>{me.fullName || 'Student'}</strong>
-                {me.major && <small>{me.major}</small>}
+                {profileRow?.intended_major_1 && <small>{profileRow.intended_major_1}</small>}
               </div>
               <VisibilityChip value={me.visibility?.profile} />
             </button>
@@ -648,7 +656,7 @@ export default function StudentDashboard() {
                   )}
                 </div>
                 <p className="new-hero-card__sub">
-                  {me.major || 'Major not set yet'}{me.university ? ` · ${me.university}` : ' · Add details below'}
+                  {[profileRow?.intended_major_1, profileRow?.intended_major_2].filter(Boolean).join(' · ') || 'Add your intended majors in My Profile'}
                 </p>
 
                 <div className="new-hero-card__privacy-row">
@@ -782,8 +790,8 @@ export default function StudentDashboard() {
                   </div>
                 </div>
                 <div className="new-quick-grid">
-                  <QuickItem icon="🏫" label="University" value={me.university} placeholder="Add university (admin-managed)" muted />
-                  <QuickItem icon="📚" label="Major" value={me.major} placeholder="Add major (admin-managed)" muted />
+                  <QuickItem icon="🎓" label="Applying for" value={LEVEL_LABELS[profileRow?.applying_level] || ''} placeholder="Set in My Profile" muted />
+                  <QuickItem icon="📚" label="Intended major" value={[profileRow?.intended_major_1, profileRow?.intended_major_2].filter(Boolean).join(' · ')} placeholder="Set in My Profile" muted />
                   <QuickItem icon="🧑‍🏫" label="Assigned Counselor" value={me.assignedCounselor || 'Not assigned'} muted />
                   <QuickItem icon="✅" label="Overall Decision" value={me.decision || 'Pending'} isDecision />
                 </div>
@@ -893,8 +901,6 @@ export default function StudentDashboard() {
                   </div>
                 </div>
                 <div className="info-grid">
-                  <div className="info-card"><span>Major</span><strong>{me.major || '—'}</strong></div>
-                  <div className="info-card"><span>University</span><strong>{me.university || '—'}</strong></div>
                   <div className="info-card info-card--readonly">
                     <span>Assigned Counselor <em className="readonly-tag">read-only</em></span>
                     <strong>{me.assignedCounselor || '—'}</strong>

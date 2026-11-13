@@ -78,7 +78,7 @@ export default function PublicStudentDrawer({
                 : 'Private admin access'}
             </p>
             <h2>{student.fullName}</h2>
-            <span className="admin-drawer__subtext">{student.major}</span>
+            <span className="admin-drawer__subtext">{[student.intendedMajor1, student.intendedMajor2].filter(Boolean).join(' · ')}</span>
           </div>
 
           <button className="drawer-close" onClick={onClose}>✕</button>
@@ -142,12 +142,8 @@ export default function PublicStudentDrawer({
                   <strong>{student.fullName}</strong>
                 </div>
                 <div className="info-card">
-                  <span>Major</span>
-                  <strong>{student.major || 'Not specified'}</strong>
-                </div>
-                <div className="info-card">
-                  <span>University</span>
-                  <strong>{student.university || 'Not specified'}</strong>
+                  <span>Intended majors</span>
+                  <strong>{[student.intendedMajor1, student.intendedMajor2].filter(Boolean).join(' · ') || 'Not specified'}</strong>
                 </div>
                 <div className="info-card">
                   <span>Gender</span>

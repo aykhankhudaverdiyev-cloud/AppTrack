@@ -8,6 +8,7 @@ Bu qovluqdakı faylları **Supabase Dashboard → SQL Editor**-da yuxarıdan aş
 | 2 | `002_rls_policies.sql` | Yalnız YENİ cədvəllərdə RLS: owner/counselor/admin |
 | 3 | `003_storage.sql` | `student-documents` private qalır + owner-qovluq siyasətləri (`avatars` toxunulmazdır) |
 | 4 | `004_seed_universities.sql` | ~110 universitet seed |
+| 5 | `005_drop_profile_university_major.sql` | `profiles.university` / `major` / `committed_university` sütunlarını silir (əvvəl `major` → `intended_major_1` köçürülür) |
 
 ## Vacib zəmanətlər (v2)
 

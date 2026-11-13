@@ -36,7 +36,7 @@ export default function StudentCard({ student, onClick }) {
 
       <div className="student-card__body">
         <h4>{student.fullName}</h4>
-        <p>{student.major}</p>
+        <p>{[student.intendedMajor1, student.intendedMajor2].filter(Boolean).join(' · ') || `${(student.applications || []).length} applications`}</p>
       </div>
     </button>
   )

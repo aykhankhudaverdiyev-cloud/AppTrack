@@ -138,6 +138,12 @@ Phase 6 Links/Portfolio/CV/Counselor dashboard (§16–19).
 7. Sensitive data (passport, DOB, addresses, transcripts, essays) is private
    and cannot be made public. Showcase items may be toggled public.
 8. Portal passwords are never stored.
+9. **No single university per student.** `profiles.university`,
+   `profiles.major` and `profiles.committed_university` were dropped in
+   migration `005` — a student's universities live in `applications`
+   (`university`, `university_id`, `program`, `major`), intended majors in
+   `profiles.intended_major_1/2`. Never re-add a profile-level university/major
+   field (Complete Profile collects name, phone and gender only).
 
 ## Standing rules (user-mandated)
 
