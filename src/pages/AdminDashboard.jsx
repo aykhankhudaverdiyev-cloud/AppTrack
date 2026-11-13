@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import './AdminDashboard.css'
 import Avatar from '../components/Avatar'
@@ -125,6 +125,26 @@ function buildCounts(list, key) {
   }, {})
 }
 
+/** Count applications (not students) by a field — multi-university model. */
+function buildAppCounts(students, key) {
+  return students.reduce((acc, s) => {
+    for (const app of s.applications || []) {
+      const value = app[key]
+      if (value) acc[value] = (acc[value] || 0) + 1
+    }
+    return acc
+  }, {})
+}
+
+/** Profile fields used for completion scores (no single university/major). */
+function profileFields(s) {
+  return [s.fullName, s.email, s.phone, s.gender]
+}
+
+function intendedMajors(s) {
+  return [s.intendedMajor1, s.intendedMajor2].filter(Boolean).join(' · ')
+}
+
 /* ─── Small reusable pieces ─── */
 
 function VisibilityToggle({ value, onChange }) {
@@ -246,7 +266,7 @@ function NewStudentCard({ student, onOpen }) {
   const initials = (student.fullName || '?').split(' ').map(p => p[0]).join('').slice(0, 2).toUpperCase()
 
   // simple completion score
-  const fields = [student.fullName, student.email, student.phone, student.major, student.university, student.gender]
+  const fields = profileFields(student)
   const filled = fields.filter(Boolean).length
   const pct = Math.round((filled / fields.length) * 100)
 
@@ -275,7 +295,7 @@ function NewStudentCard({ student, onOpen }) {
       {/* Body */}
       <div className="new-student-card__body">
         <h4 className="new-student-card__name">{student.fullName}</h4>
-        <p className="new-student-card__major">{student.major || <em>Major not set yet</em>}</p>
+        <p className="new-student-card__major">{intendedMajors(student) || <em>Intended major not set yet</em>}</p>
 
         {/* Stats row */}
         <div className="new-student-card__stats">
@@ -304,7 +324,7 @@ function NewStudentCard({ student, onOpen }) {
 /* ─── Attention panel ─── */
 function AttentionPanel({ students }) {
   const incomplete = students.filter(s => {
-    const fields = [s.fullName, s.email, s.phone, s.major, s.university, s.gender]
+    const fields = profileFields(s)
     return fields.filter(Boolean).length < fields.length
   })
 
@@ -327,7 +347,7 @@ function AttentionPanel({ students }) {
           <p className="new-attention-panel__empty">All students look good ✓</p>
         )}
         {incomplete.map(s => {
-          const fields = [s.fullName, s.email, s.phone, s.major, s.university, s.gender]
+          const fields = profileFields(s)
           const pct = Math.round((fields.filter(Boolean).length / fields.length) * 100)
           const initials = (s.fullName || '?').split(' ').map(p => p[0]).join('').slice(0, 2).toUpperCase()
           return (
@@ -425,9 +445,9 @@ function DocumentGroup({ student, application, category, onUpload, onRemove, onO
 }
 
 function ProfileModal({ open, student, onClose, onSave }) {
-  const [form, setForm] = useState({ fullName: '', email: '', phone: '', major: '', university: '', gender: '' })
+  const [form, setForm] = useState({ fullName: '', email: '', phone: '', gender: '' })
   useEffect(() => {
-    if (open && student) setForm({ fullName: student.fullName || '', email: student.email || '', phone: student.phone || '', major: student.major || '', university: student.university || '', gender: student.gender || '' })
+    if (open && student) setForm({ fullName: student.fullName || '', email: student.email || '', phone: student.phone || '', gender: student.gender || '' })
   }, [open, student])
   if (!open || !student) return null
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }))
@@ -444,10 +464,6 @@ function ProfileModal({ open, student, onClose, onSave }) {
           <div className="field-row">
             <label className="field"><span>Email</span><input type="email" value={form.email} onChange={e => set('email', e.target.value)} /></label>
             <label className="field"><span>Phone</span><input value={form.phone} onChange={e => set('phone', e.target.value)} /></label>
-          </div>
-          <div className="field-row">
-            <label className="field"><span>Major</span><input value={form.major} onChange={e => set('major', e.target.value)} /></label>
-            <label className="field"><span>University</span><input value={form.university} onChange={e => set('university', e.target.value)} /></label>
           </div>
           <label className="field"><span>Gender</span>
             <select value={form.gender} onChange={e => set('gender', e.target.value)}>
@@ -627,7 +643,6 @@ export default function AdminDashboard() {
   const { signOut } = useAuth()
   const navigate = useNavigate()
 
-  const [filterMajor, setFilterMajor] = useState('all')
   const [filterUniversity, setFilterUniversity] = useState('all')
   const [filterGender, setFilterGender] = useState('all')
   const [filterDecision, setFilterDecision] = useState('all')
@@ -660,7 +675,7 @@ export default function AdminDashboard() {
   const avgCompletion = useMemo(() => {
     if (!students.length) return '0%'
     const avg = students.reduce((s, st) => {
-      const fields = [st.fullName, st.email, st.phone, st.major, st.university, st.gender]
+      const fields = profileFields(st)
       return s + Math.round((fields.filter(Boolean).length / fields.length) * 100)
     }, 0) / students.length
     return `${Math.round(avg)}%`
@@ -670,8 +685,9 @@ export default function AdminDashboard() {
   // ── filters & sort ──
   const filteredStudents = useMemo(() => {
     let result = [...students]
-    if (filterMajor !== 'all') result = result.filter(s => s.major === filterMajor)
-    if (filterUniversity !== 'all') result = result.filter(s => s.university === filterUniversity)
+    if (filterUniversity !== 'all') {
+      result = result.filter(s => (s.applications || []).some(a => a.university === filterUniversity))
+    }
     if (filterGender !== 'all') result = result.filter(s => s.gender === filterGender)
     if (filterDecision !== 'all') result = result.filter(s => s.decision === filterDecision)
     if (searchQuery.trim()) {
@@ -679,18 +695,20 @@ export default function AdminDashboard() {
       result = result.filter(s =>
         (s.fullName || '').toLowerCase().includes(q) ||
         (s.email || '').toLowerCase().includes(q) ||
-        (s.major || '').toLowerCase().includes(q) ||
-        (s.university || '').toLowerCase().includes(q)
+        (s.applications || []).some(a =>
+          (a.university || '').toLowerCase().includes(q) ||
+          (a.major || '').toLowerCase().includes(q) ||
+          (a.program || '').toLowerCase().includes(q)
+        )
       )
     }
     if (sortBy === 'name-asc') result.sort((a, b) => (a.fullName || '').localeCompare(b.fullName || ''))
     if (sortBy === 'name-desc') result.sort((a, b) => (b.fullName || '').localeCompare(a.fullName || ''))
     if (sortBy === 'recent') result.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
     return result
-  }, [students, filterMajor, filterUniversity, filterGender, filterDecision, searchQuery, sortBy])
+  }, [students, filterUniversity, filterGender, filterDecision, searchQuery, sortBy])
 
-  const majorData = useMemo(() => toPercentMap(buildCounts(filteredStudents, 'major')), [filteredStudents])
-  const universityData = useMemo(() => toPercentMap(buildCounts(filteredStudents, 'university')), [filteredStudents])
+  const universityData = useMemo(() => toPercentMap(buildAppCounts(filteredStudents, 'university')), [filteredStudents])
   const genderData = useMemo(() => toPercentMap(buildCounts(filteredStudents, 'gender')), [filteredStudents])
   const decisionData = useMemo(() => toPercentMap(buildCounts(filteredStudents, 'decision')), [filteredStudents])
 
@@ -701,8 +719,7 @@ export default function AdminDashboard() {
     return filteredStudents.slice(start, start + studentsPerPage)
   }, [filteredStudents, currentPage])
 
-  const majors = [...new Set(students.map(s => s.major).filter(Boolean))]
-  const universities = [...new Set(students.map(s => s.university).filter(Boolean))]
+  const universities = [...new Set(students.flatMap(s => (s.applications || []).map(a => a.university)).filter(Boolean))]
   const genders = [...new Set(students.map(s => s.gender).filter(Boolean))]
   const decisions = [...new Set(students.map(s => s.decision).filter(Boolean))]
 
@@ -842,7 +859,7 @@ export default function AdminDashboard() {
     } catch (error) { console.error(error); alert(error?.message || 'Something went wrong.') }
   }
 
-  const activeFiltersCount = [filterMajor, filterUniversity, filterGender, filterDecision].filter(f => f !== 'all').length
+  const activeFiltersCount = [filterUniversity, filterGender, filterDecision].filter(f => f !== 'all').length
 
   return (
     <div className="app-shell">
@@ -910,8 +927,7 @@ export default function AdminDashboard() {
 
         {/* ══ DISTRIBUTION CHARTS ══ */}
         <section className="new-dist-grid">
-          <DistributionCard title="Students by Major" data={majorData} />
-          <DistributionCard title="Students by University" data={universityData} />
+          <DistributionCard title="Applications by University" data={universityData} />
           <DistributionCard title="Students by Gender" data={genderData} />
           <DistributionCard title="Students by Decision" data={decisionData} />
         </section>
@@ -981,17 +997,13 @@ export default function AdminDashboard() {
               <div className="new-filters-panel">
                 <div className="new-filters-panel__head">
                   <span className="new-filters-panel__label">🔽 Filters</span>
-                  <button type="button" className="new-filters-panel__clear" onClick={() => { setFilterMajor('all'); setFilterUniversity('all'); setFilterGender('all'); setFilterDecision('all'); setCurrentPage(1) }}>
+                  <button type="button" className="new-filters-panel__clear" onClick={() => { setFilterUniversity('all'); setFilterGender('all'); setFilterDecision('all'); setCurrentPage(1) }}>
                     ✕ Clear all
                   </button>
                 </div>
                 <div className="new-filters-panel__selects">
-                  <select className="new-filter-select" value={filterMajor} onChange={e => { setFilterMajor(e.target.value); setCurrentPage(1) }}>
-                    <option value="all">All Majors</option>
-                    {majors.map(m => <option key={m} value={m}>{m}</option>)}
-                  </select>
                   <select className="new-filter-select" value={filterUniversity} onChange={e => { setFilterUniversity(e.target.value); setCurrentPage(1) }}>
-                    <option value="all">All Universities</option>
+                    <option value="all">All Universities (via applications)</option>
                     {universities.map(u => <option key={u} value={u}>{u}</option>)}
                   </select>
                   <select className="new-filter-select" value={filterGender} onChange={e => { setFilterGender(e.target.value); setCurrentPage(1) }}>
@@ -1059,10 +1071,10 @@ export default function AdminDashboard() {
 
               <div className="admin-drawer__hero-main">
                 <div className="admin-drawer__hero--compact">
-                  <div className="hero-stat"><span>Major</span><strong>{selectedStudent.major || 'N/A'}</strong></div>
-                  <div className="hero-stat"><span>University</span><strong>{selectedStudent.university || 'N/A'}</strong></div>
+                  <div className="hero-stat"><span>Intended major</span><strong>{intendedMajors(selectedStudent) || 'N/A'}</strong></div>
                   <div className="hero-stat"><span>Applications</span><strong>{(selectedStudent.applications || []).length}</strong></div>
                   <div className="hero-stat"><span>Licenses</span><strong>{(selectedStudent.licenses || []).length}</strong></div>
+                  <div className="hero-stat"><span>Accepted</span><strong>{(selectedStudent.applications || []).filter(a => (a.decision || '').toLowerCase() === 'accepted').length}</strong></div>
                 </div>
               </div>
             </div>
@@ -1088,8 +1100,7 @@ export default function AdminDashboard() {
                     <div className="info-card"><span>Email</span><strong>{selectedStudent.email || 'Not provided'}</strong></div>
                     <div className="info-card"><span>Phone</span><strong>{selectedStudent.phone || 'Not provided'}</strong></div>
                     <div className="info-card"><span>Gender</span><strong>{selectedStudent.gender || 'Not specified'}</strong></div>
-                    <div className="info-card"><span>Major</span><strong>{selectedStudent.major || 'Not specified'}</strong></div>
-                    <div className="info-card"><span>University</span><strong>{selectedStudent.university || 'Not specified'}</strong></div>
+                    <div className="info-card"><span>Intended majors</span><strong>{intendedMajors(selectedStudent) || 'Not specified'}</strong></div>
                   </div>
                   <div className="notes-block">
                     <div className="section-head"><h3>Admin Notes</h3></div>

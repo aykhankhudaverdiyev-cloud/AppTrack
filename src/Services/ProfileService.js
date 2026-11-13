@@ -1,4 +1,4 @@
-﻿import { supabase } from "../lib/supabase"
+import { supabase } from "../lib/supabase"
 
 export async function getMyProfile(userId) {
   const { data, error } = await supabase
@@ -26,8 +26,8 @@ export function profileToDashboardStudent(row) {
     fullName: row.full_name || "",
     email: row.email || "",
     phone: row.phone || "",
-    major: row.major || "",
-    university: row.university || "",
+    intendedMajor1: row.intended_major_1 || "",
+    intendedMajor2: row.intended_major_2 || "",
     gender: row.gender || "",
     photoUrl: row.photo_url || "",
     photoPath: row.photo_path || "",

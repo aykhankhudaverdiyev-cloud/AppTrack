@@ -213,12 +213,6 @@
   grid-column: 1 / -1;
 }
 
-.field-label-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
 
 .req-star {
   color: #ef4444;
@@ -232,23 +226,7 @@
   margin-top: 4px;
 }
 
-.uni-verified-badge {
-  font-size: 0.74rem;
-  font-weight: 700;
-  color: #0f766e;
-  background: rgba(15, 118, 110, 0.08);
-  padding: 3px 8px;
-  border-radius: 6px;
-}
 
-.field-locked-pill {
-  font-size: 0.74rem;
-  font-weight: 600;
-  color: #94a3b8;
-  background: #f1f5f9;
-  padding: 3px 8px;
-  border-radius: 6px;
-}
 
 .complete-profile-field span {
   color: var(--cp-text);
@@ -275,12 +253,6 @@
     background-color 180ms ease;
 }
 
-.complete-profile-field input:disabled {
-  background: #f1f5f9;
-  color: #94a3b8;
-  cursor: not-allowed;
-  border-color: #e2e8f0;
-}
 
 .complete-profile-field input::placeholder {
   color: var(--cp-text-faint);
@@ -339,125 +311,20 @@
   padding: 0 16px !important;
 }
 
-/* ── AUTOCOMPLETE DROPDOWNS ── */
-.autocomplete-wrap {
-  position: relative;
-  width: 100%;
-}
 
-.autocomplete-dropdown {
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 0;
-  right: 0;
-  z-index: 50;
-  background: #ffffff;
-  border: 1px solid rgba(226, 232, 240, 0.9);
-  border-radius: 16px;
-  max-height: 240px;
-  overflow-y: auto;
-  box-shadow: 0 16px 36px rgba(15, 23, 42, 0.12);
-  padding: 6px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
 
-.autocomplete-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 14px;
-  border-radius: 10px;
-  border: none;
-  background: transparent;
-  width: 100%;
-  text-align: left;
-  cursor: pointer;
-  transition: background 150ms ease;
-}
 
-.autocomplete-item:hover,
-.autocomplete-item--active {
-  background: #f1f5f9;
-}
 
-.autocomplete-icon {
-  font-size: 1.25rem;
-  flex-shrink: 0;
-}
 
-.autocomplete-text {
-  display: flex;
-  flex-direction: column;
-}
 
-.autocomplete-text strong {
-  font-size: 0.92rem;
-  color: #0f172a;
-  line-height: 1.25;
-}
 
-.autocomplete-text small {
-  font-size: 0.76rem;
-  color: #64748b;
-  margin-top: 2px;
-}
 
-.autocomplete-clear-btn {
-  position: absolute;
-  right: 14px;
-  top: 50%;
-  transform: translateY(-50%);
-  border: none;
-  background: #e2e8f0;
-  color: #475569;
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: all 150ms ease;
-  z-index: 2;
-}
 
-.autocomplete-clear-btn:hover {
-  background: #cbd5e1;
-  color: #0f172a;
-}
 
-.autocomplete-item--custom {
-  background: #f8fafc;
-  border: 1px dashed #cbd5e1;
-  margin-top: 4px;
-}
 
-.autocomplete-item--custom:hover {
-  background: #f1f5f9;
-  border-color: #94a3b8;
-}
 
-.autocomplete-empty {
-  padding: 16px;
-  text-align: center;
-  color: #64748b;
-}
 
-.autocomplete-empty p {
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: #334155;
-  margin: 0 0 4px;
-}
 
-.autocomplete-empty small {
-  font-size: 0.78rem;
-  color: #94a3b8;
-}
 
 /* ── GENDER PILL BUTTONS ── */
 .gender-btn-group {

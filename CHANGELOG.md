@@ -187,6 +187,37 @@ click-through remain to be verified before merge; see `HANDOFF.md`.
 
 ---
 
+## Cleanup — single-university concept removed (multi-university model everywhere)
+
+`profiles.university` and `profiles.major` encoded "the one university / the one
+major" this student belongs to, which contradicts the model where a student
+applies to many universities through `applications`. Both are now gone from the
+UI, the data layer and the database.
+
+- **Complete Profile** no longer asks for university or major (1216 → 297 lines).
+  It collects first/last name, phone (with dial code) and gender only; the whole
+  hardcoded `TOP_UNIVERSITIES` catalogue, `SIGNATURE_UNIVERSITY_MAP`, the
+  per-university curriculum gate and the locked-field pills are deleted, together
+  with ~130 lines of dead CSS. Its upsert no longer writes `university`/`major`.
+- **Intended majors** live in `profiles.intended_major_1/2` (My Profile tab,
+  `PROFILE_FIELD_MAP`). Nothing else is needed: the university list a student
+  cares about is the list of their applications.
+- **Student dashboard / admin dashboard / public drawer / student card** read
+  intended majors and per-application universities; the admin search, filter and
+  distribution card now work on `applications.university`
+  ("Applications by University"), and per-application cards keep using
+  `app.university` / `app.major`.
+- **Migration `005_drop_profile_university_major.sql`** backfills `major` →
+  `intended_major_1` where empty, then drops `profiles.university`,
+  `profiles.major` and the dead `profiles.committed_university`. Applied to the
+  live project: column count verified 0 leftovers, all 6 profiles kept their
+  major as an intended major.
+- Deleted a stray empty file named `git` from the repo root.
+- `npm test` 50/50 pass, `npm run build` passes, lint unchanged (the 22
+  pre-existing `StudentDashboard.jsx` errors are the same as before).
+
+---
+
 ## Upcoming phases
 - **Phase 5:** Documents, Recommendations, Financial Aid, Deadlines calendar (§12–15)
 - **Phase 6:** Links & Portfolio, CV export (PDF), Counselor dashboard, supervisor contacts, counselor essay comments (§16–19)
