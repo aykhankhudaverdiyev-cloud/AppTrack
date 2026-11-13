@@ -74,7 +74,7 @@ test('partial profile: only Profile section filled → its weight share', () => 
 test('missing items carry dashboard tab keys for click-through', () => {
   const r = computeProfileCompletion({ level: 'bachelor_first_year', profile: {} })
   const tabs = new Set(r.missingItems.map((m) => m.tab))
-  for (const t of ['profile', 'education', 'test_scores', 'honors', 'volunteering', 'recommendations']) {
+  for (const t of ['profile', 'education', 'test_scores', 'honors', 'activities', 'recommendations']) {
     assert.ok(tabs.has(t), `missing tab ${t}`)
   }
 })

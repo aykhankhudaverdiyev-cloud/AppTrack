@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Field, CharWordCounter, ConfirmDialog, SortableList } from '../forms'
 import { useAutosave, useUnsavedGuard } from '../../hooks/useAutosave'
-import { ACTIVITY_TYPES, ACTIVITY_FILTER_CHIPS, COMMON_APP_LIMITS, UC_LIMITS } from '../../constants/activityTypes'
 import * as rules from '../../utils/academicRules'
-import { saveEducationEntry, saveTestAttempt, saveHonor, saveActivity, saveProject, savePublication, deleteAcademicRow, syncGradeRows, syncSectionScores, saveScoreSending, newApplicationRowId } from '../../Services/ProfileServiceV2'
+import { saveEducationEntry, saveTestAttempt, saveHonor, saveProject, savePublication, deleteAcademicRow, syncGradeRows, syncSectionScores, saveScoreSending, newApplicationRowId } from '../../Services/ProfileServiceV2'
 import '../profile/MyProfileSection.css'
 import './AcademicSection.css'
 
@@ -23,9 +22,6 @@ const config = {
   ] },
   honors: { title: 'Honors & Awards', singular: 'honor', required: 'title', save: saveHonor, defaults: {}, fields: [
     field('title', 'Title', 'text', { required: true, max: 100 }), field('levels', 'Recognition levels', 'multi', { options: rules.HONOR_LEVELS }), field('grade_levels', 'Grade levels', 'multi', { options: grades }), field('received_month', 'Received month', 'number', { min: 1, maxValue: 12 }), field('received_year', 'Received year', 'number'), opt('category', 'Category', rules.HONOR_CATEGORIES), opt('result', 'Result', rules.HONOR_RESULTS), field('subject', 'Subject'), field('issuer', 'Issuer'), field('participants_context', 'Participants / context'), field('description', 'Description', 'textarea'), field('verification_url', 'Verification URL', 'url'), field('is_top5_commonapp', 'Include in Common App Top 5', 'checkbox'),
-  ] },
-  activities: { title: 'Activities & Experiences', singular: 'activity', required: null, save: saveActivity, defaults: { activity_type: 'other_club' }, fields: [
-    opt('activity_type', 'Activity type', ACTIVITY_TYPES.map(x => ({ value: x.key, text: x.label }))), field('position', 'Position / leadership', 'text', { max: 50 }), field('organization_name', 'Organisation', 'text', { max: 100 }), field('description', 'Common App description', 'textarea', { max: 150 }), field('long_description', 'Long description (UC / CV)', 'textarea', { counter: 350 }), field('grade_levels', 'Grade levels', 'multi', { options: grades }), opt('timing', 'Timing', rules.ACTIVITY_TIMINGS), field('hours_per_week', 'Hours per week', 'number', { min: 0, maxValue: 168 }), field('weeks_per_year', 'Weeks per year', 'number', { min: 0, maxValue: 52 }), field('start_date', 'Start date', 'date'), field('end_date', 'End date', 'date'), field('ongoing', 'Ongoing', 'checkbox'), field('city', 'City'), field('country', 'Country'), opt('participation_mode', 'Participation mode', rules.PARTICIPATION_MODES), field('supervisor_name', 'Supervisor name (private)'), field('supervisor_email', 'Supervisor email (private)', 'email'), field('is_paid', 'Paid', 'checkbox'), opt('employment_type', 'Employment type', rules.EMPLOYMENT_TYPES), field('industry', 'Industry'), field('earnings_for_family', 'Earnings support family', 'checkbox'), field('research_mentor', 'Research mentor (private)'), field('research_institution', 'Research institution'), field('research_question', 'Research question', 'textarea'), opt('output_status', 'Research output status', rules.RESEARCH_OUTPUT_STATUSES), field('plan_to_continue', 'Plan to continue research', 'checkbox'), field('impact_metrics', 'Impact metrics (one value: label per line)', 'metrics'),
   ] },
   projects: { title: 'Projects & Research', singular: 'project', required: 'title', save: saveProject, defaults: { visibility: 'private', status: 'in_progress' }, fields: [
     field('title', 'Title', 'text', { required: true }), opt('project_type', 'Project type', rules.PROJECT_TYPES), opt('role_type', 'Role', rules.PROJECT_ROLES), field('team_size', 'Team size', 'number', { min: 1 }), field('my_contribution', 'My contribution (required for team projects)', 'textarea'), field('start_date', 'Start date', 'date'), field('end_date', 'End date', 'date'), opt('status', 'Status', rules.PROJECT_STATUSES), field('short_description', 'Short description', 'textarea'), field('problem', 'Problem', 'textarea'), field('method', 'Method', 'textarea'), field('result', 'Result', 'textarea'), field('result_metrics', 'Result metrics'), field('tech_tags', 'Technology tags (comma separated)', 'tags'), ...['github_url', 'demo_url', 'video_url', 'paper_url', 'link'].map(k => field(k, label(k), 'url')), field('mentor_name', 'Mentor name (private)'), opt('related_activity_id', 'Related activity', 'activities'), opt('related_honor_id', 'Related honor', 'honors'), opt('visibility', 'Visibility', rules.PROJECT_VISIBILITIES),
@@ -168,21 +164,16 @@ function ScoreSending({ userId, attempt, library }) {
   return <div className="academic-child"><h4>Score sending by application</h4>{!library.applications.length && <p>Add an application to track score sending.</p>}{library.applications.map(app => <SendingRow key={app.id} userId={userId} attempt={attempt} application={app} existing={(library.score_sending || []).find(s => s.attempt_id === attempt.id && s.application_id === app.id)} />)}</div>
 }
 
-function Collection({ table, userId, library, activeTab }) {
+function Collection({ table, userId, library }) {
   const cfg = config[table]
   const [newTitle, setNewTitle] = useState('')
   const [adding, setAdding] = useState(false)
   const [error, setError] = useState('')
-  const [filters, setFilters] = useState({ volunteering: 'volunteering', experience: 'work', projects: 'projects' })
-  const filter = filters[activeTab] || 'all'
-  const setFilter = value => setFilters(old => ({ ...old, [activeTab]: value }))
   const all = [...(library[table] || [])].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
-  const chip = ACTIVITY_FILTER_CHIPS.find(c => c.key === filter)
-  const items = table === 'activities' && chip?.types ? all.filter(a => chip.types.includes(a.activity_type)) : all
+  const items = all
   const add = async () => {
     if (!newTitle.trim()) { setError('Enter a name first.'); return }
-    const initial = { ...cfg.defaults, ...(cfg.required ? { [cfg.required]: newTitle.trim() } : { position: newTitle.trim().slice(0, 50), long_description: newTitle.trim().length > 50 ? newTitle.trim() : null }), sort_order: all.length }
-    if (table === 'activities' && chip?.types?.length) initial.activity_type = chip.types[0]
+    const initial = { ...cfg.defaults, ...(cfg.required ? { [cfg.required]: newTitle.trim() } : {}), sort_order: all.length }
     if (table === 'test_attempts') { initial.test_type = rules.TEST_TYPES.includes(newTitle.trim().toUpperCase()) ? newTitle.trim().toUpperCase() : 'OTHER'; if (initial.test_type === 'OTHER') initial.notes = `Test name: ${newTitle.trim()}` }
     setAdding(true); setError('')
     try { await cfg.save(userId, initial); setNewTitle('') } catch (e) { setError(e.message) } finally { setAdding(false) }
@@ -193,9 +184,7 @@ function Collection({ table, userId, library, activeTab }) {
   }
   const topHonors = table === 'honors' ? all.filter(x => x.is_top5_commonapp).sort((a, b) => (a.top5_order ?? 999) - (b.top5_order ?? 999)) : []
   return <div className="mps academic-section"><div className="section-head section-head--stack"><div><h3>{cfg.title}</h3><p className="section-head__sub">Saved securely to your academic library.</p></div></div>
-    {table === 'activities' && <><div className="academic-chips">{ACTIVITY_FILTER_CHIPS.map(c => <button key={c.key} type="button" className={filter === c.key ? 'active' : ''} onClick={() => setFilter(c.key)}>{c.emoji} {c.label}</button>)}</div><p>Common App: first {COMMON_APP_LIMITS.maxEntries} · UC: up to {UC_LIMITS.maxEntries} activities; UC description limit {UC_LIMITS.description} characters. {all.length} entries.</p>{all.length > UC_LIMITS.maxEntries && <p className="academic-error">More than 20 entries; select which to copy to UC.</p>}</>}
     {table === 'honors' && topHonors.length > 0 && <section className="mps-card"><h3>Common App Top 5</h3><SortableList items={topHonors} onReorder={next => reorder(next, true)} renderItem={r => r.title} /></section>}
-    {table === 'activities' && all.length > 0 && <details className="mps-card"><summary>Order activities for Common App / UC</summary><SortableList items={all} onReorder={next => reorder(next, false)} renderItem={(r, i) => <span>{r.position || r.organization_name || label(r.activity_type)} {i < 10 ? '· Common App' : ''}</span>} /></details>}
     <div className="mps-card academic-add"><label htmlFor={`add-${table}`}>{table === 'test_attempts' ? 'Test name (e.g. SAT, IELTS)' : `New ${cfg.singular} name`}</label><div className="academic-actions"><input id={`add-${table}`} value={newTitle} onChange={e => setNewTitle(e.target.value)} maxLength={table === 'honors' ? 100 : undefined} /><button className="mps-btn" type="button" disabled={adding} onClick={add}>＋ Add</button></div>{error && <p className="academic-error" role="alert">{error}</p>}</div>
     {!items.length && <div className="mps-card">No {cfg.title.toLowerCase()} yet.</div>}
     {all.map(row => <div key={row.id} hidden={!items.some(item => item.id === row.id)}><AcademicCard row={row} table={table} userId={userId} library={library} /></div>)}
@@ -204,14 +193,13 @@ function Collection({ table, userId, library, activeTab }) {
 
 export default function AcademicSection({ activeTab, userId, library, loading, error, onRetry, level }) {
   const sections = [ ['education', 'education_entries'], ['test_scores', 'test_attempts'], ['honors', 'honors'], ['projects', 'projects'], ['projects', 'publications'] ]
-  const academicTabs = ['education', 'test_scores', 'honors', 'volunteering', 'experience', 'projects']
+  const academicTabs = ['education', 'test_scores', 'honors', 'projects']
   return <div hidden={!academicTabs.includes(activeTab)}>
     {error && <div className="mps-error" role="alert">{error} <button type="button" onClick={onRetry}>Retry</button></div>}
     {loading ? <div className="mps-loading">Loading academic library…</div> : !library.education_entries ? null : <>
       {sections.map(([tab, table]) => <div key={`${tab}-${table}`} hidden={tab !== activeTab}>
-        {table === 'publications' && !rules.isGraduateLevel(level) ? <details><summary>Publications (optional)</summary><Collection table={table} userId={userId} library={library} activeTab={activeTab} /></details> : <Collection table={table} userId={userId} library={library} activeTab={activeTab} />}
+        {table === 'publications' && !rules.isGraduateLevel(level) ? <details><summary>Publications (optional)</summary><Collection table={table} userId={userId} library={library} /></details> : <Collection table={table} userId={userId} library={library} />}
       </div>)}
-      <div hidden={!['volunteering', 'experience', 'projects'].includes(activeTab)}><Collection table="activities" userId={userId} library={library} activeTab={activeTab} /></div>
     </>}
   </div>
 }

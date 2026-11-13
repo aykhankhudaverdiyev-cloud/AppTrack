@@ -1,127 +1,65 @@
 /**
  * ============================================================================
- * activityTypes.js — Common App "Activities and experiences" categories
+ * activityTypes.js — the nine fixed activity categories
  * ============================================================================
- * Section 7 of the spec: the dropdown must match Common App categories so a
- * student can copy entries 1:1 into the portal. Keys are stable DB values
- * (public.activities.activity_type); labels are what the user sees.
- *
- * filterChips — the unified list's filter row (Section 1, EXPERIENCE):
- *   All · Volunteering · Work & Internships · Research · Projects ·
- *   Clubs & Leadership · Sports · Arts · Family responsibilities · Other
+ * Keys are the stable DB values (public.activities.activity_type, CHECK-locked
+ * by migration 006). Labels, emojis and tile tints are the UI contract used by
+ * the Activities list, the filter chips and the side panel.
  * ============================================================================
  */
 
-export const ACTIVITY_TYPES = [
-  { key: 'academic', label: 'Academic', emoji: '📚' },
-  { key: 'art', label: 'Art', emoji: '🎨' },
-  { key: 'athletics_club', label: 'Athletics: Club', emoji: '🎽' },
-  { key: 'athletics_jv_varsity', label: 'Athletics: JV/Varsity', emoji: '🏅' },
-  { key: 'career_oriented', label: 'Career-Oriented', emoji: '💼' },
-  { key: 'community_service', label: 'Community Service (Volunteer)', emoji: '🤝' },
-  { key: 'computer_technology', label: 'Computer/Technology', emoji: '💻' },
-  { key: 'cultural', label: 'Cultural', emoji: '🌍' },
-  { key: 'dance', label: 'Dance', emoji: '💃' },
-  { key: 'debate_speech', label: 'Debate/Speech', emoji: '🎤' },
-  { key: 'environmental', label: 'Environmental', emoji: '🌱' },
-  { key: 'family_responsibilities', label: 'Family Responsibilities', emoji: '🏠' },
-  { key: 'foreign_exchange', label: 'Foreign Exchange', emoji: '✈️' },
-  { key: 'foreign_language', label: 'Foreign Language', emoji: '🗣️' },
-  { key: 'internship', label: 'Internship', emoji: '🏢' },
-  { key: 'journalism_publication', label: 'Journalism/Publication', emoji: '📰' },
-  { key: 'music', label: 'Music', emoji: '🎵' },
-  { key: 'religious', label: 'Religious', emoji: '🕌' },
-  { key: 'research', label: 'Research', emoji: '🔬' },
-  { key: 'robotics', label: 'Robotics', emoji: '🤖' },
-  { key: 'school_spirit', label: 'School Spirit', emoji: '📣' },
-  { key: 'science_math', label: 'Science/Math', emoji: '🧪' },
-  { key: 'social_justice', label: 'Social Justice', emoji: '⚖️' },
-  { key: 'student_government', label: 'Student Government/Politics', emoji: '🗳️' },
-  { key: 'theater_drama', label: 'Theater/Drama', emoji: '🎭' },
-  { key: 'work_paid', label: 'Work (Paid)', emoji: '🧰' },
-  { key: 'other_club', label: 'Other Club/Activity', emoji: '⭐' },
+export const ACTIVITY_CATEGORIES = [
+  { key: 'academic', label: 'Academic', emoji: '💻', tint: 'lilac', chipLabel: 'Academic' },
+  { key: 'volunteering', label: 'Volunteering', emoji: '🤝', tint: 'butter', chipLabel: 'Volunteering' },
+  { key: 'work', label: 'Work & Internships', emoji: '📡', tint: 'peach', chipLabel: 'Work & Internships' },
+  { key: 'research', label: 'Research', emoji: '🔬', tint: 'mint', chipLabel: 'Research' },
+  { key: 'sports', label: 'Sports', emoji: '🥋', tint: 'rose', chipLabel: 'Sports' },
+  { key: 'arts', label: 'Arts', emoji: '🎬', tint: 'sky', chipLabel: 'Arts' },
+  { key: 'clubs', label: 'Clubs & Leadership', emoji: '🏛️', tint: 'sand', chipLabel: 'Clubs' },
+  { key: 'family', label: 'Family responsibilities', emoji: '🏠', tint: 'sand', chipLabel: 'Family' },
+  { key: 'other', label: 'Other', emoji: '⭐', tint: 'slate', chipLabel: 'Other' },
 ]
 
-export const ACTIVITY_TYPE_KEYS = ACTIVITY_TYPES.map((t) => t.key)
+export const ACTIVITY_CATEGORY_KEYS = ACTIVITY_CATEGORIES.map((c) => c.key)
 
-const activityTypeMap = new Map(ACTIVITY_TYPES.map((t) => [t.key, t]))
+const byKey = new Map(ACTIVITY_CATEGORIES.map((c) => [c.key, c]))
 
-/** Label + emoji for a DB key; falls back to "Other". */
-export function activityTypeLabel(key) {
-  return activityTypeMap.get(key)?.label ?? 'Other Club/Activity'
+/** Category descriptor for a DB value; unknown values fall back to "Other". */
+export function activityCategory(key) {
+  return byKey.get(key) || byKey.get('other')
 }
 
-export function activityTypeEmoji(key) {
-  return activityTypeMap.get(key)?.emoji ?? '⭐'
+export function categoryLabel(key) {
+  return activityCategory(key).label
+}
+
+/** "+ Add volunteering", "+ Add work or internship" … used under the cards. */
+export const CATEGORY_ADD_LABELS = {
+  academic: 'academic',
+  volunteering: 'volunteering',
+  work: 'work or internship',
+  research: 'research',
+  sports: 'sport',
+  arts: 'arts activity',
+  clubs: 'club or leadership role',
+  family: 'family responsibility',
+  other: 'other activity',
 }
 
 /**
- * Filter chips → sets of activity_type keys.
- * "Volunteering" and "Work & Internships" preserve the two legacy list views
- * (current Volunteering / Internships & Jobs pages) over the ONE data model.
+ * Copy limits. Common App takes the first 10 activities (150-character
+ * description); UC takes up to 20. The UI edits "What you did" (350 chars) and
+ * "About the organization" (250 chars).
  */
-export const ACTIVITY_FILTER_CHIPS = [
-  { key: 'all', label: 'All', emoji: '🗂️', types: null },
-  {
-    key: 'volunteering',
-    label: 'Volunteering',
-    emoji: '🤝',
-    types: ['community_service', 'environmental', 'social_justice', 'religious'],
-  },
-  {
-    key: 'work',
-    label: 'Work & Internships',
-    emoji: '💼',
-    types: ['work_paid', 'internship', 'career_oriented'],
-  },
-  { key: 'research', label: 'Research', emoji: '🔬', types: ['research'] },
-  {
-    key: 'projects',
-    label: 'Projects',
-    emoji: '🛠️',
-    types: ['computer_technology', 'robotics', 'science_math'],
-  },
-  {
-    key: 'clubs',
-    label: 'Clubs & Leadership',
-    emoji: '📣',
-    types: [
-      'academic', 'school_spirit', 'student_government', 'debate_speech',
-      'journalism_publication', 'foreign_language', 'foreign_exchange', 'cultural',
-      'other_club',
-    ],
-  },
-  {
-    key: 'sports',
-    label: 'Sports',
-    emoji: '🏅',
-    types: ['athletics_club', 'athletics_jv_varsity'],
-  },
-  {
-    key: 'arts',
-    label: 'Arts',
-    emoji: '🎨',
-    types: ['art', 'music', 'dance', 'theater_drama'],
-  },
-  {
-    key: 'family',
-    label: 'Family responsibilities',
-    emoji: '🏠',
-    types: ['family_responsibilities'],
-  },
-]
-
-/** Common App copy limits (Section 0, principle #4). */
-export const COMMON_APP_LIMITS = {
+export const ACTIVITY_LIMITS = {
+  organizationName: 100,
   position: 50,
-  organization: 100,
-  description: 150,
-  maxEntries: 10,
-  honors: { title: 100, maxEntries: 5 },
-}
-
-/** UC activity copy limits. */
-export const UC_LIMITS = {
-  description: 350,
-  maxEntries: 20,
+  organizationDescription: 250,
+  longDescription: 350,
+  researchQuestion: 250,
+  recommended: 10,
+  max: 20,
+  hoursPerWeek: { min: 0.5, max: 40, step: 0.5 },
+  weeksPerYear: { min: 1, max: 52 },
+  gradeLevels: [9, 10, 11, 12],
 }

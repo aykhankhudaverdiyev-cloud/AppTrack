@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import LicenseMediaItem from '../components/LicenseMediaItem'
@@ -38,6 +38,7 @@ import StudentCard from '../components/StudentCard'
 import MyProfileSection from '../components/profile/MyProfileSection'
 import AdmissionsOverview from '../components/applications/AdmissionsOverview'
 import AcademicSection from '../components/academic/AcademicSection'
+import ActivitiesSection from '../components/activities/ActivitiesSection'
 import { fetchAcademicLibrary, importLegacyAcademicLibrary } from '../Services/ProfileServiceV2'
 import { computeAcademicCounts } from '../utils/academicRules'
 import { ConfirmDialog } from '../components/forms'
@@ -75,8 +76,7 @@ const TAB_GROUPS = [
   {
     label: 'Activities',
     tabs: [
-      { key: 'volunteering', label: 'Volunteering' },
-      { key: 'experience', label: 'Internships & Jobs' },
+      { key: 'activities', label: 'Activities' },
       { key: 'projects', label: 'Projects & Research' },
     ],
   },
@@ -90,6 +90,17 @@ const TAB_GROUPS = [
     ],
   },
 ]
+
+/** Every tab key, used to validate ?tab= from the URL. */
+const VALID_TABS = new Set(TAB_GROUPS.flatMap((group) => group.tabs.map((tab) => tab.key)))
+
+/** Retired tabs: they now open the Activities list filtered by that category. */
+const LEGACY_TAB_ALIASES = {
+  volunteering: 'volunteering',
+  experience: 'work',
+  internships: 'work',
+  jobs: 'work',
+}
 
 const LEVEL_LABELS = {
   bachelor_first_year: 'Bachelor (first-year)',
@@ -121,7 +132,12 @@ export default function StudentDashboard() {
   })
   const [profileRow, setProfileRow] = useState(null) // raw profiles row for MyProfileSection
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState('overview')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [activeTab, setActiveTab] = useState(() => {
+    const raw = searchParams.get('tab')
+    if (raw && LEGACY_TAB_ALIASES[raw]) return 'activities'
+    return raw && VALID_TABS.has(raw) ? raw : 'overview'
+  })
   const [publicStudents, setPublicStudents] = useState([])
   const [selectedPublicStudent, setSelectedPublicStudent] = useState(null)
   const [publicStudentActiveTab, setPublicStudentActiveTab] = useState('profile')
@@ -192,6 +208,33 @@ export default function StudentDashboard() {
     onDataChanged(reload)
     return () => { cancelled = true; supabase.removeChannel(channel); offDataChanged(reload) }
   }, [user?.id, academicRetry])
+
+  // The tab lives in the URL (?tab=…) so refresh and shared links keep it.
+  useEffect(() => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev)
+      if (activeTab === 'overview') next.delete('tab')
+      else next.set('tab', activeTab)
+      if (activeTab !== 'activities') {
+        next.delete('type')
+        next.delete('id')
+      }
+      return next
+    }, { replace: true })
+  }, [activeTab, setSearchParams])
+
+  // Old Volunteering / Internships tabs → Activities filtered by that type.
+  useEffect(() => {
+    const raw = searchParams.get('tab')
+    const alias = raw ? LEGACY_TAB_ALIASES[raw] : null
+    if (!alias) return
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev)
+      next.set('tab', 'activities')
+      next.set('type', alias)
+      return next
+    }, { replace: true })
+  }, [searchParams, setSearchParams])
 
   const startEditingContact = useCallback(() => {
     setContactDraft({ email: me.email, phone: me.phone })
@@ -915,8 +958,13 @@ export default function StudentDashboard() {
           </div>
         )}
 
-        {academicNotice && ['education', 'test_scores', 'honors', 'volunteering', 'experience', 'projects'].includes(activeTab) && <p role="status">{academicNotice}</p>}
+        {academicNotice && ['education', 'test_scores', 'honors', 'projects'].includes(activeTab) && <p role="status">{academicNotice}</p>}
         <AcademicSection activeTab={activeTab} userId={user?.id} library={{ ...academic, applications: me.applications || [] }} loading={academicLoading} error={academicError} onRetry={() => setAcademicRetry(n => n + 1)} level={profileRow?.applying_level} />
+
+        {/* ACTIVITIES: unified list (multi-category, drag-ranked) */}
+        {activeTab === 'activities' && (
+          <ActivitiesSection key={user?.id} userId={user?.id} />
+        )}
 
         {/* 9. ADMISSIONS: APPLICATIONS */}
         {activeTab === 'applications' && (
@@ -1310,12 +1358,6 @@ function SectionModal({ open, type, onClose, onSave }) {
   if (!open) return null
 
   const titles = {
-    education: { title: 'Add Education', subtitle: 'Add your school, university, degree and years' },
-    test_score: { title: 'Add Standardized Test Score', subtitle: 'Record your IELTS, TOEFL, SAT, AP, or other exams' },
-    honor: { title: 'Add Honor / Award', subtitle: 'Competitions, olympiads, hackathons and recognitions' },
-    volunteering: { title: 'Add Volunteering Activity', subtitle: 'Community service, charity work, or social initiatives' },
-    experience: { title: 'Add Work Experience / Internship', subtitle: 'Internships, summer employment, or lab assistantships' },
-    project: { title: 'Add Project / Research', subtitle: 'Software apps, scientific papers, or creative builds' },
     recommendation: { title: 'Track Recommendation Letter', subtitle: 'Letters of recommendation requested from teachers' },
     portfolio: { title: 'Add Portfolio Link', subtitle: 'Link your GitHub, Behance, Figma, or personal website' },
   }
@@ -1343,118 +1385,6 @@ function SectionModal({ open, type, onClose, onSave }) {
 
         <form onSubmit={handleSubmit} className="linkedin-modal__form">
           <div className="linkedin-modal__body">
-            {type === 'education' && (
-              <>
-                <label className="linkedin-field">
-                  <span>School / University Name *</span>
-                  <input required placeholder="e.g. University of Glasgow" value={formData.school || ''} onChange={e => update('school', e.target.value)} />
-                </label>
-                <div className="linkedin-field-row">
-                  <label className="linkedin-field">
-                    <span>Degree / Field of Study</span>
-                    <input placeholder="e.g. Bachelor of Science" value={formData.degree || ''} onChange={e => update('degree', e.target.value)} />
-                  </label>
-                  <label className="linkedin-field">
-                    <span>Years / Graduation</span>
-                    <input placeholder="e.g. 2021 - 2025" value={formData.years || ''} onChange={e => update('years', e.target.value)} />
-                  </label>
-                </div>
-              </>
-            )}
-
-            {type === 'test_score' && (
-              <>
-                <div className="linkedin-field-row">
-                  <label className="linkedin-field">
-                    <span>Test Type *</span>
-                    <input required placeholder="e.g. IELTS Academic, SAT, TOEFL" value={formData.test || ''} onChange={e => update('test', e.target.value)} />
-                  </label>
-                  <label className="linkedin-field">
-                    <span>Overall Score *</span>
-                    <input required placeholder="e.g. 7.5, 1480" value={formData.score || ''} onChange={e => update('score', e.target.value)} />
-                  </label>
-                </div>
-                <label className="linkedin-field">
-                  <span>Test Date</span>
-                  <input placeholder="e.g. May 2024" value={formData.date || ''} onChange={e => update('date', e.target.value)} />
-                </label>
-              </>
-            )}
-
-            {type === 'honor' && (
-              <>
-                <label className="linkedin-field">
-                  <span>Award / Honor Title *</span>
-                  <input required placeholder="e.g. 1st Place National Chemistry Olympiad" value={formData.title || ''} onChange={e => update('title', e.target.value)} />
-                </label>
-                <div className="linkedin-field-row">
-                  <label className="linkedin-field">
-                    <span>Issuer / Organization</span>
-                    <input placeholder="e.g. Ministry of Science and Education" value={formData.issuer || ''} onChange={e => update('issuer', e.target.value)} />
-                  </label>
-                  <label className="linkedin-field">
-                    <span>Year</span>
-                    <input placeholder="e.g. 2023" value={formData.year || ''} onChange={e => update('year', e.target.value)} />
-                  </label>
-                </div>
-              </>
-            )}
-
-            {type === 'volunteering' && (
-              <>
-                <label className="linkedin-field">
-                  <span>Organization Name *</span>
-                  <input required placeholder="e.g. Red Crescent Society / ASAN Volunteers" value={formData.organization || ''} onChange={e => update('organization', e.target.value)} />
-                </label>
-                <div className="linkedin-field-row">
-                  <label className="linkedin-field">
-                    <span>Role / Title</span>
-                    <input placeholder="e.g. Team Lead / Volunteer" value={formData.role || ''} onChange={e => update('role', e.target.value)} />
-                  </label>
-                  <label className="linkedin-field">
-                    <span>Hours / Period</span>
-                    <input placeholder="e.g. 120 Hours / Jun 2023" value={formData.hours || ''} onChange={e => update('hours', e.target.value)} />
-                  </label>
-                </div>
-              </>
-            )}
-
-            {type === 'experience' && (
-              <>
-                <label className="linkedin-field">
-                  <span>Job / Internship Role *</span>
-                  <input required placeholder="e.g. Software Engineering Intern" value={formData.role || ''} onChange={e => update('role', e.target.value)} />
-                </label>
-                <div className="linkedin-field-row">
-                  <label className="linkedin-field">
-                    <span>Company / Organization *</span>
-                    <input required placeholder="e.g. BP / SOCAR / Tech Lab" value={formData.company || ''} onChange={e => update('company', e.target.value)} />
-                  </label>
-                  <label className="linkedin-field">
-                    <span>Period</span>
-                    <input placeholder="e.g. Jun 2024 - Aug 2024" value={formData.period || ''} onChange={e => update('period', e.target.value)} />
-                  </label>
-                </div>
-              </>
-            )}
-
-            {type === 'project' && (
-              <>
-                <label className="linkedin-field">
-                  <span>Project / Research Title *</span>
-                  <input required placeholder="e.g. Autonomous Robotic Arm" value={formData.name || ''} onChange={e => update('name', e.target.value)} />
-                </label>
-                <label className="linkedin-field">
-                  <span>Short Description</span>
-                  <textarea rows="2" placeholder="Briefly describe what you built or discovered..." value={formData.description || ''} onChange={e => update('description', e.target.value)} />
-                </label>
-                <label className="linkedin-field">
-                  <span>Link / Demo URL</span>
-                  <input placeholder="https://github.com/..." value={formData.url || ''} onChange={e => update('url', e.target.value)} />
-                </label>
-              </>
-            )}
-
             {type === 'recommendation' && (
               <>
                 <label className="linkedin-field">

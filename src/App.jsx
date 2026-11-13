@@ -109,6 +109,13 @@ function App() {
         }
       />
 
+      {/* ── Retired tabs: Volunteering / Internships now live inside
+             Activities with a category filter ─────────────────────── */}
+      <Route path="/activities" element={<Navigate to="/student?tab=activities" replace />} />
+      <Route path="/volunteering" element={<Navigate to="/student?tab=activities&type=volunteering" replace />} />
+      <Route path="/internships" element={<Navigate to="/student?tab=activities&type=work" replace />} />
+      <Route path="/internships-jobs" element={<Navigate to="/student?tab=activities&type=work" replace />} />
+
       {/* ── Role-based routes ───────────────────────────────────── */}
       <Route
         path="/student"

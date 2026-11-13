@@ -218,6 +218,61 @@ UI, the data layer and the database.
 
 ---
 
+## Activities & Experiences — full redesign (UI + Supabase, end to end)
+
+The three old tabs (Volunteering, Internships & Jobs, Projects & Research) are
+now **Activities** (one ranked list) + **Projects & Research** (unchanged).
+Everything is stored in `public.activities`; nothing is seeded.
+
+**Database — migration `006_activities_redesign.sql`** (`activities_redesign`):
+nine fixed categories with a CHECK constraint, `organization_description`
+(≤ 250), `long_description` (≤ 350), date/grade-level checks,
+`(user_id, sort_order)` index and the atomic `reorder_activities(uuid[])` RPC
+(`security invoker`, so the existing owner RLS still applies). RLS untouched.
+
+**UI**
+- `src/components/activities/ActivitiesSection.jsx` + `.css` — header,
+  category chips with live counts, `n / 10` guidance, 10-row divider note,
+  20-activity hard cap, ranked All view with @dnd-kit drag (handle, keyboard,
+  dashed gap + floating row), filtered card + sticky panel view, ⋯ menu
+  (edit / duplicate / move to top / delete), delete confirm with 6-second
+  Undo toast, empty/loading/error states, full-screen sheet under 900 px.
+- `src/components/activities/ActivityPanel.jsx` — one panel for add and edit:
+  category dropdown, grade chips, segmented Mode/Timing/Pay/Type controls,
+  MM/YYYY month inputs with an Ongoing switch, location as one
+  "City, Country" field, type-specific Work/Research blocks, description
+  fields with copy button, counter, 4 px progress track and paste truncation,
+  800 ms autosave ("Saving… → Saved 2 s ago", retry on failure), inline
+  validation that blocks bad writes, sticky create footer with 6/6 required
+  fields and a discard confirmation.
+- `src/utils/activities.js` (+ `activities.test.js`, 16 tests) — pure helpers:
+  `computeStatus`, `parseLocation`/`formatLocation`, `monthToDate`/`dateToMonth`
+  /`formatMonthInput`/`parseMonthInput`, `hoursHelperText`, `buildMeta`,
+  `validateActivity`, `requiredCompleted`, draft ↔ row mapping.
+- `src/Services/activitiesApi.js` — the only module touching the table (owner
+  scope + write whitelist); `src/hooks/useActivities.js` — optimistic list with
+  rollback for create / update / delete+restore / duplicate / reorder.
+- Navigation: ACTIVITIES now has two pills; `?tab=activities` keeps the tab in
+  the URL, `?type=` / `?id=` keep the filter and the open activity. Old
+  `/volunteering`, `/internships`, `/internships-jobs` redirect into the
+  filtered list; the retired `volunteering` / `experience` tab keys map to it.
+
+**Tidying**
+- Removed the dead legacy Activities form (`SectionModal` branches, old
+  `ACTIVITY_TYPES` / `ACTIVITY_FILTER_CHIPS` catalogue, the duplicate activity
+  Collection in `AcademicSection`), 112 lines of unused JSX in the dashboard.
+- `.gitignore` had a stray copy of `package.json` appended — cleaned.
+- `vite.config.js` now binds `0.0.0.0` and accepts proxied preview hosts.
+
+**Verification:** `npm test` 66/66 (10 new helper tests + updated legacy-import
+assertions), `npm run build` passes, lint unchanged (the 22 pre-existing
+`StudentDashboard.jsx` findings). Applied live: all five new constraints reject
+bad rows (invalid category, 351 characters, end before start, grade 13) and the
+`reorder_activities` RPC exists as `security invoker` with EXECUTE for
+`authenticated`. Live click-through of autosave/drag is left for the user.
+
+---
+
 ## Upcoming phases
 - **Phase 5:** Documents, Recommendations, Financial Aid, Deadlines calendar (§12–15)
 - **Phase 6:** Links & Portfolio, CV export (PDF), Counselor dashboard, supervisor contacts, counselor essay comments (§16–19)
