@@ -4,6 +4,56 @@ Rebuild driven by the college-counselor specification (20 sections). Delivered i
 
 ---
 
+## Projects — rebuilt as its own page (2026-11-13)
+
+**Status:** ready · **Branch:** `arena/1ed31615-apptrack`
+
+### What changed, where
+
+- **New page** `src/components/projects/ProjectsSection.jsx` (+ `.css`):
+  "Projects" header with the en-GB subtitle and the purple gradient
+  "+ Add project", category chips (`All 3`, `Software 2`, `Research 1`),
+  project cards (emoji tile, title, one-line summary, neutral tech tags,
+  status pill, ⋯ menu, "Linked to Activities" note) on the left at 40 % and a
+  sticky panel on the right at 60 % with a 24 px gap. Selected card = 2 px
+  purple border + light purple tint. Below 900 px the panel is a full-screen
+  sheet.
+- **Panel** `ProjectPanel.jsx`: BASICS (title, Solo / Team lead / Team member,
+  start date MM/YYYY, In progress / Live / Paused), DETAILS (Problem ≤300,
+  What you built ≤500, Result ≤300 — each with a live counter and a 4 px green
+  progress track), TECH AND LINKS (tag input with removable chips, GitHub,
+  live demo), CONNECTIONS (linked activity, Private / Public + helper).
+  800 ms autosave + blur, inline validation, "Saved 2 s ago ✓" status, create
+  mode with a sticky footer and a discard confirm.
+- **Data layer**: `src/Services/projectsApi.js` (whitelisted columns only,
+  owner-scoped), `src/hooks/useProjects.js` (optimistic + rollback),
+  `src/constants/projectTypes.js`, `src/utils/projects.js` with 11 unit tests.
+- **Removed** the old projects form from `AcademicSection.jsx` (and its
+  `saveProject` import + team-contribution rule). `AcademicCollection` is now
+  exported so graduate publications render under the Projects cards.
+  `StudentDashboard.jsx` renders the new page for `?tab=projects`, keeps
+  `?type=` / `?id=` in sync and labels the tab "Projects".
+- **Migration** `007_projects_redesign.sql` (Supabase: `projects_redesign`):
+  `build_summary`, fixed role/status sets (`team` → `team_member`,
+  `completed`/`maintained` → `live`, `idea` → `paused`), length and tag-count
+  CHECKs, `(user_id, created_at)` index. RLS untouched, no seeded rows.
+
+### Verification
+
+- `npm test` → **77/77** (66 existing + 11 new project helper tests).
+- `npm run build` → passes with `.env.local` set.
+- `npx eslint .` → 43 errors, all pre-existing (baseline unchanged).
+- jsdom run against a stubbed PostgREST: 55/55 checks — chips
+  `All 3 | Software 2 | Research 1`, cards/tags/pills/linked note, panel
+  sections and labels, counters, progress tracks, tech chips, the
+  linked-activity select, one debounced PATCH (whitelisted columns only),
+  create flow `0 of 1` → `✓ 1 of 1` → POST → toast, delete confirm → DELETE →
+  Undo POST, paused/public panel state, research 🔬 tile.
+- Live DB: the four new CHECKs reject `status = 'idea'`, `role_type = 'team'`,
+  13 tech tags and a 501-character build summary (probe rows rolled back).
+- `public.projects` / `public.activities` currently hold 0 rows, so nothing was
+  lost by the value normalisation.
+
 ## Phase 0 — Foundation: DB schema, RLS, timezone utils, shared form components
 
 **Status:** ready · **Date:** 2026-11-01

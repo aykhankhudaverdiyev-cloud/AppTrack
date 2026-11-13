@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Field, CharWordCounter, ConfirmDialog, SortableList } from '../forms'
 import { useAutosave, useUnsavedGuard } from '../../hooks/useAutosave'
 import * as rules from '../../utils/academicRules'
-import { saveEducationEntry, saveTestAttempt, saveHonor, saveProject, savePublication, deleteAcademicRow, syncGradeRows, syncSectionScores, saveScoreSending, newApplicationRowId } from '../../Services/ProfileServiceV2'
+import { saveEducationEntry, saveTestAttempt, saveHonor, savePublication, deleteAcademicRow, syncGradeRows, syncSectionScores, saveScoreSending, newApplicationRowId } from '../../Services/ProfileServiceV2'
 import '../profile/MyProfileSection.css'
 import './AcademicSection.css'
 
@@ -22,9 +22,6 @@ const config = {
   ] },
   honors: { title: 'Honors & Awards', singular: 'honor', required: 'title', save: saveHonor, defaults: {}, fields: [
     field('title', 'Title', 'text', { required: true, max: 100 }), field('levels', 'Recognition levels', 'multi', { options: rules.HONOR_LEVELS }), field('grade_levels', 'Grade levels', 'multi', { options: grades }), field('received_month', 'Received month', 'number', { min: 1, maxValue: 12 }), field('received_year', 'Received year', 'number'), opt('category', 'Category', rules.HONOR_CATEGORIES), opt('result', 'Result', rules.HONOR_RESULTS), field('subject', 'Subject'), field('issuer', 'Issuer'), field('participants_context', 'Participants / context'), field('description', 'Description', 'textarea'), field('verification_url', 'Verification URL', 'url'), field('is_top5_commonapp', 'Include in Common App Top 5', 'checkbox'),
-  ] },
-  projects: { title: 'Projects & Research', singular: 'project', required: 'title', save: saveProject, defaults: { visibility: 'private', status: 'in_progress' }, fields: [
-    field('title', 'Title', 'text', { required: true }), opt('project_type', 'Project type', rules.PROJECT_TYPES), opt('role_type', 'Role', rules.PROJECT_ROLES), field('team_size', 'Team size', 'number', { min: 1 }), field('my_contribution', 'My contribution (required for team projects)', 'textarea'), field('start_date', 'Start date', 'date'), field('end_date', 'End date', 'date'), opt('status', 'Status', rules.PROJECT_STATUSES), field('short_description', 'Short description', 'textarea'), field('problem', 'Problem', 'textarea'), field('method', 'Method', 'textarea'), field('result', 'Result', 'textarea'), field('result_metrics', 'Result metrics'), field('tech_tags', 'Technology tags (comma separated)', 'tags'), ...['github_url', 'demo_url', 'video_url', 'paper_url', 'link'].map(k => field(k, label(k), 'url')), field('mentor_name', 'Mentor name (private)'), opt('related_activity_id', 'Related activity', 'activities'), opt('related_honor_id', 'Related honor', 'honors'), opt('visibility', 'Visibility', rules.PROJECT_VISIBILITIES),
   ] },
   publications: { title: 'Publications', singular: 'publication', required: 'title', save: savePublication, defaults: { status: 'in_preparation' }, fields: [
     field('title', 'Title', 'text', { required: true }), field('authors', 'Authors (comma separated)', 'tags'), field('my_author_position', 'My author position', 'number', { min: 1 }), field('venue', 'Venue'), field('pub_year', 'Publication year', 'number'), field('doi_url', 'DOI URL', 'url'), opt('pub_type', 'Publication type', rules.PUBLICATION_TYPES), field('peer_reviewed', 'Peer reviewed', 'checkbox'), opt('status', 'Status', rules.PUBLICATION_STATUSES),
@@ -82,17 +79,12 @@ function AcademicCard({ table, row, userId, library }) {
   const [error, setError] = useState('')
   const save = useAutosave(draft, useCallback(async value => {
     if (cfg.required && !String(value[cfg.required] || '').trim()) throw new Error('This field is required.')
-    if (table === 'projects' && value.role_type === 'team' && !String(value.my_contribution || '').trim()) throw new Error('Describe your contribution to the team project.')
     if (table === 'honors' && value.is_top5_commonapp && library.honors.filter(h => h.is_top5_commonapp && h.id !== value.id).length >= 5) throw new Error('Only five honors can be selected for Common App.')
     const keys = [...dirty.current]
     const patch = Object.fromEntries(keys.map(key => [key, value[key]]))
     if (table === 'test_attempts' && (keys.includes('test_type') || keys.includes('test_date'))) {
       patch.test_type = value.test_type
       patch.test_date = value.test_date || null
-    }
-    if (table === 'projects' && (keys.includes('role_type') || keys.includes('my_contribution'))) {
-      patch.role_type = value.role_type || null
-      patch.my_contribution = value.my_contribution || null
     }
     await cfg.save(userId, { id: value.id, ...patch })
     for (const key of keys) if (latest.current[key] === value[key]) dirty.current.delete(key)
@@ -164,7 +156,7 @@ function ScoreSending({ userId, attempt, library }) {
   return <div className="academic-child"><h4>Score sending by application</h4>{!library.applications.length && <p>Add an application to track score sending.</p>}{library.applications.map(app => <SendingRow key={app.id} userId={userId} attempt={attempt} application={app} existing={(library.score_sending || []).find(s => s.attempt_id === attempt.id && s.application_id === app.id)} />)}</div>
 }
 
-function Collection({ table, userId, library }) {
+export function AcademicCollection({ table, userId, library }) {
   const cfg = config[table]
   const [newTitle, setNewTitle] = useState('')
   const [adding, setAdding] = useState(false)
@@ -191,14 +183,14 @@ function Collection({ table, userId, library }) {
   </div>
 }
 
-export default function AcademicSection({ activeTab, userId, library, loading, error, onRetry, level }) {
-  const sections = [ ['education', 'education_entries'], ['test_scores', 'test_attempts'], ['honors', 'honors'], ['projects', 'projects'], ['projects', 'publications'] ]
-  const academicTabs = ['education', 'test_scores', 'honors', 'projects']
+export default function AcademicSection({ activeTab, userId, library, loading, error, onRetry }) {
+  const sections = [ ['education', 'education_entries'], ['test_scores', 'test_attempts'], ['honors', 'honors'] ]
+  const academicTabs = ['education', 'test_scores', 'honors']
   return <div hidden={!academicTabs.includes(activeTab)}>
     {error && <div className="mps-error" role="alert">{error} <button type="button" onClick={onRetry}>Retry</button></div>}
     {loading ? <div className="mps-loading">Loading academic library…</div> : !library.education_entries ? null : <>
       {sections.map(([tab, table]) => <div key={`${tab}-${table}`} hidden={tab !== activeTab}>
-        {table === 'publications' && !rules.isGraduateLevel(level) ? <details><summary>Publications (optional)</summary><Collection table={table} userId={userId} library={library} /></details> : <Collection table={table} userId={userId} library={library} />}
+        <AcademicCollection table={table} userId={userId} library={library} />
       </div>)}
     </>}
   </div>
