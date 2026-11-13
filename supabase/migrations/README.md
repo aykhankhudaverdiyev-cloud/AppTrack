@@ -10,6 +10,7 @@ Bu qovluqdakı faylları **Supabase Dashboard → SQL Editor**-da yuxarıdan aş
 | 4 | `004_seed_universities.sql` | ~110 universitet seed |
 | 5 | `005_drop_profile_university_major.sql` | `profiles.university` / `major` / `committed_university` sütunlarını silir (əvvəl `major` → `intended_major_1` köçürülür) |
 | 6 | `006_activities_redesign.sql` | `activities` cədvəlini yekunlaşdırır: 9 sabit kateqoriya, `organization_description` (≤250), `long_description` (≤350), tarix/grade CHECK-ləri, `(user_id, sort_order)` indeksi, `reorder_activities()` RPC (security invoker) |
+| 7 | `007_projects_redesign.sql` | `projects` səhifəsini yekunlaşdırır: `build_summary` sütunu, `status ∈ {in_progress, live, paused}`, `role_type ∈ {solo, team_lead, team_member}`, uzunluq CHECK-ləri (problem/result 300, summary 200, ≤12 texnologiya), `(user_id, created_at)` indeksi. Mövcud sətirlər avtomatik çevrilir |
 
 ## Vacib zəmanətlər (v2)
 

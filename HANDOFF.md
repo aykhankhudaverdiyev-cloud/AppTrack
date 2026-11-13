@@ -3,9 +3,39 @@
 > Read this first in every new session. It is the single source of truth for
 > where the counselor-spec rebuild stands and what comes next.
 
+## Projects — its own page (2026-11-13)
+
+- PROJECTS is no longer a card list inside Academic. `?tab=projects` renders
+  `src/components/projects/ProjectsSection.jsx`: header + type chips, cards on
+  the left (40 %) and one sticky detail panel on the right (60 %), 24 px gap.
+  Below 900 px the panel becomes a full-screen sheet.
+- Files: `ProjectsSection.jsx` / `.css`, `ProjectPanel.jsx`,
+  `src/Services/projectsApi.js` (only module touching the table),
+  `src/hooks/useProjects.js` (optimistic writes with rollback),
+  `src/constants/projectTypes.js`, `src/utils/projects.js` (+ 11 tests in
+  `projects.test.js`).
+- DB: migration `007_projects_redesign.sql` = Supabase migration
+  `projects_redesign`. Adds `build_summary` ("What you built", ≤500) and
+  CHECK-locks `status ∈ {in_progress, live, paused}`,
+  `role_type ∈ {solo, team_lead, team_member}`, length limits
+  (problem/result 300, summary 200, ≤12 tech tags) and
+  `(user_id, created_at)`. Existing rows are migrated (`team` → `team_member`,
+  `completed`/`maintained` → `live`, `idea` → `paused`). RLS is unchanged.
+- Panel: 800 ms autosave + blur, counters with a 4 px progress track, tech tag
+  input (Enter/comma adds, Backspace removes), linked activity dropdown,
+  visibility helper. Create mode needs only a title and keeps its own discard
+  confirm. Deletes go through `ConfirmDialog` with an Undo toast.
+- Publications stay for graduate students: they are rendered under the cards
+  via `AcademicCollection` (a `details` block), since the old
+  "Projects & Research" academic tab is gone.
+- `.env.local` (git-ignored) is required locally: without
+  `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` the production build
+  tree-shakes the entire app.
+
 ## Activities & Experiences — redesigned (2026-11-13)
 
-- The ACTIVITIES nav group is now **Activities** + **Projects & Research**.
+- The ACTIVITIES nav group is now **Activities** + **Projects** (Projects
+  has its own page since 2026-11-13 — see above).
   The old Volunteering / Internships tabs and their `?tab=` keys redirect to
   `/student?tab=activities&type=volunteering|work`.
 - Everything lives in `public.activities` (migration
@@ -163,12 +193,15 @@ Phase 6 Links/Portfolio/CV/Counselor dashboard (§16–19).
 9. **Activities are one ranked list.** Nine fixed `activity_type` values,
    `sort_order` = 1-based rank (`reorder_activities` RPC), max 20 entries,
    10 is only guidance. Never re-introduce a second activities data path.
-10. **No single university per student.** `profiles.university`,
-   `profiles.major` and `profiles.committed_university` were dropped in
-   migration `005` — a student's universities live in `applications`
-   (`university`, `university_id`, `program`, `major`), intended majors in
-   `profiles.intended_major_1/2`. Never re-add a profile-level university/major
-   field (Complete Profile collects name, phone and gender only).
+10. **Projects are one flat list on their own page.** Fixed `project_type`
+    values and `status ∈ {in_progress, live, paused}`; every write goes through
+    `projectsApi.js`. Never re-introduce the old Academic projects form.
+11. **No single university per student.** `profiles.university`,
+    `profiles.major` and `profiles.committed_university` were dropped in
+    migration `005` — a student's universities live in `applications`
+    (`university`, `university_id`, `program`, `major`), intended majors in
+    `profiles.intended_major_1/2`. Never re-add a profile-level university/major
+    field (Complete Profile collects name, phone and gender only).
 
 ## Standing rules (user-mandated)
 

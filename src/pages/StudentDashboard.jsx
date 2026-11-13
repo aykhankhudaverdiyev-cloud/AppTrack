@@ -39,6 +39,7 @@ import MyProfileSection from '../components/profile/MyProfileSection'
 import AdmissionsOverview from '../components/applications/AdmissionsOverview'
 import AcademicSection from '../components/academic/AcademicSection'
 import ActivitiesSection from '../components/activities/ActivitiesSection'
+import ProjectsSection from '../components/projects/ProjectsSection'
 import { fetchAcademicLibrary, importLegacyAcademicLibrary } from '../Services/ProfileServiceV2'
 import { computeAcademicCounts } from '../utils/academicRules'
 import { ConfirmDialog } from '../components/forms'
@@ -77,7 +78,7 @@ const TAB_GROUPS = [
     label: 'Activities',
     tabs: [
       { key: 'activities', label: 'Activities' },
-      { key: 'projects', label: 'Projects & Research' },
+      { key: 'projects', label: 'Projects' },
     ],
   },
   {
@@ -215,7 +216,7 @@ export default function StudentDashboard() {
       const next = new URLSearchParams(prev)
       if (activeTab === 'overview') next.delete('tab')
       else next.set('tab', activeTab)
-      if (activeTab !== 'activities') {
+      if (activeTab !== 'activities' && activeTab !== 'projects') {
         next.delete('type')
         next.delete('id')
       }
@@ -959,11 +960,22 @@ export default function StudentDashboard() {
         )}
 
         {academicNotice && ['education', 'test_scores', 'honors', 'projects'].includes(activeTab) && <p role="status">{academicNotice}</p>}
-        <AcademicSection activeTab={activeTab} userId={user?.id} library={{ ...academic, applications: me.applications || [] }} loading={academicLoading} error={academicError} onRetry={() => setAcademicRetry(n => n + 1)} level={profileRow?.applying_level} />
+        <AcademicSection activeTab={activeTab} userId={user?.id} library={{ ...academic, applications: me.applications || [] }} loading={academicLoading} error={academicError} onRetry={() => setAcademicRetry(n => n + 1)} />
 
         {/* ACTIVITIES: unified list (multi-category, drag-ranked) */}
         {activeTab === 'activities' && (
           <ActivitiesSection key={user?.id} userId={user?.id} />
+        )}
+
+        {/* PROJECTS: its own page (cards + detail panel) */}
+        {activeTab === 'projects' && (
+          <ProjectsSection
+            key={user?.id}
+            userId={user?.id}
+            activities={academic.activities || []}
+            level={profileRow?.applying_level}
+            library={{ ...academic, applications: me.applications || [] }}
+          />
         )}
 
         {/* 9. ADMISSIONS: APPLICATIONS */}
