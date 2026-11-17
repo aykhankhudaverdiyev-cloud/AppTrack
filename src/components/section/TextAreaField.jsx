@@ -39,7 +39,7 @@ export default function TextAreaField({ label, value = '', max, onChange, onBlur
   return (
     <div className={`textarea-field${error ? ' textarea-field--invalid' : ''}`}>
       <div className="label-row">
-        <label className="field-label" htmlFor="textarea-field">{label}</label>
+        <label className="sfield-label" htmlFor="textarea-field">{label}</label>
         <span className="counter" aria-live="polite">{length} / {max}</span>
       </div>
       <textarea
@@ -55,8 +55,8 @@ export default function TextAreaField({ label, value = '', max, onChange, onBlur
       <div className={`textarea-field__track textarea-field__track--${tone}`} aria-hidden="true">
         <span style={{ width: `${percent}%` }} />
       </div>
-      {shortened && <p className="field-hint textarea-field__hint-note" role="status">Pasted text was shortened to {max} characters.</p>}
-      {error && <p className="field-error" role="alert">{error}</p>}
+      {shortened && <p className="sfield-hint textarea-field__hint-note" role="status">Pasted text was shortened to {max} characters.</p>}
+      {error && <p className="sfield-error" role="alert">{error}</p>}
       <button
         type="button"
         className="copy"

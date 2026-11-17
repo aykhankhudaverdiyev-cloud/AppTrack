@@ -78,6 +78,21 @@ export async function uploadDocument(userId, category, file) {
   }
 }
 
+/** A single document_files row by id, scoped to the owner. Returns null when
+ *  the id is missing/not found (e.g. was deleted) rather than throwing, since
+ *  callers use this just to render a cached title/filename. */
+export async function getDocument(userId, id) {
+  if (!userId || !id) return null
+  const { data, error } = await supabase
+    .from('document_files')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('id', id)
+    .maybeSingle()
+  if (error) throw error
+  return data || null
+}
+
 /** Signed URL valid for 60 seconds by default. */
 export async function documentUrl(filePath, expiresIn = 60) {
   if (!filePath) return ''

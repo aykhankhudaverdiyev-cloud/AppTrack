@@ -109,7 +109,7 @@ function HonorCard({ honor, selected, isNew, onOpen, onEdit, onDuplicate, onMove
       title={isNew ? 'New honor' : honorTitle(honor)}
       meta={isNew ? 'Not saved yet' : buildHonorMeta(honor)}
       pills={<span className={`status-pill status-pill--${STATUS_CLASS[status.key]}`}>{status.label}</span>}
-      menu={<CardMenu honor={honor} onEdit={onEdit} onDuplicate={onDuplicate} onMoveTop={onMoveTop} onDelete={onDelete} />}
+      menu={isNew ? null : <CardMenu honor={honor} onEdit={onEdit} onDuplicate={onDuplicate} onMoveTop={onMoveTop} onDelete={onDelete} />}
       selected={selected} isNew={isNew} onClick={() => onOpen(honor)}
     />
   )
@@ -154,9 +154,12 @@ export default function HonorsSection({ userId }) {
   const closePanel = useCallback(() => { setAdding(false); setParams({ id: null }) }, [setParams])
 
   const startAdd = useCallback(() => {
+    // Don't force the URL's category filter to the new draft's default
+    // category — that would select a filter chip showing "0" (the draft
+    // isn't saved yet) while the real "All" count also reads 0.
     setAdding(true)
-    setParams({ category: filter === 'all' ? 'academic_olympiad' : filter, id: null })
-  }, [filter, setParams])
+    setParams({ id: null })
+  }, [setParams])
 
   const handleCreate = useCallback(async (draft) => {
     // New honors join the top 5 by default while there is room.
@@ -349,6 +352,7 @@ export default function HonorsSection({ userId }) {
             mode={adding ? 'create' : 'edit'}
             row={adding ? undefined : selected}
             userId={userId}
+            defaultCategory={filter === 'all' ? 'academic_olympiad' : filter}
             onSave={adding ? undefined : handleSave}
             onCreate={adding ? handleCreate : undefined}
             onClose={closePanel}

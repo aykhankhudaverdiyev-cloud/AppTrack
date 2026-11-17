@@ -1,39 +1,52 @@
 /** ============================================================================
  * ChipGroup — separate chips with 8 px gaps, single- or multi-select.
  * Selected = solid purple with white text; unselected = white with grey border.
+ * Chips are real <button>s (never a hidden native radio/checkbox), so Click,
+ * Space and Enter all toggle them, and a single-select chip clears itself when
+ * clicked again — something a native <input type="radio"> cannot do.
  * ============================================================================ */
-import { useId } from 'react'
-
-export default function ChipGroup({ label, value = [], onChange, options, name, singleSelect = false, required, disabled }) {
-  const id = useId()
+export default function ChipGroup({
+  label, value = [], onChange, options, singleSelect = false, required, disabled, helper,
+}) {
   const on = (key) => (singleSelect ? value === key : (value || []).includes(key))
   const toggle = (key) => {
-    const next = singleSelect ? key : (on(key) ? (value || []).filter((k) => k !== key) : [...(value || []), key])
-    onChange(next)
+    if (disabled) return
+    if (singleSelect) {
+      onChange(value === key ? null : key)
+      return
+    }
+    onChange(on(key) ? (value || []).filter((k) => k !== key) : [...(value || []), key])
+  }
+  const handleKeyDown = (key) => (event) => {
+    if (event.key === ' ' || event.key === 'Enter') {
+      event.preventDefault()
+      toggle(key)
+    }
   }
   return (
     <fieldset className={`chip-group-field${!singleSelect && required ? ' chip-group--required' : ''}`}>
-      {label && <legend className="field-label">{label}{required && <span className="field-req" aria-hidden="true"> *</span>}</legend>}
+      {label && <legend className="sfield-label">{label}{required && <span className="sfield-req" aria-hidden="true"> *</span>}</legend>}
       <div className="chip-group" role={singleSelect ? 'radiogroup' : 'group'} aria-label={label}>
         {options.map((option) => {
-          const itemId = `${id}-${option.value}`
           const active = on(option.value)
           return (
-            <label key={option.value} className={`chip-group__item${active ? ' chip-group__item--on' : ''}`}>
-              <input
-                id={itemId}
-                type={singleSelect ? 'radio' : 'checkbox'}
-                name={name || id}
-                value={option.value}
-                checked={active}
-                onChange={() => toggle(option.value)}
-                disabled={disabled}
-              />
+            <button
+              key={option.value}
+              type="button"
+              className={`chip-group__item${active ? ' chip-group__item--on' : ''}`}
+              role={singleSelect ? 'radio' : 'checkbox'}
+              aria-checked={active}
+              aria-disabled={disabled || undefined}
+              tabIndex={disabled ? -1 : 0}
+              onClick={() => toggle(option.value)}
+              onKeyDown={handleKeyDown(option.value)}
+            >
               <span>{option.label}</span>
-            </label>
+            </button>
           )
         })}
       </div>
+      {helper && <p className="sfield-hint">{helper}</p>}
     </fieldset>
   )
 }

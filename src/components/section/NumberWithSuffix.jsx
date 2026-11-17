@@ -5,7 +5,7 @@
 export default function NumberWithSuffix({ label, value = '', suffix, onChange, onBlur, error, min, max, required }) {
   return (
     <div className={`number-field${error ? ' number-field--invalid' : ''}`}>
-      <label className="field-label">{label}{required && <span className="field-req" aria-hidden="true"> *</span>}</label>
+      <label className="sfield-label">{label}{required && <span className="sfield-req" aria-hidden="true"> *</span>}</label>
       <div className="number-input-wrap">
         <input
           className={`number-input${error ? ' number-input--invalid' : ''}`}
@@ -18,7 +18,7 @@ export default function NumberWithSuffix({ label, value = '', suffix, onChange, 
         />
         {suffix && <span className="number-suffix">{suffix}</span>}
       </div>
-      {error && <p className="field-error" role="alert">{error}</p>}
+      {error && <p className="sfield-error" role="alert">{error}</p>}
     </div>
   )
 }

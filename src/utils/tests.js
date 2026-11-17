@@ -225,6 +225,10 @@ export function rowFromDraft(draft = {}) {
 
 const URL_PATTERN = /^https?:\/\//i
 
+// `mode` is kept in the signature (every call site passes it) so a future
+// create-only rule can read it without changing callers; today both modes
+// validate identically.
+// eslint-disable-next-line no-unused-vars
 export function validateTestAttempt(draft = {}, mode = 'edit', { touched = {} } = {}) {
   const errors = {}
   const show = (key) => touched[key]

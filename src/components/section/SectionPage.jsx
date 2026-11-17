@@ -7,27 +7,27 @@ import './section.css'
 
 export default function SectionPage({ title, subtitle, action, chips, counter, children }) {
   return (
-    <section className="section">
-      <header className="section__head">
+    <section className="aw-page">
+      <header className="aw-page__head">
         <div>
-          <h1 className="section__title">{title}</h1>
-          {subtitle && <p className="section__sub">{subtitle}</p>}
+          <h1 className="aw-page__title">{title}</h1>
+          {subtitle && <p className="aw-page__sub">{subtitle}</p>}
         </div>
         {action && (
-          <button type="button" className="section__action" onClick={action.onClick} disabled={action.disabled} title={action.title}>
+          <button type="button" className="aw-page__action" onClick={action.onClick} disabled={action.disabled} title={action.title}>
             <span aria-hidden="true">＋</span> {action.label}
           </button>
         )}
       </header>
 
       {(chips || counter) && (
-        <div className="section__toolbar">
+        <div className="aw-page__toolbar">
           {chips}
-          {counter && <span className="section__counter">{counter}</span>}
+          {counter && <span className="aw-page__counter">{counter}</span>}
         </div>
       )}
 
-      <div className="section__body">{children}</div>
+      <div className="aw-page__body">{children}</div>
     </section>
   )
 }

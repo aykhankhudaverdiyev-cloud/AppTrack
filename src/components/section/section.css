@@ -20,7 +20,7 @@
   --section-radius: 16px;
 }
 
-.section {
+.aw-page {
   position: relative;
   background: #f7f7fb;
   border: 1px solid var(--section-line);
@@ -31,7 +31,7 @@
   color: var(--section-body);
 }
 
-.section::before {
+.aw-page::before {
   content: '';
   position: absolute;
   inset: 0;
@@ -39,11 +39,11 @@
   pointer-events: none;
 }
 
-.section > * { position: relative; }
+.aw-page > * { position: relative; }
 
 /* ── header ─────────────────────────────────────────────────────────────── */
 
-.section__head {
+.aw-page__head {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -51,7 +51,7 @@
   margin-bottom: 18px;
 }
 
-.section__title {
+.aw-page__title {
   margin: 0;
   font-size: clamp(1.45rem, 2.1vw, 2rem);
   font-weight: 700;
@@ -59,13 +59,13 @@
   color: var(--section-ink);
 }
 
-.section__sub {
+.aw-page__sub {
   margin: 6px 0 0;
   font-size: 0.875rem;
   color: var(--section-muted);
 }
 
-.section__action {
+.aw-page__action {
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -83,15 +83,15 @@
   transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
 }
 
-.section__action:hover:not(:disabled) {
+.aw-page__action:hover:not(:disabled) {
   transform: translateY(-1px);
   box-shadow: 0 12px 26px rgba(109, 91, 240, 0.32);
 }
-.section__action:disabled { opacity: 0.5; cursor: not-allowed; box-shadow: none; }
+.aw-page__action:disabled { opacity: 0.5; cursor: not-allowed; box-shadow: none; }
 
 /* ── toolbar / chips ────────────────────────────────────────────────────── */
 
-.section__toolbar {
+.aw-page__toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -99,7 +99,7 @@
   margin-bottom: 16px;
 }
 
-.section__counter {
+.aw-page__counter {
   font-size: 0.8rem;
   color: var(--section-muted);
   white-space: nowrap;
@@ -311,6 +311,25 @@
 
 /* ── chip group (single or multi, 8 px gaps) ───────────────────────────── */
 
+/* Reset the native <fieldset>/<legend> box completely — no grey border,
+   no legend cutting the line. The legend is styled exactly like every
+   other field label via .sfield-label. */
+.chip-group-field {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-inline-size: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.chip-group-field legend {
+  padding: 0;
+  margin: 0;
+  float: none;
+  width: auto;
+}
+
 .chip-group {
   display: flex;
   flex-wrap: wrap;
@@ -325,13 +344,13 @@
   border: 1px solid var(--section-line-strong);
   border-radius: 10px;
   background: var(--section-field);
+  font-family: inherit;
   font-size: 0.86rem;
   font-weight: 600;
   color: #4b5563;
   cursor: pointer;
   transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 }
-.chip-group__item input { position: absolute; opacity: 0; width: 1px; height: 1px; margin: 0; }
 .chip-group__item:hover { border-color: #d8d5f7; }
 .chip-group__item--on,
 .chip-group__item--on:hover {
@@ -339,7 +358,8 @@
   border-color: var(--section-accent);
   color: #fff;
 }
-.chip-group__item input:focus-visible ~ span { text-decoration: underline; }
+.chip-group__item:focus-visible { outline: 2px solid var(--section-accent); outline-offset: 2px; }
+.chip-group__item[aria-disabled="true"] { opacity: 0.5; cursor: not-allowed; }
 
 /* ── text area field ───────────────────────────────────────────────────── */
 
@@ -422,13 +442,13 @@
 
 /* ── labels, hints, errors ─────────────────────────────────────────────── */
 
-.field-label {
+.sfield-label {
   display: flex; align-items: center; gap: 4px;
   font-size: 0.78rem; font-weight: 600; color: #4b5563;
 }
-.field-req { color: var(--section-accent); font-weight: 700; }
-.field-hint { margin: 0; font-size: 0.74rem; color: var(--section-muted); }
-.field-error { margin: 0; font-size: 0.74rem; color: #dc2626; font-weight: 600; }
+.sfield-req { color: var(--section-accent); font-weight: 700; }
+.sfield-hint { margin: 0; font-size: 0.74rem; color: var(--section-muted); }
+.sfield-error { margin: 0; font-size: 0.74rem; color: #dc2626; font-weight: 600; }
 
 /* ── list card ─────────────────────────────────────────────────────────── */
 
@@ -629,21 +649,21 @@
 
 /* ── empty state ───────────────────────────────────────────────────────── */
 
-.empty-state {
+.aw-empty {
   display: flex; flex-direction: column; align-items: center; gap: 16px;
   padding: 48px 24px; background: #fff; border: 1px solid var(--section-line);
   border-radius: var(--section-radius); text-align: center;
 }
-.empty-state__tiles { display: flex; gap: 10px; }
-.empty-state p { margin: 0; max-width: 420px; color: var(--section-muted); font-size: 0.9rem; line-height: 1.5; }
+.aw-empty__tiles { display: flex; gap: 10px; }
+.aw-empty p { margin: 0; max-width: 420px; color: var(--section-muted); font-size: 0.9rem; line-height: 1.5; }
 
 /* ── responsive ────────────────────────────────────────────────────────── */
 
 @media (max-width: 900px) {
-  .section { padding: 16px; border-radius: 18px; }
-  .section__head { flex-direction: column; align-items: stretch; }
-  .section__action { justify-content: center; }
-  .section__toolbar { flex-direction: column; align-items: stretch; gap: 10px; }
+  .aw-page { padding: 16px; border-radius: 18px; }
+  .aw-page__head { flex-direction: column; align-items: stretch; }
+  .aw-page__action { justify-content: center; }
+  .aw-page__toolbar { flex-direction: column; align-items: stretch; gap: 10px; }
   .section-columns--panel { grid-template-columns: minmax(0, 1fr); }
   .list-card--selected { padding: 12px; border-width: 2px; }
   .list-card--selected h3 { -webkit-line-clamp: 1; }

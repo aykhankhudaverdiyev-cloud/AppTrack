@@ -1,11 +1,23 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { highestLevel, honorCategoryLabel, honorResult, honorEmoji } from '../constants/honors.js'
+import { highestLevel, honorEmoji } from '../constants/honors.js'
 import {
-  computeHonorStatus, buildHonorMeta, gradesLabel, receivedDateLabel,
+  computeHonorStatus, buildHonorMeta, receivedDateLabel,
   draftFromRow, rowFromDraft, validateHonor,
-  requiredCompleted, mapDbError,
+  requiredCompleted, mapDbError, emptyHonorDraft,
 } from './honors.js'
+
+test('emptyHonorDraft defaults to no category/top5 and accepts overrides', () => {
+  const blank = emptyHonorDraft()
+  assert.equal(blank.category, '')
+  assert.equal(blank.is_top5_commonapp, false)
+  assert.deepEqual(blank.grade_levels, [])
+  assert.deepEqual(blank.levels, [])
+
+  const prefilled = emptyHonorDraft('academic_olympiad', true)
+  assert.equal(prefilled.category, 'academic_olympiad')
+  assert.equal(prefilled.is_top5_commonapp, true)
+})
 
 test('computeHonorStatus: empty expected → Draft', () => {
   assert.deepEqual(computeHonorStatus({}), { key: 'draft', label: 'Draft', missing: null, filled: 0, total: 4 })
