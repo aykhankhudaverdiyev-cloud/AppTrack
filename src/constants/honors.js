@@ -6,7 +6,7 @@
  * ============================================================================ */
 
 export const HONOR_CATEGORIES = [
-  { key: 'academic_olympiad', label: 'Academic olympiad', emoji: '🧠', tint: 'lilac' },
+  { key: 'academic_olympiad', label: 'Olympiad', emoji: '🧠', tint: 'lilac' },
   { key: 'research',          label: 'Research',          emoji: '🔬', tint: 'mint' },
   { key: 'competition_hackathon', label: 'Competition / hackathon', emoji: '💻', tint: 'sky' },
   { key: 'scholarship',       label: 'Scholarship',       emoji: '🎓', tint: 'rose' },

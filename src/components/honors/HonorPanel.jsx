@@ -15,9 +15,10 @@ import {
   honorCategory, honorCategoryLabel,
 } from '../../constants/honors.js'
 import { draftFromRow, emptyHonorDraft, validateHonor, requiredCompleted } from '../../utils/honors.js'
+import './HonorPanel.css'
 
 const RESULT_OPTIONS = HONOR_RESULTS.map((r) => ({ value: r.key, label: r.label }))
-const GRADE_OPTIONS = HONOR_GRADE_LEVELS.map((n) => ({ value: String(n), label: `Grade ${n}` }))
+const GRADE_OPTIONS = HONOR_GRADE_LEVELS.map((n) => ({ value: String(n), label: String(n) }))
 const LEVEL_OPTIONS = [
   { value: 'school', label: 'School' },
   { value: 'city', label: 'City' },
@@ -131,15 +132,7 @@ export default function HonorPanel({
           {mode === 'create' ? '＋' : category.emoji}
         </span>
         <h2 className="honor-panel__title">{title}</h2>
-        <label className="honor-panel__category">
-          {honorCategoryLabel(draft.category)}
-          <span aria-hidden="true">▾</span>
-          <select value={draft.category} onChange={(event) => set('category', event.target.value)} aria-label="Honor category">
-            {HONOR_CATEGORIES.map((option) => (
-              <option key={option.key} value={option.key}>{option.label}</option>
-            ))}
-          </select>
-        </label>
+        <span className="honor-panel__category">{honorCategoryLabel(draft.category)}</span>
         <span className={`honor-panel__save${saveError ? ' honor-panel__save--error' : ''}`} role="status" aria-live="polite">
           {saveError ? (
             <button type="button" className="honor-panel__retry" onClick={flush}>Couldn&apos;t save · Retry</button>
@@ -163,7 +156,7 @@ export default function HonorPanel({
               placeholder="e.g. Silver Medal, National Informatics Olympiad"
               maxLength={HONOR_LIMITS.title}
             />
-            {errors.title && <p className="field-error" role="alert">{errors.title}</p>}
+            {touched.title && errors.title && <p className="field-error" role="alert">{errors.title}</p>}
           </div>
           <div className="honor-field">
             <label className="field-label">Subject</label>
@@ -175,10 +168,9 @@ export default function HonorPanel({
               placeholder="e.g. Informatics"
               maxLength={HONOR_LIMITS.subject}
             />
-            {errors.subject && <p className="field-error" role="alert">{errors.subject}</p>}
+            {touched.subject && errors.subject && <p className="field-error" role="alert">{errors.subject}</p>}
           </div>
           <div className="honor-field honor-span-2">
-            <label className="field-label">Date received<span className="field-req" aria-hidden="true"> *</span></label>
             <MonthYearInput
               label="Date received"
               value={draft.received_month}
@@ -199,7 +191,7 @@ export default function HonorPanel({
               placeholder="e.g. Ministry of Science and Education"
               maxLength={HONOR_LIMITS.issuer}
             />
-            {errors.issuer && <p className="field-error" role="alert">{errors.issuer}</p>}
+            {touched.issuer && errors.issuer && <p className="field-error" role="alert">{errors.issuer}</p>}
           </div>
         </div>
 
@@ -217,7 +209,7 @@ export default function HonorPanel({
           </div>
           <div className="honor-field honor-span-2">
             <ChipGroup
-              label="Grade levels<span className='field-label__req'> *</span>"
+              label="Grade levels"
               value={draft.grade_levels.map(String)}
               onChange={(value) => set('grade_levels', value.map(Number))}
               options={GRADE_OPTIONS}
@@ -227,7 +219,7 @@ export default function HonorPanel({
           </div>
           <div className="honor-field honor-span-2">
             <ChipGroup
-              label="Level of recognition<span className='field-label__req'> *</span>"
+              label="Level of recognition"
               value={draft.levels}
               onChange={(value) => set('levels', value)}
               options={LEVEL_OPTIONS}
@@ -273,7 +265,7 @@ export default function HonorPanel({
               onBlur={() => { setTouched((t) => ({ ...t, verification_url: true })); if (mode === 'edit') flush() }}
               placeholder="https://…"
             />
-            {errors.verification_url && <p className="field-error" role="alert">{errors.verification_url}</p>}
+            {touched.verification_url && errors.verification_url && <p className="field-error" role="alert">{errors.verification_url}</p>}
           </div>
         </div>
 

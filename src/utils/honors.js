@@ -173,12 +173,12 @@ export function rowFromDraft(draft = {}) {
 const URL_PATTERN = /^https?:\/\//i
 
 /**
- * Field → message. `mode === 'create'` enforces the four required fields.
+ * Field → message. Required fields are enforced on create submit.
  * Inline errors only appear after the field was blurred (handled by the panel).
  */
 export function validateHonor(draft = {}, mode = 'edit', { touched = {} } = {}) {
   const errors = {}
-  const show = (key) => mode === 'create' || touched[key]
+  const show = (key) => touched[key]
 
   const title = trim(draft.title)
   if (show('title') && !title) errors.title = 'Honor title is required'

@@ -71,7 +71,7 @@ test('draftFromRow / rowFromDraft round-trip dates', () => {
 })
 
 test('validateTestAttempt create mode requires type + status', () => {
-  const errors = validateTestAttempt({}, 'create')
+  const errors = validateTestAttempt({}, 'create', { touched: { test_type: true, status: true } })
   assert.equal(errors.test_type, 'Pick a test type')
   assert.equal(errors.status, 'Pick a status')
 })

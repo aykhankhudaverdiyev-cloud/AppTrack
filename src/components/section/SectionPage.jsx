@@ -3,6 +3,8 @@
  * glow top-right: title, subtitle, primary gradient button top-right, a
  * filter-chip row and an optional right-aligned counter text.
  * ============================================================================ */
+import './section.css'
+
 export default function SectionPage({ title, subtitle, action, chips, counter, children }) {
   return (
     <section className="section">
