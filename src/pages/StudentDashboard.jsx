@@ -40,6 +40,8 @@ import AdmissionsOverview from '../components/applications/AdmissionsOverview'
 import AcademicSection from '../components/academic/AcademicSection'
 import ActivitiesSection from '../components/activities/ActivitiesSection'
 import ProjectsSection from '../components/projects/ProjectsSection'
+import HonorsSection from '../components/honors/HonorsSection'
+import TestScoresSection from '../components/tests/TestScoresSection'
 import { fetchAcademicLibrary, importLegacyAcademicLibrary } from '../Services/ProfileServiceV2'
 import { computeAcademicCounts } from '../utils/academicRules'
 import { ConfirmDialog } from '../components/forms'
@@ -959,8 +961,15 @@ export default function StudentDashboard() {
           </div>
         )}
 
-        {academicNotice && ['education', 'test_scores', 'honors', 'projects'].includes(activeTab) && <p role="status">{academicNotice}</p>}
-        <AcademicSection activeTab={activeTab} userId={user?.id} library={{ ...academic, applications: me.applications || [] }} loading={academicLoading} error={academicError} onRetry={() => setAcademicRetry(n => n + 1)} />
+        {activeTab === 'test_scores' && (
+          <TestScoresSection key={user?.id} userId={user?.id} />
+        )}
+        {activeTab === 'honors' && (
+          <HonorsSection key={user?.id} userId={user?.id} />
+        )}
+        {activeTab === 'education' && (
+          <AcademicSection activeTab={activeTab} userId={user?.id} library={{ ...academic, applications: me.applications || [] }} loading={academicLoading} error={academicError} onRetry={() => setAcademicRetry(n => n + 1)} />
+        )}
 
         {/* ACTIVITIES: unified list (multi-category, drag-ranked) */}
         {activeTab === 'activities' && (
