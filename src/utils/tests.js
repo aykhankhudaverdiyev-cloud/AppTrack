@@ -8,10 +8,19 @@
  *   sections → saved with rpc('save_test_sections', …)
  * ============================================================================ */
 
-import { formatDate, monthToDate } from './dates.js'
+import { formatDate } from './dates.js'
 import { TEST_PRESETS, ADMISSION_TYPES, ENGLISH_TYPES } from '../constants/tests.js'
 
 const trim = (value) => (value == null ? '' : String(value)).trim()
+
+/** Convert a string/number input to a number or null. Empty → null, NaN → null. */
+export function toNumberOrNull(value) {
+  if (value == null) return null
+  const text = String(value).trim()
+  if (text === '') return null
+  const n = Number(text)
+  return Number.isFinite(n) ? n : null
+}
 
 const REQUIRED_CREATE = [
   { key: 'test_type', label: 'Test type' },
@@ -198,9 +207,8 @@ export function rowFromDraft(draft = {}) {
     test_type: draft.test_type || 'SAT',
     national_exam_name: nullable(draft.national_exam_name, 100),
     status: draft.status || 'planned',
-    test_date: monthToDate(draft.test_date) || null,
-    attempt_number: Number(draft.attempt_number) || 1,
     test_date: draft.test_date || null,
+    attempt_number: Number(draft.attempt_number) || 1,
     overall_score: draft.overall_score === '' || draft.overall_score == null ? null : Number(draft.overall_score),
     overall_max: draft.overall_max === '' || draft.overall_max == null ? null : Number(draft.overall_max),
     trf_number: nullable(draft.trf_number, 40),
@@ -233,6 +241,8 @@ export function validateTestAttempt(draft = {}, mode = 'edit', { touched = {} } 
   }
 
   if (show('status') && !draft.status) errors.status = 'Pick a status'
+
+  if (show('test_date') && !draft.test_date) errors.test_date = 'Pick a test date'
 
   const attempt = Number(draft.attempt_number)
   if (show('attempt_number') && (!Number.isInteger(attempt) || attempt < 1)) {
