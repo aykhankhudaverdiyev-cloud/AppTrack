@@ -30,7 +30,7 @@ export default function MonthYearInput({ label, value = '', onChange, onBlur, re
 
   return (
     <div className={`month-field${error || invalid ? ' month-field--invalid' : ''}`}>
-      <label className="field-label">{label}{required && <span className="field-req" aria-hidden="true"> *</span>}</label>
+      <label className="sfield-label">{label}{required && <span className="sfield-req" aria-hidden="true"> *</span>}</label>
       <input
         id={id}
         className="month-field__input"
@@ -42,7 +42,7 @@ export default function MonthYearInput({ label, value = '', onChange, onBlur, re
         onChange={(event) => handle(event.target.value)}
         onBlur={onBlur}
       />
-      {error && <p className="field-error" role="alert">{error}</p>}
+      {error && <p className="sfield-error" role="alert">{error}</p>}
     </div>
   )
 }

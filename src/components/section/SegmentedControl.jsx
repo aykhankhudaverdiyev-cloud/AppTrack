@@ -8,7 +8,7 @@ export default function SegmentedControl({ label, value, onChange, options, name
   const id = useId()
   return (
     <fieldset className="segmented-field">
-      <legend className="field-label">{label}</legend>
+      <legend className="sfield-label">{label}</legend>
       <div className="segmented" role="radiogroup" aria-label={label}>
         {options.map((option) => {
           const itemId = `${id}-${option.value}`

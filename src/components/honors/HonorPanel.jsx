@@ -10,22 +10,17 @@ import { useAutosave } from '../../hooks/useAutosave'
 import {
   ChipGroup, TextAreaField, MonthYearInput, DocumentPicker, TipBox,
 } from '../section'
+import { getDocument } from '../../Services/documentApi'
 import {
-  HONOR_CATEGORIES, HONOR_RESULTS, HONOR_GRADE_LEVELS, HONOR_LIMITS,
-  honorCategory, honorCategoryLabel,
+  HONOR_CATEGORIES, HONOR_RESULTS, HONOR_GRADE_LEVELS, HONOR_LEVELS, HONOR_LIMITS,
+  honorCategory,
 } from '../../constants/honors.js'
 import { draftFromRow, emptyHonorDraft, validateHonor, requiredCompleted } from '../../utils/honors.js'
 import './HonorPanel.css'
 
 const RESULT_OPTIONS = HONOR_RESULTS.map((r) => ({ value: r.key, label: r.label }))
 const GRADE_OPTIONS = HONOR_GRADE_LEVELS.map((n) => ({ value: String(n), label: String(n) }))
-const LEVEL_OPTIONS = [
-  { value: 'school', label: 'School' },
-  { value: 'city', label: 'City' },
-  { value: 'regional', label: 'Regional' },
-  { value: 'national', label: 'National' },
-  { value: 'international', label: 'International' },
-]
+const LEVEL_OPTIONS = HONOR_LEVELS.map((l) => ({ value: l.key, label: l.label }))
 
 function savedLabel(savedAt, now) {
   if (!savedAt) return ''
@@ -38,21 +33,33 @@ function savedLabel(savedAt, now) {
 }
 
 export default function HonorPanel({
-  mode = 'edit', row, userId,
+  mode = 'edit', row, userId, defaultCategory = 'academic_olympiad',
   onSave, onCreate, onClose,
 }) {
-  const [initial] = useState(() => (mode === 'edit' && row ? draftFromRow(row) : emptyHonorDraft()))
+  const [initial] = useState(() => (mode === 'edit' && row ? draftFromRow(row) : emptyHonorDraft(defaultCategory)))
   const [draft, setDraft] = useState(initial)
   const [creating, setCreating] = useState(false)
   const [createError, setCreateError] = useState('')
   const [now, setNow] = useState(() => Date.now())
   const [touched, setTouched] = useState({})
   const [confirmDiscard, setConfirmDiscard] = useState(false)
+  const [certDoc, setCertDoc] = useState(null)
 
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 30000)
     return () => clearInterval(timer)
   }, [])
+
+  // The draft only stores certificate_document_id (the DB-shaped value); fetch
+  // the document's title/filename separately so DocumentPicker can show it.
+  useEffect(() => {
+    let cancelled = false
+    const id = draft.certificate_document_id
+    if (!id || certDoc?.id === id) return undefined
+    getDocument(userId, id).then((doc) => { if (!cancelled) setCertDoc(doc) }).catch(() => {})
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft.certificate_document_id, userId])
 
   const errors = useMemo(() => validateHonor(draft, mode, { touched }), [draft, mode, touched])
   const blocked = Object.keys(errors).length > 0
@@ -65,18 +72,25 @@ export default function HonorPanel({
     await onSave(payload)
   }, [onSave])
 
-  const { saving, savedAt, error: saveError, flush } = useAutosave(draft, persist, {
+  const { saving, savedAt, error: saveError, markDirty, flush } = useAutosave(draft, persist, {
     delay: 800,
     enabled: mode === 'edit',
   })
 
-  const set = (key, value) => setDraft((prev) => ({ ...prev, [key]: value }))
+  // Every field setter goes through this one function, and it always marks
+  // the autosave dirty in edit mode — otherwise useAutosave's flush() never
+  // actually saves anything (it short-circuits until markDirty() runs), and
+  // the "Saved ✓" status would be shown without ever having saved.
+  const set = (key, value) => {
+    setDraft((prev) => ({ ...prev, [key]: value }))
+    if (mode === 'edit') markDirty()
+  }
 
   const cancelCreate = useCallback(() => {
-    const untouched = JSON.stringify(draft) === JSON.stringify(emptyHonorDraft())
+    const untouched = JSON.stringify(draft) === JSON.stringify(emptyHonorDraft(defaultCategory))
     if (untouched) onClose?.()
     else setConfirmDiscard(true)
-  }, [draft, onClose])
+  }, [draft, onClose, defaultCategory])
 
   const requestClose = useCallback(() => {
     if (mode === 'create') { cancelCreate(); return }
@@ -120,7 +134,7 @@ export default function HonorPanel({
             : 'Saved just now ✓'
 
   const top5On = Boolean(draft.is_top5_commonapp)
-  const top5Text = top5On ? `Position ${row?.top5_order ?? draft.top5_order ?? '—'} of 5` : 'Not included'
+  const top5PositionText = top5On ? `Position ${row?.top5_order ?? draft.top5_order ?? '—'} of 5` : ''
 
   return (
     <aside className={`honor-panel${mode === 'create' ? ' honor-panel--create' : ''}`} role="region" aria-label={title} tabIndex={-1}>
@@ -132,7 +146,22 @@ export default function HonorPanel({
           {mode === 'create' ? '＋' : category.emoji}
         </span>
         <h2 className="honor-panel__title">{title}</h2>
-        <span className="honor-panel__category">{honorCategoryLabel(draft.category)}</span>
+        <label className="honor-panel__category">
+          <select
+            value={draft.category}
+            aria-label="Category"
+            onChange={(event) => {
+              set('category', event.target.value)
+              setTouched((t) => ({ ...t, category: true }))
+              if (mode === 'edit') flush()
+            }}
+          >
+            {HONOR_CATEGORIES.map((c) => (
+              <option key={c.key} value={c.key}>{c.label}</option>
+            ))}
+          </select>
+          <span aria-hidden="true">▾</span>
+        </label>
         <span className={`honor-panel__save${saveError ? ' honor-panel__save--error' : ''}`} role="status" aria-live="polite">
           {saveError ? (
             <button type="button" className="honor-panel__retry" onClick={flush}>Couldn&apos;t save · Retry</button>
@@ -146,8 +175,11 @@ export default function HonorPanel({
       <form className="honor-panel__body" onSubmit={submitCreate}>
         <p className="honor-section-label">Basics</p>
         <div className="honor-grid">
-          <div className="honor-field">
-            <label className="field-label">Honor title<span className="field-req" aria-hidden="true"> *</span></label>
+          <div className="honor-field honor-span-2">
+            <div className="honor-field__row">
+              <label className="sfield-label">Honor title<span className="sfield-req" aria-hidden="true"> *</span></label>
+              <span className="honor-field__counter">{draft.title.length} / {HONOR_LIMITS.title}</span>
+            </div>
             <input
               className={`honor-input${errors.title ? ' honor-input--invalid' : ''}`}
               value={draft.title}
@@ -156,10 +188,10 @@ export default function HonorPanel({
               placeholder="e.g. Silver Medal, National Informatics Olympiad"
               maxLength={HONOR_LIMITS.title}
             />
-            {touched.title && errors.title && <p className="field-error" role="alert">{errors.title}</p>}
+            {touched.title && errors.title && <p className="sfield-error" role="alert">{errors.title}</p>}
           </div>
           <div className="honor-field">
-            <label className="field-label">Subject</label>
+            <label className="sfield-label">Subject</label>
             <input
               className={`honor-input${errors.subject ? ' honor-input--invalid' : ''}`}
               value={draft.subject}
@@ -168,9 +200,9 @@ export default function HonorPanel({
               placeholder="e.g. Informatics"
               maxLength={HONOR_LIMITS.subject}
             />
-            {touched.subject && errors.subject && <p className="field-error" role="alert">{errors.subject}</p>}
+            {touched.subject && errors.subject && <p className="sfield-error" role="alert">{errors.subject}</p>}
           </div>
-          <div className="honor-field honor-span-2">
+          <div className="honor-field">
             <MonthYearInput
               label="Date received"
               value={draft.received_month}
@@ -179,10 +211,10 @@ export default function HonorPanel({
               required
               error={touched.received_month ? errors.received_month : undefined}
             />
-            {touched.received_month && errors.received_month && <p className="field-error" role="alert">{errors.received_month}</p>}
+            {touched.received_month && errors.received_month && <p className="sfield-error" role="alert">{errors.received_month}</p>}
           </div>
           <div className="honor-field honor-span-2">
-            <label className="field-label">Awarding body</label>
+            <label className="sfield-label">Awarding body</label>
             <input
               className={`honor-input${errors.issuer ? ' honor-input--invalid' : ''}`}
               value={draft.issuer}
@@ -191,41 +223,53 @@ export default function HonorPanel({
               placeholder="e.g. Ministry of Science and Education"
               maxLength={HONOR_LIMITS.issuer}
             />
-            {touched.issuer && errors.issuer && <p className="field-error" role="alert">{errors.issuer}</p>}
+            {touched.issuer && errors.issuer && <p className="sfield-error" role="alert">{errors.issuer}</p>}
           </div>
-        </div>
-
-        <p className="honor-section-label">Result and levels</p>
-        <div className="honor-grid">
           <div className="honor-field honor-span-2">
             <ChipGroup
               label="Result"
               value={draft.result || null}
-              onChange={(value) => set('result', value)}
+              onChange={(value) => { set('result', value); setTouched((t) => ({ ...t, result: true })); if (mode === 'edit') flush() }}
               options={RESULT_OPTIONS}
               singleSelect
             />
-            {touched.result && errors.result && <p className="field-error" role="alert">{errors.result}</p>}
+            {touched.result && errors.result && <p className="sfield-error" role="alert">{errors.result}</p>}
           </div>
-          <div className="honor-field honor-span-2">
+          <div className="honor-field">
             <ChipGroup
               label="Grade levels"
               value={draft.grade_levels.map(String)}
-              onChange={(value) => set('grade_levels', value.map(Number))}
+              onChange={(value) => { set('grade_levels', value.map(Number)); setTouched((t) => ({ ...t, grade_levels: true })); if (mode === 'edit') flush() }}
               options={GRADE_OPTIONS}
               required
             />
-            {touched.grade_levels && errors.grade_levels && <p className="field-error" role="alert">{errors.grade_levels}</p>}
+            {touched.grade_levels && errors.grade_levels && <p className="sfield-error" role="alert">{errors.grade_levels}</p>}
           </div>
-          <div className="honor-field honor-span-2">
+          <div className="honor-field">
             <ChipGroup
               label="Level of recognition"
               value={draft.levels}
-              onChange={(value) => set('levels', value)}
+              onChange={(value) => { set('levels', value); setTouched((t) => ({ ...t, levels: true })); if (mode === 'edit') flush() }}
               options={LEVEL_OPTIONS}
               required
+              helper="Select all that apply"
             />
-            {touched.levels && errors.levels && <p className="field-error" role="alert">{errors.levels}</p>}
+            {touched.levels && errors.levels && <p className="sfield-error" role="alert">{errors.levels}</p>}
+          </div>
+          <div className="honor-field honor-span-2">
+            <div className="honor-field__row">
+              <label className="sfield-label">Selectivity</label>
+              <span className="honor-field__optional">Optional</span>
+            </div>
+            <input
+              className={`honor-input${errors.participants_context ? ' honor-input--invalid' : ''}`}
+              value={draft.participants_context}
+              onChange={(event) => set('participants_context', event.target.value.slice(0, HONOR_LIMITS.participantsContext))}
+              onBlur={() => { setTouched((t) => ({ ...t, participants_context: true })); if (mode === 'edit') flush() }}
+              placeholder="e.g. Top 30 of 2,000 students"
+              maxLength={HONOR_LIMITS.participantsContext}
+            />
+            {touched.participants_context && errors.participants_context && <p className="sfield-error" role="alert">{errors.participants_context}</p>}
           </div>
         </div>
 
@@ -241,23 +285,23 @@ export default function HonorPanel({
               error={touched.description ? errors.description : undefined}
               copyLabel="Description"
             />
-            {touched.description && errors.description && <p className="field-error" role="alert">{errors.description}</p>}
+            {touched.description && errors.description && <p className="sfield-error" role="alert">{errors.description}</p>}
           </div>
         </div>
 
         <p className="honor-section-label">Proof</p>
         <div className="honor-grid">
-          <div className="honor-field honor-span-2">
-            <label className="field-label">Certificate</label>
+          <div className="honor-field">
+            <label className="sfield-label">Certificate</label>
             <DocumentPicker
-              value={draft.certificate_document_id ? { id: draft.certificate_document_id, title: 'Certificate' } : null}
+              value={draft.certificate_document_id ? (certDoc || { id: draft.certificate_document_id, title: 'Certificate' }) : null}
               category="award_certificate"
               userId={userId}
-              onChange={(doc) => set('certificate_document_id', doc.id)}
+              onChange={(doc) => { setCertDoc(doc); set('certificate_document_id', doc.id); if (mode === 'edit') flush() }}
             />
           </div>
-          <div className="honor-field honor-span-2">
-            <label className="field-label">Verification link</label>
+          <div className="honor-field">
+            <label className="sfield-label">Verification link</label>
             <input
               className={`honor-input${errors.verification_url ? ' honor-input--invalid' : ''}`}
               value={draft.verification_url}
@@ -265,24 +309,23 @@ export default function HonorPanel({
               onBlur={() => { setTouched((t) => ({ ...t, verification_url: true })); if (mode === 'edit') flush() }}
               placeholder="https://…"
             />
-            {touched.verification_url && errors.verification_url && <p className="field-error" role="alert">{errors.verification_url}</p>}
+            {touched.verification_url && errors.verification_url && <p className="sfield-error" role="alert">{errors.verification_url}</p>}
           </div>
         </div>
 
         <p className="honor-section-label">Forms</p>
         <div className="honor-grid">
-          <div className="honor-field honor-span-2">
-            <label className="field-label">Include in top 5 for forms</label>
-            <div className="honor-switch">
+          <div className="honor-field honor-span-2 honor-field--row">
+            <label className="honor-switch">
               <input
                 type="checkbox"
                 checked={top5On}
-                onChange={(event) => set('is_top5_commonapp', event.target.checked)}
+                onChange={(event) => { set('is_top5_commonapp', event.target.checked); if (mode === 'edit') flush() }}
               />
               <span className="honor-switch__track" aria-hidden="true"><span /></span>
-              <span className="honor-switch__text">{top5Text}</span>
-            </div>
-            <p className="field-hint">{top5On ? `Position ${top5Text}` : 'Not included in the top 5.'}</p>
+              <span className="honor-switch__text">Include in top 5 for forms</span>
+            </label>
+            <span className="honor-field__aside">{top5PositionText}</span>
           </div>
         </div>
 
@@ -291,7 +334,7 @@ export default function HonorPanel({
             <p className={`honor-required${canCreate ? ' honor-required--done' : ''}`} role="status">
               {canCreate ? '✓ ' : ''}{completed} of 4 required fields
             </p>
-            {createError && <p className="field-error" role="alert">{createError}</p>}
+            {createError && <p className="sfield-error" role="alert">{createError}</p>}
             <div className="honor-panel__footer-actions">
               <button type="button" className="honor-btn honor-btn--ghost" onClick={cancelCreate}>Cancel</button>
               <button type="submit" className="honor-btn honor-btn--primary" disabled={!canCreate || creating}>

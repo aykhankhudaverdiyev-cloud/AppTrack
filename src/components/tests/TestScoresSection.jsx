@@ -23,6 +23,11 @@ import './TestScoresSection.css'
 
 const STATUS_CLASS = { planned: 'planned', registered: 'registered', taken_waiting: 'waiting', released: 'released' }
 
+// The URL filter only ever holds a *group* key (admission/english/other),
+// never a real test_type — map it to one representative type to default a
+// new draft to (the header's own type dropdown lets the user change it).
+const GROUP_DEFAULT_TYPE = { admission: 'SAT', english: 'IELTS', other: 'OTHER' }
+
 const SHORT = { Listening: 'L', Reading: 'R', Writing: 'W', Speaking: 'S' }
 
 /* ── card menu ──────────────────────────────────────────────────────────── */
@@ -148,9 +153,12 @@ export default function TestScoresSection({ userId }) {
   const closePanel = useCallback(() => { setAdding(false); setParams({ id: null }) }, [setParams])
 
   const startAdd = useCallback(() => {
+    // Keep the URL's group filter untouched — it only ever holds a group key
+    // (admission/english/other), never a single test type, and the new
+    // draft's default type is derived locally from `filter` below.
     setAdding(true)
-    setParams({ type: filter === 'all' ? 'SAT' : filter, id: null })
-  }, [filter, setParams])
+    setParams({ id: null })
+  }, [setParams])
 
 
   const handleCreate = useCallback(async (draft) => {
@@ -171,7 +179,16 @@ export default function TestScoresSection({ userId }) {
       isBest = true
     }
     const row = await actions.create({ ...draft, attempt_number: attemptNumber, overall_score: overall, overall_max: overallMax, is_best: isBest })
-    await actions.saveSections(row.id, draft.sections)
+    try {
+      await actions.saveSections(row.id, draft.sections)
+    } catch (cause) {
+      // Don't leave an orphaned, section-less attempt behind on a partial
+      // failure — roll back the row we just created and surface the error.
+      await actions.remove(row.id).catch((rollbackCause) => {
+        console.error('Failed to roll back a test attempt after saveSections failed:', rollbackCause)
+      })
+      throw cause
+    }
     setAdding(false)
     setParams({ type: row.test_type, id: row.id })
     showToast(`${TEST_TYPE_LABEL(row.test_type)} added`, {
@@ -243,7 +260,7 @@ export default function TestScoresSection({ userId }) {
         chips={<FilterChips items={chips} total={items.length} value={filter} onChange={(value) => setParams({ type: value, id: null })} />}
         counter={items.length > 0 ? items.length + ' tests' : null}
       >
-      <div className="tests-columns">
+      <div className={`tests-columns${panelOpen ? ' tests-columns--panel' : ''}`}>
         <div className="tests-main">
           {error ? (
             <div className="tests-state tests-state--error">
@@ -256,7 +273,7 @@ export default function TestScoresSection({ userId }) {
             </div>
           ) : adding ? (
             <div className="tests-cards">
-              <TestCard attempt={{ test_type: filter === 'all' ? 'SAT' : filter }} isNew selected onClick={() => {}} />
+              <TestCard attempt={{ test_type: GROUP_DEFAULT_TYPE[filter] || 'SAT' }} isNew selected onClick={() => {}} />
             </div>
           ) : items.length === 0 ? (
             <div className="tests-empty">
@@ -298,7 +315,7 @@ export default function TestScoresSection({ userId }) {
             mode={adding ? 'create' : 'edit'}
             row={adding ? undefined : selected}
             userId={userId}
-            defaultTestType={filter === 'all' ? 'SAT' : filter}
+            defaultTestType={GROUP_DEFAULT_TYPE[filter] || 'SAT'}
             onSave={adding ? undefined : handleSave}
             onCreate={adding ? handleCreate : undefined}
             onClose={closePanel}

@@ -8,10 +8,10 @@
  *   levels / grade_levels stay arrays
  * ============================================================================ */
 
-import { formatDate, dateToMonth, monthToDate } from './dates.js'
+import { formatDate, dateToMonth } from './dates.js'
 import {
   HONOR_LIMITS, HONOR_GRADE_LEVELS,
-  honorCategory, honorResult, honorLevelLabel, highestLevel,
+  honorLevelLabel, highestLevel,
 } from '../constants/honors.js'
 
 const trim = (value) => (value == null ? '' : String(value)).trim()
@@ -97,10 +97,10 @@ export function buildHonorMeta(row = {}) {
  * Draft ↔ row
  * ------------------------------------------------------------------------- */
 
-export function emptyHonorDraft() {
+export function emptyHonorDraft(category = '', top5Default = false) {
   return {
     title: '',
-    category: '',
+    category: category || '',
     subject: '',
     received_month: '',
     received_year: '',
@@ -112,7 +112,7 @@ export function emptyHonorDraft() {
     description: '',
     certificate_document_id: '',
     verification_url: '',
-    is_top5_commonapp: false,
+    is_top5_commonapp: Boolean(top5Default),
   }
 }
 
@@ -176,6 +176,10 @@ const URL_PATTERN = /^https?:\/\//i
  * Field → message. Required fields are enforced on create submit.
  * Inline errors only appear after the field was blurred (handled by the panel).
  */
+// `mode` is kept in the signature (every call site passes it) so a future
+// create-only rule can read it without changing callers; today both modes
+// validate identically.
+// eslint-disable-next-line no-unused-vars
 export function validateHonor(draft = {}, mode = 'edit', { touched = {} } = {}) {
   const errors = {}
   const show = (key) => touched[key]

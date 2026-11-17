@@ -6,6 +6,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useAutosave } from '../../hooks/useAutosave'
 import { ChipGroup, DocumentPicker, TipBox } from '../section'
+import { getDocument } from '../../Services/documentApi'
 import {
   TEST_TYPES, TEST_STATUSES, testPreset, needsExamName,
   TEST_TYPE_LABEL, testEmoji, testTint,
@@ -13,6 +14,8 @@ import {
 import { draftFromRow, emptyTestDraft, validateTestAttempt, requiredCompleted } from '../../utils/tests.js'
 import { suggestOverall, defaultExpiry, applyPreset } from '../../utils/tests.js'
 import './TestPanel.css'
+
+const STATUS_OPTIONS = TEST_STATUSES.map((s) => ({ value: s.key, label: s.label }))
 
 function savedLabel(savedAt, now) {
   if (!savedAt) return ''
@@ -36,11 +39,23 @@ export default function TestPanel({
   const [now, setNow] = useState(() => Date.now())
   const [touched, setTouched] = useState({})
   const [confirmDiscard, setConfirmDiscard] = useState(false)
+  const [reportDoc, setReportDoc] = useState(null)
 
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 30000)
     return () => clearInterval(timer)
   }, [])
+
+  // The draft only stores report_document_id (the DB-shaped value); fetch the
+  // document's title/filename separately so DocumentPicker can show it.
+  useEffect(() => {
+    let cancelled = false
+    const id = draft.report_document_id
+    if (!id || reportDoc?.id === id) return undefined
+    getDocument(userId, id).then((doc) => { if (!cancelled) setReportDoc(doc) }).catch(() => {})
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft.report_document_id, userId])
 
   const errors = useMemo(() => validateTestAttempt(draft, mode, { touched }), [draft, mode, touched])
   const blocked = Object.keys(errors).length > 0
@@ -58,7 +73,14 @@ export default function TestPanel({
     enabled: mode === 'edit',
   })
 
-  const set = (key, value) => setDraft((prev) => ({ ...prev, [key]: value }))
+  // Every field setter marks the autosave dirty in edit mode — otherwise
+  // useAutosave's flush() short-circuits and never actually saves (only the
+  // sections list did this before; plain fields like title/date/status never
+  // persisted even though the header showed "Saved ✓").
+  const set = (key, value) => {
+    setDraft((prev) => ({ ...prev, [key]: value }))
+    if (mode === 'edit') markDirty()
+  }
   const touch = (key) => setTouched((prev) => ({ ...prev, [key]: true }))
   const blur = () => { if (mode === 'edit') flush() }
 
@@ -133,24 +155,30 @@ export default function TestPanel({
     const max = draft.overall_max || preset.overallMax
     if (overallAuto) return (
       <div className="test-field">
-        <label className="field-label">Overall<span className="field-req" aria-hidden="true"> *</span></label>
-        <span className="test-overall">{String(draft.overall_score === '' ? suggested ?? '' : draft.overall_score)} <span className="test-suffix">/ ${max}</span></span>
-        <p className="field-hint">Computed from the sections above.</p>
+        <label className="sfield-label">Overall<span className="sfield-req" aria-hidden="true"> *</span></label>
+        <div className="test-overall-row">
+          <input className="test-input test-input--short" readOnly tabIndex={-1}
+            value={String(draft.overall_score === '' ? suggested ?? '' : draft.overall_score)} />
+          <span className="test-suffix">/ {max}</span>
+        </div>
+        <p className="sfield-hint">Computed from the sections above.</p>
       </div>
     )
     return (
       <div className="test-field">
-        <label className="field-label">Overall score</label>
-        <input className={`test-input${errors.overall_score ? ' test-input--invalid' : ''}`} type="number"
-          value={draft.overall_score} step={draft.test_type === 'IELTS' ? '0.25' : 'any'}
-          onChange={(event) => set('overall_score', event.target.value)}
-          onBlur={() => { touch('overall_score'); if (mode === 'edit') flush() }}
-        />
-        <span className="test-suffix">/ {max}</span>
+        <label className="sfield-label">Overall score</label>
+        <div className="test-overall-row">
+          <input className={`test-input test-input--short${errors.overall_score ? ' test-input--invalid' : ''}`} type="number"
+            value={draft.overall_score} step={draft.test_type === 'IELTS' ? '0.25' : 'any'}
+            onChange={(event) => set('overall_score', event.target.value)}
+            onBlur={() => { touch('overall_score'); if (mode === 'edit') flush() }}
+          />
+          <span className="test-suffix">/ {max}</span>
+        </div>
         {draft.overall_score === '' && suggested != null && (
-          <p className="field-hint">Suggested from sections: {suggested}</p>
+          <p className="sfield-hint">Suggested from sections: {suggested}</p>
         )}
-        {touched.overall_score && errors.overall_score && <p className="field-error" role="alert">{errors.overall_score}</p>}
+        {touched.overall_score && errors.overall_score && <p className="sfield-error" role="alert">{errors.overall_score}</p>}
       </div>
     )
   }
@@ -191,63 +219,58 @@ export default function TestPanel({
       <form className="test-panel__body" onSubmit={submitCreate}>
         <p className="test-section-label">Basics</p>
         <div className="test-grid">
-          <div className="test-field">
-            <label className="field-label">Test type</label>
-            <select className="test-input" value={draft.test_type} onChange={(event) => set('test_type', event.target.value)} onBlur={blur} disabled>
-              {TEST_TYPES.map((type) => <option key={type} value={type}>{TEST_TYPE_LABEL(type)}</option>)}
-            </select>
-          </div>
           {needsExamName(draft.test_type) && (
-            <div className="test-field">
-              <label className="field-label">Exam name<span className="field-req" aria-hidden="true"> *</span></label>
+            <div className="test-field test-span-2">
+              <label className="sfield-label">Exam name<span className="sfield-req" aria-hidden="true"> *</span></label>
               <input className={`test-input${errors.national_exam_name ? ' test-input--invalid' : ''}`} value={draft.national_exam_name}
                 onChange={(event) => set('national_exam_name', event.target.value.slice(0, 100))}
                 onBlur={() => { touch('national_exam_name'); if (mode === 'edit') flush() }}
                 maxLength={100} placeholder="e.g. Azerbaijan DIM" />
-              {touched.national_exam_name && errors.national_exam_name && <p className="field-error" role="alert">{errors.national_exam_name}</p>}
+              {touched.national_exam_name && errors.national_exam_name && <p className="sfield-error" role="alert">{errors.national_exam_name}</p>}
             </div>
           )}
           <div className="test-field test-span-2">
-            <label className="field-label">Status<span className="field-req" aria-hidden="true"> *</span></label>
-            <ChipGroup label="Status" value={draft.status || null} onChange={(value) => set('status', value)} options={TEST_STATUSES} singleSelect required />
-            {touched.status && errors.status && <p className="field-error" role="alert">{errors.status}</p>}
+            <ChipGroup label="Status" value={draft.status || null}
+              onChange={(value) => { set('status', value); touch('status'); if (mode === 'edit') flush() }}
+              options={STATUS_OPTIONS} singleSelect required />
+            {touched.status && errors.status && <p className="sfield-error" role="alert">{errors.status}</p>}
           </div>
           <div className="test-field">
-            <label className="field-label">Test date<span className="field-req" aria-hidden="true"> *</span></label>
+            <label className="sfield-label">Test date<span className="sfield-req" aria-hidden="true"> *</span></label>
             <input className={`test-input${errors.test_date ? ' test-input--invalid' : ''}`} type="date"
               value={draft.test_date} onChange={(event) => {
                 set('test_date', event.target.value)
                 if (isEnglish && !draft.expires_on) set('expires_on', defaultExpiry(draft.test_type, event.target.value) || '')
               }}
               onBlur={() => { touch('test_date'); if (mode === 'edit') flush() }} />
-            {touched.test_date && errors.test_date && <p className="field-error" role="alert">{errors.test_date}</p>}
+            {touched.test_date && errors.test_date && <p className="sfield-error" role="alert">{errors.test_date}</p>}
           </div>
           <div className="test-field">
-            <label className="field-label">Expires on</label>
+            <label className="sfield-label">Expires on</label>
             <div className="test-date-row">
               <input className="test-input" type="date" value={draft.expires_on}
                 onChange={(event) => set('expires_on', event.target.value)}
                 onBlur={() => { touch('expires_on'); if (mode === 'edit') flush() }} />
-              {isEnglish && draft.test_date && !draft.expires_on && (
-                <span className="test-hint">Valid for 2 years</span>
-              )}
             </div>
-            {touched.expires_on && errors.expires_on && <p className="field-error" role="alert">{errors.expires_on}</p>}
+            {isEnglish && draft.test_date && !draft.expires_on && (
+              <p className="sfield-hint">Valid for 2 years</p>
+            )}
+            {touched.expires_on && errors.expires_on && <p className="sfield-error" role="alert">{errors.expires_on}</p>}
           </div>
           <div className="test-field">
-            <label className="field-label">{trfLabel}</label>
+            <label className="sfield-label">{trfLabel}</label>
             <input className={`test-input${errors.trf_number ? ' test-input--invalid' : ''}`} value={draft.trf_number}
               onChange={(event) => set('trf_number', event.target.value.slice(0, 40))}
               onBlur={() => { touch('trf_number'); if (mode === 'edit') flush() }} maxLength={40}
               placeholder={draft.test_type === 'IELTS' ? '26AZ5000127KHUA001A' : 'e.g. 12345678'} />
-            {touched.trf_number && errors.trf_number && <p className="field-error" role="alert">{errors.trf_number}</p>}
+            {touched.trf_number && errors.trf_number && <p className="sfield-error" role="alert">{errors.trf_number}</p>}
           </div>
           <div className="test-field">
-            <label className="field-label">Attempt</label>
+            <label className="sfield-label">Attempt</label>
             <input className="test-input" type="number" min={1} value={draft.attempt_number}
               onChange={(event) => set('attempt_number', event.target.value)}
               onBlur={() => { touch('attempt_number'); if (mode === 'edit') flush() }} />
-            {touched.attempt_number && errors.attempt_number && <p className="field-error" role="alert">{errors.attempt_number}</p>}
+            {touched.attempt_number && errors.attempt_number && <p className="sfield-error" role="alert">{errors.attempt_number}</p>}
           </div>
         </div>
 
@@ -259,50 +282,59 @@ export default function TestPanel({
           <>
             {overallInput()}
             <div className="test-field test-span-2">
-              <div className="test-sections">
+              <div className="test-sections-grid">
                 {sections.map((section, index) => (
-                  <div key={section.id || index} className="test-section-row">
-                    <input className="test-input" value={section.section}
-                      onChange={(event) => setSection(index, 'section', event.target.value.slice(0, 60))}
-                      placeholder="e.g. Reading & Writing" />
-                    <input className="test-input test-input--short" type="number" value={section.score}
-                      onChange={(event) => setSection(index, 'score', event.target.value)} placeholder="Score" />
-                    <span className="test-slash">/</span>
-                    <input className="test-input test-input--short" type="number" value={section.score_max}
-                      onChange={(event) => setSection(index, 'score_max', event.target.value)} placeholder="Max" />
-                    <button type="button" className="test-remove" onClick={() => removeSection(index)} aria-label="Remove section">×</button>
+                  <div key={section.id || index} className="test-section-item">
+                    <div className="test-section-item__head">
+                      <input className="test-section-name" value={section.section}
+                        onChange={(event) => setSection(index, 'section', event.target.value.slice(0, 60))}
+                        onBlur={blur}
+                        placeholder="Section name" />
+                      <button type="button" className="test-remove" onClick={() => removeSection(index)} aria-label={`Remove ${section.section || 'section'}`}>×</button>
+                    </div>
+                    <div className="test-section-box">
+                      <input className="test-score-input" type="number" value={section.score}
+                        onChange={(event) => setSection(index, 'score', event.target.value)}
+                        onBlur={blur} placeholder="0" />
+                      <span className="test-slash">/</span>
+                      <input className="test-score-max-input" type="number" value={section.score_max}
+                        onChange={(event) => setSection(index, 'score_max', event.target.value)}
+                        onBlur={blur} placeholder="max" />
+                    </div>
                   </div>
                 ))}
-                <button type="button" className="test-add-section" onClick={addSection}>＋ Add section</button>
               </div>
+              <button type="button" className="test-add-section" onClick={addSection}>＋ Add section</button>
             </div>
           </>
         )}
 
+        <label className="test-switch">
+          <input type="checkbox" checked={Boolean(draft.is_best)}
+            onChange={(event) => { set('is_best', event.target.checked); if (mode === 'edit') flush() }} />
+          <span className="test-switch__track" aria-hidden="true"><span /></span>
+          <span className="test-switch__text">Best {TEST_TYPE_LABEL(draft.test_type)} result</span>
+          <span className="test-switch__aside">Shown first on your profile and forms</span>
+        </label>
+
         <p className="test-section-label">Proof</p>
         <div className="test-grid">
           <div className="test-field test-span-2">
-            <label className="field-label">Score report</label>
+            <label className="sfield-label">Score report</label>
             <DocumentPicker
-              value={draft.report_document_id ? { id: draft.report_document_id, title: 'Score report' } : null}
+              value={draft.report_document_id ? (reportDoc || { id: draft.report_document_id, title: 'Score report' }) : null}
               category={isEnglish ? 'english_certificate' : 'test_report'}
               userId={userId}
-              onChange={(doc) => set('report_document_id', doc.id)} />
+              onChange={(doc) => { setReportDoc(doc); set('report_document_id', doc.id); if (mode === 'edit') flush() }} />
           </div>
         </div>
 
-        <label className="test-best">
-          <input type="checkbox" checked={Boolean(draft.is_best)}
-            onChange={(event) => set('is_best', event.target.checked)} />
-          <span aria-hidden="true">★</span> Best {TEST_TYPE_LABEL(draft.test_type)} result
-        </label>
-
         <label className="test-field">
-          <span className="field-label">Notes</span>
+          <span className="sfield-label">Notes</span>
           <button type="button" className="test-add-note" onClick={() => set('notes', draft.notes || 'Add your note here…')}>Add note</button>
           <textarea className="test-input test-textarea" value={draft.notes} onChange={(event) => set('notes', event.target.value.slice(0, 500))}
             onBlur={() => { touch('notes'); if (mode === 'edit') flush() }} maxLength={500} />
-          {touched.notes && errors.notes && <p className="field-error" role="alert">{errors.notes}</p>}
+          {touched.notes && errors.notes && <p className="sfield-error" role="alert">{errors.notes}</p>}
         </label>
 
         {mode === 'create' && (
@@ -310,7 +342,7 @@ export default function TestPanel({
             <p className={`test-required${canCreate ? ' test-required--done' : ''}`} role="status">
               {canCreate ? '✓ ' : ''}{completed} of 2 required fields
             </p>
-            {createError && <p className="field-error" role="alert">{createError}</p>}
+            {createError && <p className="sfield-error" role="alert">{createError}</p>}
             <div className="test-panel__footer-actions">
               <button type="button" className="test-btn test-btn--ghost" onClick={cancelCreate}>Cancel</button>
               <button type="submit" className="test-btn test-btn--primary" disabled={!canCreate || creating}>

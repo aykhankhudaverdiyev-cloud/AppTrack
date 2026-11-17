@@ -136,6 +136,6 @@ test('mapDbError: ATTEMPT_OWNER_MISMATCH → friendly message', () => {
 })
 
 test('mapDbError: check constraint → field error', () => {
-  assert.equal(mapDbError({ message: 'violates check constraint \"test_attempts_score_check\"' }).field, 'overall_score')
-  assert.equal(mapDbError({ message: 'violates check constraint \"test_attempts_expiry_check\"' }).field, 'expires_on')
+  assert.equal(mapDbError({ message: 'violates check constraint "test_attempts_score_check"' }).field, 'overall_score')
+  assert.equal(mapDbError({ message: 'violates check constraint "test_attempts_expiry_check"' }).field, 'expires_on')
 })

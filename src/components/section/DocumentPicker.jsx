@@ -3,7 +3,7 @@
  * "Change"). "Change" opens a modal: list the user's document_files of the
  * allowed category, or upload a new file.
  * ============================================================================ */
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { uploadDocument, listDocuments, documentUrl } from '../../Services/documentApi'
 
 export default function DocumentPicker({
@@ -32,6 +32,11 @@ export default function DocumentPicker({
       setDocsError(cause?.message || 'Could not load your documents.')
     }
   }, [userId, category])
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional: fetch the list when the modal opens
+    if (open) loadDocs()
+  }, [open, loadDocs])
 
   const handleUse = (doc) => {
     setOpen(false)
