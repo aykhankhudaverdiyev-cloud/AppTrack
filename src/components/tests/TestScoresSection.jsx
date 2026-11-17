@@ -170,7 +170,8 @@ export default function TestScoresSection({ userId }) {
     if (draft.status === 'released' && !items.some((i) => i.test_type === draft.test_type && i.national_exam_name === draft.national_exam_name && i.is_best)) {
       isBest = true
     }
-    const row = await actions.create({ ...draft, attempt_number: attemptNumber, overall_score: overall, overall_max: overallMax, is_best: isBest, sections: draft.sections })
+    const row = await actions.create({ ...draft, attempt_number: attemptNumber, overall_score: overall, overall_max: overallMax, is_best: isBest })
+    await actions.saveSections(row.id, draft.sections)
     setAdding(false)
     setParams({ type: row.test_type, id: row.id })
     showToast(`${TEST_TYPE_LABEL(row.test_type)} added`, {

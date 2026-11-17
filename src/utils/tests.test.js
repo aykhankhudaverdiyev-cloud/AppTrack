@@ -5,6 +5,7 @@ import {
   testSortKey, testDateLabel, testMeta, testScoreText, suggestOverall,
   roundToHalf, defaultExpiry, applyPreset, draftFromRow, rowFromDraft,
   validateTestAttempt, requiredCompleted, mapDbError, testGroupCounts,
+  toNumberOrNull,
 } from './tests.js'
 
 test('testSortKey: released first (date desc), planned last (date asc)', () => {
@@ -103,4 +104,38 @@ test('testEmoji / testTint and group counts', () => {
   assert.equal(testTint('OTHER'), 'slate')
   const counts = testGroupCounts([{ test_type: 'SAT' }, { test_type: 'IELTS' }, { test_type: 'OTHER' }])
   assert.deepEqual(counts, { admission: 1, english: 1, other: 1 })
+})
+
+test('toNumberOrNull: empty and invalid → null', () => {
+  assert.equal(toNumberOrNull(''), null)
+  assert.equal(toNumberOrNull(null), null)
+  assert.equal(toNumberOrNull(undefined), null)
+  assert.equal(toNumberOrNull('abc'), null)
+  assert.equal(toNumberOrNull(' '), null)
+})
+
+test('toNumberOrNull: valid numbers', () => {
+  assert.equal(toNumberOrNull('800'), 800)
+  assert.equal(toNumberOrNull('7.5'), 7.5)
+  assert.equal(toNumberOrNull(1560), 1560)
+  assert.equal(toNumberOrNull('0'), 0)
+})
+
+test('mapDbError: DOCUMENT_OWNER_MISMATCH → friendly message', () => {
+  assert.equal(
+    mapDbError({ message: 'DOCUMENT_OWNER_MISMATCH' }).message,
+    'This file could not be linked. Please choose it again.'
+  )
+})
+
+test('mapDbError: ATTEMPT_OWNER_MISMATCH → friendly message', () => {
+  assert.equal(
+    mapDbError({ message: 'ATTEMPT_OWNER_MISMATCH' }).message,
+    'This file could not be linked. Please choose it again.'
+  )
+})
+
+test('mapDbError: check constraint → field error', () => {
+  assert.equal(mapDbError({ message: 'violates check constraint \"test_attempts_score_check\"' }).field, 'overall_score')
+  assert.equal(mapDbError({ message: 'violates check constraint \"test_attempts_expiry_check\"' }).field, 'expires_on')
 })
