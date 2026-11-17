@@ -219,7 +219,7 @@ const URL_PATTERN = /^https?:\/\//i
 
 export function validateTestAttempt(draft = {}, mode = 'edit', { touched = {} } = {}) {
   const errors = {}
-  const show = (key) => mode === 'create' || touched[key]
+  const show = (key) => touched[key]
 
   if (show('test_type') && !draft.test_type) errors.test_type = 'Pick a test type'
   if (draft.test_type && !ADMISSION_TYPES.includes(draft.test_type) && !ENGLISH_TYPES.includes(draft.test_type) && draft.test_type !== 'OTHER') {

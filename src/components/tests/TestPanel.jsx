@@ -12,6 +12,7 @@ import {
 } from '../../constants/tests.js'
 import { draftFromRow, emptyTestDraft, validateTestAttempt, requiredCompleted } from '../../utils/tests.js'
 import { suggestOverall, defaultExpiry, applyPreset } from '../../utils/tests.js'
+import './TestPanel.css'
 
 function savedLabel(savedAt, now) {
   if (!savedAt) return ''
@@ -149,7 +150,7 @@ export default function TestPanel({
         {draft.overall_score === '' && suggested != null && (
           <p className="field-hint">Suggested from sections: {suggested}</p>
         )}
-        {errors.overall_score && <p className="field-error" role="alert">{errors.overall_score}</p>}
+        {touched.overall_score && errors.overall_score && <p className="field-error" role="alert">{errors.overall_score}</p>}
       </div>
     )
   }
@@ -239,14 +240,14 @@ export default function TestPanel({
               onChange={(event) => set('trf_number', event.target.value.slice(0, 40))}
               onBlur={() => { touch('trf_number'); if (mode === 'edit') flush() }} maxLength={40}
               placeholder={draft.test_type === 'IELTS' ? '26AZ5000127KHUA001A' : 'e.g. 12345678'} />
-            {errors.trf_number && <p className="field-error" role="alert">{errors.trf_number}</p>}
+            {touched.trf_number && errors.trf_number && <p className="field-error" role="alert">{errors.trf_number}</p>}
           </div>
           <div className="test-field">
             <label className="field-label">Attempt</label>
             <input className="test-input" type="number" min={1} value={draft.attempt_number}
               onChange={(event) => set('attempt_number', event.target.value)}
               onBlur={() => { touch('attempt_number'); if (mode === 'edit') flush() }} />
-            {errors.attempt_number && <p className="field-error" role="alert">{errors.attempt_number}</p>}
+            {touched.attempt_number && errors.attempt_number && <p className="field-error" role="alert">{errors.attempt_number}</p>}
           </div>
         </div>
 
@@ -301,7 +302,7 @@ export default function TestPanel({
           <button type="button" className="test-add-note" onClick={() => set('notes', draft.notes || 'Add your note here…')}>Add note</button>
           <textarea className="test-input test-textarea" value={draft.notes} onChange={(event) => set('notes', event.target.value.slice(0, 500))}
             onBlur={() => { touch('notes'); if (mode === 'edit') flush() }} maxLength={500} />
-          {errors.notes && <p className="field-error" role="alert">{errors.notes}</p>}
+          {touched.notes && errors.notes && <p className="field-error" role="alert">{errors.notes}</p>}
         </label>
 
         {mode === 'create' && (

@@ -253,6 +253,10 @@ export default function TestScoresSection({ userId }) {
             <div className="tests-skeleton" aria-hidden="true">
               {[0, 1, 2].map((key) => <div key={key} className="tests-skeleton__card" />)}
             </div>
+          ) : adding ? (
+            <div className="tests-cards">
+              <TestCard attempt={{ test_type: filter === 'all' ? 'SAT' : filter }} isNew selected onClick={() => {}} />
+            </div>
           ) : items.length === 0 ? (
             <div className="tests-empty">
               <div className="tests-empty__tiles" aria-hidden="true">
@@ -274,9 +278,6 @@ export default function TestScoresSection({ userId }) {
                   onDuplicate={() => handleDuplicate(attempt)} onDelete={() => setDeleting(attempt)}
                 />
               ))}
-              {adding && (
-                <TestCard attempt={{ test_type: filter === 'all' ? 'SAT' : filter }} isNew selected onClick={() => {}} />
-              )}
             </div>
           )}
 

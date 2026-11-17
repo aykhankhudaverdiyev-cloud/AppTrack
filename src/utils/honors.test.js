@@ -63,7 +63,7 @@ test('draftFromRow rebuilds YYYY-MM', () => {
 })
 
 test('validateHonor create mode requires title/category/levels/grades', () => {
-  const errors = validateHonor({}, 'create')
+  const errors = validateHonor({}, 'create', { touched: { title: true, category: true, grade_levels: true, levels: true } })
   assert.equal(errors.title, 'Honor title is required')
   assert.equal(errors.category, 'Pick a category')
   assert.equal(errors.grade_levels, 'Pick at least one grade level')

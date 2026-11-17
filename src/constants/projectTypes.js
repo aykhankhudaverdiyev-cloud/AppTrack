@@ -30,6 +30,7 @@ export const PROJECT_STATUSES = [
   { key: 'in_progress', label: 'In progress', tone: 'amber' },
   { key: 'live', label: 'Live', tone: 'green', dot: true },
   { key: 'paused', label: 'Paused', tone: 'grey' },
+  { key: 'completed', label: 'Completed', tone: 'green', dot: true },
 ]
 
 export const PROJECT_VISIBILITIES = [

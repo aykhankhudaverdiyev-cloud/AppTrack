@@ -269,6 +269,10 @@ export default function HonorsSection({ userId }) {
             <div className="honors-skeleton" aria-hidden="true">
               {[0, 1, 2].map((key) => <div key={key} className="honors-skeleton__card" />)}
             </div>
+          ) : adding ? (
+            <div className="honors-cards">
+              <HonorCard honor={{ title: '', category: filter === 'all' ? 'academic_olympiad' : filter }} isNew selected onClick={() => {}} />
+            </div>
           ) : items.length === 0 ? (
             <div className="honors-empty">
               <div className="honors-empty__tiles" aria-hidden="true">
