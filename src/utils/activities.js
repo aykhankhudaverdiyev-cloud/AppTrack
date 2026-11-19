@@ -315,36 +315,38 @@ export function validateActivity(draft = {}, mode = 'edit') {
   const organization = trim(draft.organization_name)
   const position = trim(draft.position)
 
-  if (mode === 'create' && !organization) errors.organization_name = 'Organization name is required'
+  if (mode === 'create' && !organization) errors.organization_name = 'Add the organisation name'
   else if (organization.length > ACTIVITY_LIMITS.organizationName) errors.organization_name = `Keep it to ${ACTIVITY_LIMITS.organizationName} characters or fewer`
 
-  if (mode === 'create' && !position) errors.position = 'Your role is required'
+  if (mode === 'create' && !position) errors.position = 'Add your role'
   else if (position.length > ACTIVITY_LIMITS.position) errors.position = `Keep it to ${ACTIVITY_LIMITS.position} characters or fewer`
 
   const levels = draft.grade_levels || []
-  if (mode === 'create' && levels.length === 0) errors.grade_levels = 'Pick at least one grade level'
+  if (mode === 'create' && levels.length === 0) errors.grade_levels = 'Pick at least one grade'
 
   const hours = draft.hours_per_week
   const hasHours = hours !== '' && hours != null
-  if (mode === 'create' && !hasHours) errors.hours_per_week = 'Hours per week is required'
+  if (mode === 'create' && !hasHours) errors.hours_per_week = 'Add hours per week'
   else if (hasHours && (Number.isNaN(Number(hours)) || Number(hours) < ACTIVITY_LIMITS.hoursPerWeek.min || Number(hours) > ACTIVITY_LIMITS.hoursPerWeek.max)) {
     errors.hours_per_week = `Hours per week must be between ${ACTIVITY_LIMITS.hoursPerWeek.min} and ${ACTIVITY_LIMITS.hoursPerWeek.max}`
+  } else if (hasHours && !Number.isInteger(Number(hours) / ACTIVITY_LIMITS.hoursPerWeek.step)) {
+    errors.hours_per_week = 'Use half-hour increments, such as 5 or 5.5'
   }
 
   const weeks = draft.weeks_per_year
   const hasWeeks = weeks !== '' && weeks != null
-  if (mode === 'create' && !hasWeeks) errors.weeks_per_year = 'Weeks per year is required'
+  if (mode === 'create' && !hasWeeks) errors.weeks_per_year = 'Add weeks per year'
   else if (hasWeeks && (!Number.isInteger(Number(weeks)) || Number(weeks) < ACTIVITY_LIMITS.weeksPerYear.min || Number(weeks) > ACTIVITY_LIMITS.weeksPerYear.max)) {
     errors.weeks_per_year = `Weeks per year must be between ${ACTIVITY_LIMITS.weeksPerYear.min} and ${ACTIVITY_LIMITS.weeksPerYear.max}`
   }
 
   const start = trim(draft.start_month)
-  if (mode === 'create' && !start) errors.start_month = 'Start date is required'
+  if (mode === 'create' && !start) errors.start_month = 'Add the start date'
   else if (start && !MONTH_PATTERN.test(start)) errors.start_month = 'Use MM/YYYY'
 
   const end = trim(draft.end_month)
   if (!draft.ongoing) {
-    if (!end && mode === 'edit') errors.end_month = 'End date is required'
+    if (!end) errors.end_month = 'Add the end date'
     else if (!MONTH_PATTERN.test(end)) errors.end_month = 'Use MM/YYYY'
     else if (end && start && MONTH_PATTERN.test(start) && end < start) errors.end_month = 'End date must be after the start date'
   }

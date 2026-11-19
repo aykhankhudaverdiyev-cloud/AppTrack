@@ -9,7 +9,7 @@
  * ============================================================================ */
 
 import { formatDate } from './dates.js'
-import { TEST_PRESETS, ADMISSION_TYPES, ENGLISH_TYPES } from '../constants/tests.js'
+import { TEST_PRESETS, ADMISSION_TYPES, ENGLISH_TYPES, TEST_STATUSES, needsExamName } from '../constants/tests.js'
 
 const trim = (value) => (value == null ? '' : String(value)).trim()
 
@@ -39,7 +39,8 @@ const MAX_DATE_KEY = 8_640_000_000_000_000
 
 export function testSortKey(attempt = {}) {
   const statusRank = STATUS_RANK[attempt.status] ?? 99
-  const date = attempt.test_date ? new Date(`${attempt.test_date}T00:00:00Z`).getTime() : 0
+  const date = Date.parse(attempt.test_date)
+  if (!Number.isFinite(date)) return `${String(statusRank).padStart(2, '0')}|9999999999999999`
   // Released / waiting descend by date; planned / registered ascend by date.
   const dateKey = attempt.status === 'released' || attempt.status === 'taken_waiting'
     ? MAX_DATE_KEY - date
@@ -98,21 +99,19 @@ export function roundToHalf(value) {
 export function suggestOverall(testType, sections = []) {
   const preset = TEST_PRESETS[testType]
   if (!preset || !preset.overall) return null
-  const nums = sections
-    .map((s) => Number(s.score))
-    .filter((score) => Number.isFinite(score))
+  const nums = sections.map((s) => toNumberOrNull(s.score))
 
   switch (preset.overall) {
     case 'sum-auto':
     case 'sum':
-      if (nums.length !== sections.length || sections.length === 0) return null
+      if (nums.some((n) => n == null) || nums.length < preset.sections.length || !nums.length) return null
       return nums.reduce((a, b) => a + b, 0)
     case 'avg':
       if (nums.length === 0) return null
       return Math.round(nums.reduce((a, b) => a + b, 0) / nums.length)
     case 'ielts':
-      if (nums.length === 0) return null
-      return roundToHalf(nums.reduce((a, b) => a + b, 0) / nums.length)
+      if (nums.length < 4 || nums.slice(0, 4).some((n) => n == null)) return null
+      return roundToHalf(nums.slice(0, 4).reduce((a, b) => a + b, 0) / 4)
     case 'verbal-quant': {
       const verbal = nums[0], quant = nums[1]
       if (!Number.isFinite(verbal) || !Number.isFinite(quant)) return null
@@ -125,7 +124,7 @@ export function suggestOverall(testType, sections = []) {
 
 /** IELTS/TOEFL/Duolingo/PTE: test date + 2 years; otherwise null. */
 export function defaultExpiry(testType, testDate) {
-  if (!['IELTS', 'TOEFL', 'DUOLINGO', 'PTE'].includes(testType)) return null
+  if (!ENGLISH_TYPES.includes(testType)) return null
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(testDate || ''))
   if (!match) return null
   const [year, month, day] = match.slice(1).map(Number)
@@ -136,7 +135,7 @@ export function defaultExpiry(testType, testDate) {
 
 /** Apply a preset to a brand-new attempt. Never overwrites sections the user already entered. */
 export function applyPreset(testType, existingSections = []) {
-  if (existingSections.some((s) => trim(s.section) !== '')) return existingSections
+  if (existingSections.some((s) => [s.section, s.score, s.score_max].some((field) => trim(field) !== ''))) return existingSections
   const preset = TEST_PRESETS[testType]
   if (!preset) return []
   return preset.sections.map(([section, scoreMax], index) => ({
@@ -152,6 +151,12 @@ export function applyPreset(testType, existingSections = []) {
  * Draft ↔ row
  * ------------------------------------------------------------------------- */
 
+export function scoreDraft(draft, sections) {
+  if (draft.status !== 'released') return draft
+  const auto = suggestOverall(draft.test_type, sections)
+  return { ...draft, overall_score: draft.overall_score === '' ? auto : draft.overall_score }
+}
+
 export function emptyTestDraft(testType = 'SAT') {
   return {
     test_type: testType,
@@ -160,7 +165,7 @@ export function emptyTestDraft(testType = 'SAT') {
     test_date: '',
     attempt_number: 1,
     overall_score: '',
-    overall_max: '',
+    overall_max: TEST_PRESETS[testType]?.overallMax ?? '',
     trf_number: '',
     expires_on: '',
     is_best: false,
@@ -186,7 +191,7 @@ export function draftFromRow(row = {}, sections = []) {
     is_best: Boolean(row.is_best),
     notes: trim(row.notes || ''),
     report_document_id: row.report_document_id || '',
-    sections: sections.map((s) => ({
+    sections: (sections || []).map((s) => ({
       id: s.id || '',
       section: trim(s.section || ''),
       score: s.score == null ? '' : String(s.score),
@@ -240,13 +245,13 @@ export function validateTestAttempt(draft = {}, mode = 'edit', { touched = {} } 
 
   if ((draft.test_type === 'NATIONAL_EXAM' || draft.test_type === 'OTHER')) {
     const name = trim(draft.national_exam_name)
-    if (show('national_exam_name') && !name) errors.national_exam_name = 'Exam name is required'
+    if (show('national_exam_name') && !name) errors.national_exam_name = 'Add the exam name'
     else if (name.length > 100) errors.national_exam_name = 'Keep it to 100 characters or fewer'
   }
 
   if (show('status') && !draft.status) errors.status = 'Pick a status'
 
-  if (show('test_date') && !draft.test_date) errors.test_date = 'Pick a test date'
+  if (draft.status && !TEST_STATUSES.some((status) => status.key === draft.status)) errors.status = 'Pick a valid status'
 
   const attempt = Number(draft.attempt_number)
   if (show('attempt_number') && (!Number.isInteger(attempt) || attempt < 1)) {
@@ -277,9 +282,13 @@ export function validateTestAttempt(draft = {}, mode = 'edit', { touched = {} } 
   return errors
 }
 
+export function testRequiredFields(draft = {}) {
+  return needsExamName(draft.test_type) ? [...REQUIRED_CREATE, { key: 'national_exam_name', label: 'Exam name' }] : REQUIRED_CREATE
+}
+
 /** Required fields filled (create). */
 export function requiredCompleted(draft = {}) {
-  return REQUIRED_CREATE.filter(({ key }) => {
+  return testRequiredFields(draft).filter(({ key }) => {
     const value = draft[key]
     return trim(value) !== ''
   }).length

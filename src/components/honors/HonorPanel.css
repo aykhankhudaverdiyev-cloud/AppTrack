@@ -25,24 +25,10 @@
   min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 
-.honor-panel__category {
-  position: relative; display: inline-flex; align-items: center; gap: 4px;
-  height: 30px; padding: 0 8px 0 10px; border-radius: 8px;
-  background: #eef0ff; color: #5b4bd6;
-  font-size: 0.8rem; font-weight: 600; cursor: pointer;
-}
-.honor-panel__category select {
-  appearance: none; -webkit-appearance: none;
-  border: none; background: transparent; color: inherit;
-  font: inherit; cursor: pointer; padding-right: 10px;
-}
-.honor-panel__category select:focus-visible { outline: 2px solid #6d5bf0; outline-offset: 2px; }
-.honor-panel__category > span { font-size: 0.7rem; pointer-events: none; }
-
 .honor-panel__save {
   margin-left: auto; font-size: 0.78rem; color: #6b7280; white-space: nowrap;
 }
-.honor-panel__save--error { color: #dc2626; }
+.honor-panel__save--error { color: #dc2626; white-space: normal; }
 .honor-panel__retry {
   border: none; background: none; padding: 0; color: #dc2626;
   font-size: 0.78rem; font-weight: 700; text-decoration: underline; cursor: pointer;
@@ -92,7 +78,7 @@
   outline: none; background: #fff; border-color: #6d5bf0;
   box-shadow: 0 0 0 2px rgba(109, 91, 240, 0.28);
 }
-.honor-input--invalid { border-color: #f2b8b5; background: #fffafa; }
+.honor-input--invalid { border-color: #fca5a5; }
 
 .honor-switch {
   display: inline-flex; align-items: center; gap: 8px;

@@ -16,7 +16,7 @@ import {
 
 const trim = (value) => (value == null ? '' : String(value)).trim()
 
-const REQUIRED_CREATE = [
+export const HONOR_REQUIRED_FIELDS = [
   { key: 'title', label: 'Honor title' },
   { key: 'category', label: 'Category' },
   { key: 'grade_levels', label: 'Grade levels' },
@@ -185,13 +185,13 @@ export function validateHonor(draft = {}, mode = 'edit', { touched = {} } = {}) 
   const show = (key) => touched[key]
 
   const title = trim(draft.title)
-  if (show('title') && !title) errors.title = 'Honor title is required'
+  if (show('title') && !title) errors.title = 'Add the honor title'
   else if (title.length > HONOR_LIMITS.title) errors.title = `Keep it to ${HONOR_LIMITS.title} characters or fewer`
 
   if (show('category') && !draft.category) errors.category = 'Pick a category'
 
   const levels = draft.grade_levels || []
-  if (show('grade_levels') && levels.length === 0) errors.grade_levels = 'Pick at least one grade level'
+  if (show('grade_levels') && levels.length === 0) errors.grade_levels = 'Pick at least one grade'
 
   const recognition = draft.levels || []
   if (show('levels') && recognition.length === 0) errors.levels = 'Pick at least one level of recognition'
@@ -220,7 +220,7 @@ export function validateHonor(draft = {}, mode = 'edit', { touched = {} } = {}) 
 
 /** How many of the four create-required fields are filled (sticky footer). */
 export function requiredCompleted(draft = {}) {
-  return REQUIRED_CREATE.filter(({ key }) => {
+  return HONOR_REQUIRED_FIELDS.filter(({ key }) => {
     const value = draft[key]
     if (key === 'grade_levels' || key === 'levels') return Array.isArray(value) && value.length > 0
     return trim(value) !== ''

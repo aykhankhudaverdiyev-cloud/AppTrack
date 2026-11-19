@@ -14,10 +14,10 @@ import ListCard from '../section/ListCard'
 import TestPanel from './TestPanel'
 import { ConfirmDialog } from '../forms'
 import {
-  TEST_GROUPS, TEST_TYPE_LABEL, TEST_PRESETS, testEmoji, testTint,
+  TEST_GROUPS, TEST_STATUSES, TEST_TYPE_LABEL, testEmoji, testTint,
 } from '../../constants/tests.js'
 import {
-  testSortKey, testMeta, testScoreText,
+  testSortKey, testMeta, testScoreText, scoreDraft, draftFromRow,
 } from '../../utils/tests.js'
 import './TestScoresSection.css'
 
@@ -75,13 +75,13 @@ function CardMenu({ attempt, onEdit, onDuplicate, onDelete }) {
 
 function TestCard({ attempt, selected, isNew, onOpen, onEdit, onDuplicate, onDelete }) {
   const { big, grey } = testScoreText(attempt)
-  const status = attempt.status
+  const status = attempt.status || 'planned'
   const sections = attempt.sections || []
   const isEnglish = ['IELTS', 'TOEFL', 'DUOLINGO', 'PTE', 'CAMBRIDGE_C1', 'CAMBRIDGE_C2'].includes(attempt.test_type)
 
-  const sectionChips = sections.map((section) => {
+  const sectionChips = sections.filter((section) => section.score != null && section.score !== '').map((section) => {
     const label = isEnglish && SHORT[section.section] ? `${SHORT[section.section]} ${section.score}` : `${section.section} ${section.score}`
-    return <span key={section.section} className="tests-chip">{label}</span>
+    return <span key={section.id || section.section} className="tests-chip">{label}</span>
   })
 
   return (
@@ -90,27 +90,24 @@ function TestCard({ attempt, selected, isNew, onOpen, onEdit, onDuplicate, onDel
       tile={<span className={`tests-tile tile--${testTint(attempt.test_type)}`} aria-hidden="true">{testEmoji(attempt.test_type)}</span>}
       title={isNew ? 'New test' : (attempt.national_exam_name || TEST_TYPE_LABEL(attempt.test_type))}
       sub={big === '—' ? null : big}
-      meta={testMeta(attempt)}
+      meta={isNew ? 'Not saved yet' : testMeta(attempt)}
       chips={sectionChips.length > 0 ? <div className="tests-chip-row">{sectionChips}</div> : null}
-      pills={
+      pills={!isNew && (
         <>
-          <span className={`status-pill status-pill--${STATUS_CLASS[status] || 'planned'}`}>{status.replace(/_/g, ' ')}</span>
+          <span className={`status-pill status-pill--${STATUS_CLASS[status] || 'planned'}`}>{TEST_STATUSES.find((option) => option.key === status)?.label || status}</span>
           {attempt.is_best && <span className="status-pill status-pill--best" aria-label="Best result">★ Best</span>}
         </>
-      }
-      selected={selected} isNew={isNew} onClick={() => onOpen(attempt)}
-    >
-      <div className="tests-card__foot">
-        {grey && <span className="tests-card__grey">{grey}</span>}
-        {!isNew && <CardMenu attempt={attempt} onEdit={onEdit} onDuplicate={onDuplicate} onDelete={onDelete} />}
-      </div>
-    </ListCard>
+      )}
+      foot={isNew ? <span className="status-pill">Draft</span> : grey && <span className="tests-card__grey">{grey}</span>}
+      menu={!isNew && <CardMenu attempt={attempt} onEdit={onEdit} onDuplicate={onDuplicate} onDelete={onDelete} />}
+      selected={selected} isNew={isNew} onClick={isNew ? undefined : () => onOpen(attempt)}
+    />
   )
 }
 
 /* ── section ────────────────────────────────────────────────────────────── */
 
-export default function TestScoresSection({ userId }) {
+export default function TestScoresSection({ userId, onOpenApplications }) {
   const actions = useTests(userId)
   const { items, loading, error } = actions
   const { toast, showToast, hideToast } = useUndoToast()
@@ -148,7 +145,7 @@ export default function TestScoresSection({ userId }) {
     }, { replace: true })
   }, [setSearchParams])
 
-  const openRow = useCallback((row) => { setAdding(false); setParams({ type: row.test_type, id: row.id }) }, [setParams])
+  const openRow = useCallback((row) => { setAdding(false); setParams({ id: row.id }) }, [setParams])
 
   const closePanel = useCallback(() => { setAdding(false); setParams({ id: null }) }, [setParams])
 
@@ -162,35 +159,20 @@ export default function TestScoresSection({ userId }) {
 
 
   const handleCreate = useCallback(async (draft) => {
-    const sameType = items.filter((i) => i.test_type === draft.test_type && i.national_exam_name === draft.national_exam_name)
-    const attemptNumber = sameType.length ? Math.max(...sameType.map((i) => Number(i.attempt_number || 1))) + 1 : 1
-    let overall = draft.overall_score
-    let overallMax = draft.overall_max
-    const preset = TEST_PRESETS[draft.test_type] || TEST_PRESETS.OTHER
-    if (preset.overall === 'sum-auto') {
-      const nums = draft.sections.map((s) => Number(s.score)).filter((n) => Number.isFinite(n))
-      if (nums.length === draft.sections.length && draft.sections.length > 0) {
-        overall = nums.reduce((a, b) => a + b, 0)
-        overallMax = preset.overallMax
-      }
-    }
-    let isBest = Boolean(draft.is_best)
-    if (draft.status === 'released' && !items.some((i) => i.test_type === draft.test_type && i.national_exam_name === draft.national_exam_name && i.is_best)) {
-      isBest = true
-    }
-    const row = await actions.create({ ...draft, attempt_number: attemptNumber, overall_score: overall, overall_max: overallMax, is_best: isBest })
+    const row = await actions.create(scoreDraft(draft, draft.sections))
     try {
-      await actions.saveSections(row.id, draft.sections)
+      if (draft.status === 'released' && draft.sections.length) await actions.saveSections(row.id, draft.sections)
+      if (draft.is_best && draft.status === 'released') await actions.setBest(row.id, true)
     } catch (cause) {
       // Don't leave an orphaned, section-less attempt behind on a partial
       // failure — roll back the row we just created and surface the error.
       await actions.remove(row.id).catch((rollbackCause) => {
-        console.error('Failed to roll back a test attempt after saveSections failed:', rollbackCause)
+        console.error('Failed to roll back a partially saved test attempt:', rollbackCause)
       })
       throw cause
     }
     setAdding(false)
-    setParams({ type: row.test_type, id: row.id })
+    setParams({ id: row.id })
     showToast(`${TEST_TYPE_LABEL(row.test_type)} added`, {
       label: 'Undo',
       run: async () => {
@@ -203,12 +185,15 @@ export default function TestScoresSection({ userId }) {
         }
       },
     })
-  }, [actions, items, setParams, showToast, hideToast])
+  }, [actions, setParams, showToast, hideToast])
 
   const handleSave = useCallback(async (draft, sections) => {
     if (!selected) return
-    await actions.update(selected.id, draft)
-    await actions.saveSections(selected.id, sections)
+    await actions.update(selected.id, scoreDraft(draft, sections))
+    if (draft.status === 'released' && JSON.stringify(sections) !== JSON.stringify(draftFromRow(selected, selected.sections).sections)) {
+      await actions.saveSections(selected.id, sections)
+    }
+    if (Boolean(selected.is_best) !== draft.is_best) await actions.setBest(selected.id, draft.is_best)
   }, [actions, selected])
 
   const handleDelete = useCallback(async (attempt) => {
@@ -256,7 +241,7 @@ export default function TestScoresSection({ userId }) {
       <SectionPage
         title="Test Scores"
         subtitle="Every exam in one place. Mark your best result for each test."
-        action={{ label: 'Add test', onClick: startAdd }}
+        action={{ label: 'Add test', onClick: startAdd, disabled: adding || loading || Boolean(error) }}
         chips={<FilterChips items={chips} total={items.length} value={filter} onChange={(value) => setParams({ type: value, id: null })} />}
         counter={items.length > 0 ? items.length + ' tests' : null}
       >
@@ -273,7 +258,7 @@ export default function TestScoresSection({ userId }) {
             </div>
           ) : adding ? (
             <div className="tests-cards">
-              <TestCard attempt={{ test_type: GROUP_DEFAULT_TYPE[filter] || 'SAT' }} isNew selected onClick={() => {}} />
+              <TestCard attempt={{ test_type: GROUP_DEFAULT_TYPE[filter] || 'SAT' }} isNew selected />
             </div>
           ) : items.length === 0 ? (
             <div className="tests-empty">
@@ -319,6 +304,7 @@ export default function TestScoresSection({ userId }) {
             onSave={adding ? undefined : handleSave}
             onCreate={adding ? handleCreate : undefined}
             onClose={closePanel}
+            onOpenApplications={onOpenApplications}
           />
         )}
       </div>

@@ -102,9 +102,9 @@ export function useHonors(userId) {
     try {
       await reorderHonors(next.map((item) => item.id))
     } catch (cause) {
-      // The copy exists; only the rank normalisation failed. Never swallow
-      // silently — log it so a failed re-rank is still diagnosable.
-      console.error('reorderHonors after duplicate failed:', cause)
+      // The copy was inserted, but its desired rank was not saved.
+      setItems(byRank([...snapshot, copy]))
+      throw cause
     }
     return copy
   }, [userId])

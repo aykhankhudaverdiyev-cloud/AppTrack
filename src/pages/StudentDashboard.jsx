@@ -212,8 +212,9 @@ export default function StudentDashboard() {
     return () => { cancelled = true; supabase.removeChannel(channel); offDataChanged(reload) }
   }, [user?.id, academicRetry])
 
-  // The tab lives in the URL (?tab=…) so refresh and shared links keep it.
+  // Only rewrite the URL on a tab change. Child pages own their filter and selection.
   useEffect(() => {
+    if ((searchParams.get('tab') || 'overview') === activeTab) return
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev)
       if (activeTab === 'overview') next.delete('tab')
@@ -224,7 +225,7 @@ export default function StudentDashboard() {
       }
       return next
     }, { replace: true })
-  }, [activeTab, setSearchParams])
+  }, [activeTab, searchParams, setSearchParams])
 
   // Old Volunteering / Internships tabs → Activities filtered by that type.
   useEffect(() => {
@@ -962,7 +963,7 @@ export default function StudentDashboard() {
         )}
 
         {activeTab === 'test_scores' && (
-          <TestScoresSection key={user?.id} userId={user?.id} />
+          <TestScoresSection key={user?.id} userId={user?.id} onOpenApplications={() => setActiveTab('applications')} />
         )}
         {activeTab === 'honors' && (
           <HonorsSection key={user?.id} userId={user?.id} />

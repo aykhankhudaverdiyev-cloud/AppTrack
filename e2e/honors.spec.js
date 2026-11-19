@@ -14,15 +14,17 @@ test.describe('Honors & Awards', () => {
   test('create a complete honor end to end, then delete it', async ({ page }) => {
     const title = `E2E Silver Medal ${Date.now()}`
 
-    await page.getByRole('button', { name: '+ Add honor' }).first().click()
+    await page.getByRole('button', { name: 'Add honor', exact: true }).first().click()
 
     // The draft card must never show the ⋯ menu (A5).
     await expect(page.locator('.honor-card--new .honors-menu')).toHaveCount(0)
 
-    await page.locator('#honor-panel, .honor-panel').first()
     const panel = page.locator('.honor-panel')
     await panel.getByPlaceholder(/Silver Medal, National Informatics Olympiad/i).fill(title)
-    await panel.getByPlaceholder('e.g. Informatics').fill('Informatics')
+    await panel.getByRole('combobox', { name: 'Category' }).click()
+    await page.getByRole('option', { name: 'Olympiad', exact: true }).click()
+    await panel.getByRole('radio', { name: 'Silver / 2nd' }).click()
+    await panel.getByLabel('Date received').fill('06/2025')
     // Grade levels + level of recognition are real selectable chip buttons (A1).
     await panel.getByRole('checkbox', { name: '9' }).click()
     await panel.getByRole('checkbox', { name: 'National' }).click()
@@ -30,27 +32,38 @@ test.describe('Honors & Awards', () => {
     await expect(panel.getByText(/of 4 required fields/)).toContainText('4 of 4')
     await panel.getByRole('button', { name: 'Create honor' }).click()
 
-    await expect(page.getByText(title)).toBeVisible()
+    await expect(panel.getByRole('heading', { name: title })).toBeVisible()
+    await page.reload()
+    await expect(panel.getByLabel('Date received')).toHaveValue('06/2025')
+    await expect(panel.getByRole('radio', { name: 'Silver / 2nd' })).toHaveAttribute('aria-checked', 'true')
+    await expect(panel.getByRole('checkbox', { name: '9' })).toHaveAttribute('aria-checked', 'true')
+    await expect(panel.getByRole('checkbox', { name: 'National' })).toHaveAttribute('aria-checked', 'true')
 
     // Clean up: delete what this test created.
     const card = page.locator('.honor-card, .honors-card').filter({ hasText: title })
     await card.getByRole('button', { name: /actions for/i }).click()
     await page.getByRole('menuitem', { name: 'Delete' }).click()
     await page.getByRole('button', { name: 'Delete' }).last().click()
-    await expect(page.getByText(title)).toHaveCount(0)
+    await expect(card).toHaveCount(0)
   })
 
   test('category dropdown in the panel header is interactive (A4)', async ({ page }) => {
-    await page.getByRole('button', { name: '+ Add honor' }).first().click()
-    const select = page.locator('.honor-panel__category select')
-    await expect(select).toBeVisible()
-    await select.selectOption('research')
-    await expect(select).toHaveValue('research')
-    await page.getByRole('button', { name: 'Cancel' }).click()
+    await page.getByRole('button', { name: 'Add honor', exact: true }).first().click()
+    const select = page.getByRole('combobox', { name: 'Category' })
+    await expect(select).toHaveText('Other')
+    await select.press('Enter')
+    await select.press('ArrowDown')
+    await select.press('Enter')
+    await expect(select).toHaveText('Olympiad')
+    await select.press('Space')
+    await expect(page.getByRole('option', { selected: true })).toContainText('Olympiad')
+    await select.press('Escape')
+    await expect(page.getByRole('listbox', { name: 'Category' })).toHaveCount(0)
+    await expect(page.getByRole('region', { name: 'New honor' })).toBeVisible()
   })
 
   test('the "Olympiad 0" chip never appears while adding from an empty list', async ({ page }) => {
-    await page.getByRole('button', { name: '+ Add honor' }).first().click()
+    await page.getByRole('button', { name: 'Add honor', exact: true }).first().click()
     // The filter bar must stay on "All" — it should not jump to a category
     // chip that would read "0" just because a draft defaults to it.
     await expect(page.getByRole('button', { name: /^All/ })).toHaveClass(/section-chip--on/)

@@ -5,7 +5,7 @@ import {
   testSortKey, testDateLabel, testMeta, testScoreText, suggestOverall,
   roundToHalf, defaultExpiry, applyPreset, draftFromRow, rowFromDraft,
   validateTestAttempt, requiredCompleted, mapDbError, testGroupCounts,
-  toNumberOrNull,
+  toNumberOrNull, emptyTestDraft, scoreDraft,
 } from './tests.js'
 
 test('testSortKey: released first (date desc), planned last (date asc)', () => {
@@ -84,7 +84,7 @@ test('validateTestAttempt edit mode silent until touched', () => {
 
 test('validateTestAttempt: exam name required for National/Other', () => {
   const errors = validateTestAttempt({ test_type: 'NATIONAL_EXAM', status: 'released' }, 'create', { touched: { test_type: true, status: true, national_exam_name: true } })
-  assert.equal(errors.national_exam_name, 'Exam name is required')
+  assert.equal(errors.national_exam_name, 'Add the exam name')
 })
 
 test('validateTestAttempt: expiry after test date', () => {
@@ -138,4 +138,35 @@ test('mapDbError: ATTEMPT_OWNER_MISMATCH → friendly message', () => {
 test('mapDbError: check constraint → field error', () => {
   assert.equal(mapDbError({ message: 'violates check constraint "test_attempts_score_check"' }).field, 'overall_score')
   assert.equal(mapDbError({ message: 'violates check constraint "test_attempts_expiry_check"' }).field, 'expires_on')
+})
+
+
+test('a planned SAT with no date, overall or sections still has a valid card and draft', () => {
+  const sat = { test_type: 'SAT', status: 'planned', test_date: null, overall_score: null, sections: null }
+  assert.equal(testMeta(sat), '')
+  assert.deepEqual(testScoreText(sat), { big: '—', grey: '' })
+  assert.ok(testSortKey({ ...sat, test_date: '2026-12-01' }).localeCompare(testSortKey(sat)) < 0)
+  assert.deepEqual(draftFromRow(sat, sat.sections).sections, [])
+})
+
+test('new score defaults persist only for released attempts without a manual overall', () => {
+  const ielts = emptyTestDraft('IELTS')
+  const sections = applyPreset('IELTS').map((s, i) => ({ ...s, score: [7.5, 8.5, 6.5, 7][i] }))
+  assert.equal(ielts.overall_max, 9)
+  assert.equal(rowFromDraft(scoreDraft(ielts, sections)).overall_score, null)
+  assert.equal(rowFromDraft(scoreDraft({ ...ielts, status: 'released' }, sections)).overall_score, 7.5)
+  assert.equal(scoreDraft({ ...ielts, status: 'released', overall_score: '8' }, sections).overall_score, '8')
+  assert.equal(suggestOverall('IELTS', applyPreset('IELTS')), null)
+  assert.equal(suggestOverall('SAT', [{ score: '800' }, { score: null }]), null)
+  assert.equal(suggestOverall('TOEFL', applyPreset('TOEFL').map((s) => ({ ...s, score: 25 }))), 100)
+  assert.equal(suggestOverall('ACT', applyPreset('ACT').map((s) => ({ ...s, score: 30 }))), null)
+})
+
+test('only National exam and Other require an exam name to complete the draft', () => {
+  for (const type of ['OTHER', 'NATIONAL_EXAM']) {
+    const draft = emptyTestDraft(type)
+    assert.equal(requiredCompleted(draft), 2)
+    assert.equal(requiredCompleted({ ...draft, national_exam_name: '  ' }), 2)
+    assert.equal(requiredCompleted({ ...draft, national_exam_name: 'Local exam' }), 3)
+  }
 })

@@ -12,13 +12,15 @@
  * activity, visibility).
  * ============================================================================
  */
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useRef, useState } from 'react'
+import { usePanelValidation } from '../../hooks/usePanelValidation'
+import { InlineError, ValidationSummary, MONTH_INPUT_PATTERN } from '../forms/PanelValidation'
 import { useAutosave } from '../../hooks/useAutosave'
 import {
   PROJECT_LIMITS, PROJECT_ROLES, PROJECT_STATUSES, PROJECT_TYPES, PROJECT_VISIBILITIES,
 } from '../../constants/projectTypes'
 import {
-  draftFromRow, emptyProjectDraft, projectTile, projectTypeMeta, requiredCompleted,
+  draftFromRow, emptyProjectDraft, projectTile, projectTypeMeta,
   rowFromDraft, validateProject,
 } from '../../utils/projects'
 import { formatMonthInput, parseMonthInput } from '../../utils/activities'
@@ -40,20 +42,15 @@ function savedLabel(savedAt, now) {
 
 /* ── building blocks ─────────────────────────────────────────────────────── */
 
-function FieldError({ id, message }) {
-  if (!message) return null
-  return <p className="prj-field-error" id={id} role="alert">{message}</p>
-}
-
 function SectionLabel({ children }) {
   return <p className="prj-section-label">{children}</p>
 }
 
-function TextField({ label, value, onChange, onBlur, error, placeholder, maxLength, required, id }) {
+function TextField({ label, value, onChange, onBlur, error, placeholder, maxLength, required, id, fieldKey }) {
   const autoId = useId()
   const inputId = id || autoId
   return (
-    <div className={`prj-field${error ? ' prj-field--invalid' : ''}`}>
+    <div data-form-field={fieldKey} className={`prj-field${error ? ' prj-field--invalid' : ''}`}>
       <label className="prj-label" htmlFor={inputId}>
         {label}
         {required && <span className="prj-req" aria-hidden="true"> *</span>}
@@ -69,12 +66,12 @@ function TextField({ label, value, onChange, onBlur, error, placeholder, maxLeng
         onChange={(event) => onChange(event.target.value)}
         onBlur={onBlur}
       />
-      <FieldError id={`${inputId}-err`} message={error} />
+      <InlineError id={`${inputId}-err`} message={error} />
     </div>
   )
 }
 
-function MonthField({ label, value, onChange, onBlur, error }) {
+function MonthField({ label, value, onChange, onBlur, error, fieldKey }) {
   const id = useId()
   const [text, setText] = useState(() => formatMonthInput(value))
   const lastValue = useRef(value)
@@ -95,24 +92,24 @@ function MonthField({ label, value, onChange, onBlur, error }) {
     }
   }
 
-  const invalid = text.trim() !== '' && !parseMonthInput(text)
-
   return (
-    <div className={`prj-field${error || invalid ? ' prj-field--invalid' : ''}`}>
+    <div data-form-field={fieldKey} className={`prj-field${error ? ' prj-field--invalid' : ''}`}>
       <label className="prj-label" htmlFor={id}>{label}</label>
       <input
         id={id}
         className="prj-input"
         value={text}
         placeholder="MM/YYYY"
+        pattern={MONTH_INPUT_PATTERN}
+        data-validation-message="Use MM/YYYY"
         inputMode="numeric"
         maxLength={7}
-        aria-invalid={error || invalid ? 'true' : undefined}
-        aria-describedby={error || invalid ? `${id}-err` : undefined}
+        aria-invalid={error ? 'true' : undefined}
+        aria-describedby={error ? `${id}-err` : undefined}
         onChange={(event) => handle(event.target.value)}
         onBlur={onBlur}
       />
-      <FieldError id={`${id}-err`} message={error || (invalid ? 'Use MM/YYYY' : '')} />
+      <InlineError id={`${id}-err`} message={error} />
     </div>
   )
 }
@@ -139,7 +136,7 @@ function Segmented({ label, value, onChange, options, name }) {
   )
 }
 
-function DescriptionField({ id, label, value, max, onChange, onBlur, error, rows = 2 }) {
+function DescriptionField({ id, label, value, max, onChange, onBlur, error, rows = 2, fieldKey }) {
   const ref = useRef(null)
 
   // Grow with the content so the box always shows the whole answer.
@@ -155,7 +152,7 @@ function DescriptionField({ id, label, value, max, onChange, onBlur, error, rows
   const tone = percent >= 90 ? 'warn' : 'ok'
 
   return (
-    <div className={`prj-field prj-desc${rows === 1 ? ' prj-desc--single' : ''}${error ? ' prj-field--invalid' : ''}`}>
+    <div data-form-field={fieldKey} className={`prj-field prj-desc${rows === 1 ? ' prj-desc--single' : ''}${error ? ' prj-field--invalid' : ''}`}>
       <div className="prj-label-row">
         <label className="prj-label" htmlFor={id}>{label}</label>
         <span className="prj-counter" aria-live="polite">{length} / {max}</span>
@@ -175,12 +172,12 @@ function DescriptionField({ id, label, value, max, onChange, onBlur, error, rows
       <div className={`prj-progress prj-progress--${tone}`} aria-hidden="true">
         <span style={{ width: `${percent}%` }} />
       </div>
-      <FieldError id={`${id}-err`} message={error} />
+      <InlineError id={`${id}-err`} message={error} />
     </div>
   )
 }
 
-function TechnologyInput({ tags, onChange, onBlur, error }) {
+function TechnologyInput({ tags, onChange, onBlur, error, fieldKey }) {
   const [text, setText] = useState('')
   const inputRef = useRef(null)
 
@@ -193,7 +190,7 @@ function TechnologyInput({ tags, onChange, onBlur, error }) {
   }
 
   return (
-    <div className={`prj-field prj-tech${error ? ' prj-field--invalid' : ''}`}>
+    <div data-form-field={fieldKey} className={`prj-field prj-tech${error ? ' prj-field--invalid' : ''}`}>
       <label className="prj-label" htmlFor="prj-tech-input">Technologies</label>
       <div
         className="prj-tech__box"
@@ -246,7 +243,7 @@ function TechnologyInput({ tags, onChange, onBlur, error }) {
       {tags.length >= PROJECT_LIMITS.tags && (
         <p className="prj-hint">You can list up to {PROJECT_LIMITS.tags} technologies.</p>
       )}
-      <FieldError id="prj-tech-err" message={error} />
+      <InlineError id="prj-tech-err" message={error} />
     </div>
   )
 }
@@ -282,10 +279,9 @@ export default function ProjectPanel({
     if (instantFocus) titleRef.current?.focus()
   }, [instantFocus])
 
-  const errors = useMemo(() => validateProject(draft, mode), [draft, mode])
+  const validation = usePanelValidation(validateProject(draft, mode), [{ key: 'title', label: 'Project title' }])
+  const { errors } = validation
   const blocked = Object.keys(errors).length > 0
-  const completed = requiredCompleted(draft)
-  const canCreate = completed === 1 && !blocked
 
   const persist = useCallback(async (payload) => {
     if (!onSave) return
@@ -334,7 +330,7 @@ export default function ProjectPanel({
 
   const submitCreate = async (event) => {
     event.preventDefault()
-    if (!canCreate || creating) return
+    if (mode !== 'create' || creating || !validation.validateSubmit()) return
     setCreating(true)
     setCreateError('')
     try {
@@ -407,7 +403,7 @@ export default function ProjectPanel({
         </button>
       </header>
 
-      <form className="prj-panel__body" onSubmit={submitCreate}>
+      <form className="prj-panel__body panel-validation" onSubmit={submitCreate} {...validation.formProps}>
         <SectionLabel>Basics</SectionLabel>
         <div className="prj-grid">
           <TextField
@@ -417,6 +413,7 @@ export default function ProjectPanel({
             value={draft.title}
             onChange={(value) => set('title', value.slice(0, PROJECT_LIMITS.title))}
             onBlur={blur}
+            fieldKey="title"
             error={errors.title}
             placeholder="e.g. AppTrack"
           />
@@ -432,6 +429,7 @@ export default function ProjectPanel({
             value={draft.start_month}
             onChange={(value) => set('start_month', value)}
             onBlur={blur}
+            fieldKey="start_month"
             error={errors.start_month}
           />
           <Segmented
@@ -452,6 +450,7 @@ export default function ProjectPanel({
             max={PROJECT_LIMITS.problem}
             onChange={(value) => set('problem', value)}
             onBlur={blur}
+            fieldKey="problem"
             error={errors.problem}
           />
           <DescriptionField
@@ -461,6 +460,7 @@ export default function ProjectPanel({
             max={PROJECT_LIMITS.buildSummary}
             onChange={(value) => set('build_summary', value)}
             onBlur={blur}
+            fieldKey="build_summary"
             error={errors.build_summary}
           />
           <DescriptionField
@@ -470,6 +470,7 @@ export default function ProjectPanel({
             max={PROJECT_LIMITS.result}
             onChange={(value) => set('result', value)}
             onBlur={blur}
+            fieldKey="result"
             error={errors.result}
             rows={1}
           />
@@ -489,6 +490,7 @@ export default function ProjectPanel({
             value={draft.github_url}
             onChange={(value) => set('github_url', value)}
             onBlur={blur}
+            fieldKey="github_url"
             error={errors.github_url}
             placeholder="github.com/…"
           />
@@ -497,6 +499,7 @@ export default function ProjectPanel({
             value={draft.demo_url}
             onChange={(value) => set('demo_url', value)}
             onBlur={blur}
+            fieldKey="demo_url"
             error={errors.demo_url}
             placeholder={DEV_URL}
           />
@@ -504,7 +507,7 @@ export default function ProjectPanel({
 
         <SectionLabel>Connections</SectionLabel>
         <div className="prj-grid">
-          <div className={`prj-field${errors.related_activity_id ? ' prj-field--invalid' : ''}`}>
+          <div data-form-field="related_activity_id" className={`prj-field${errors.related_activity_id ? ' prj-field--invalid' : ''}`}>
             <label className="prj-label" htmlFor="prj-linked">Linked activity</label>
             <select
               id="prj-linked"
@@ -513,6 +516,7 @@ export default function ProjectPanel({
               onChange={(event) => set('related_activity_id', event.target.value)}
               onBlur={blur}
               disabled={!activityOptions.length}
+              aria-invalid={errors.related_activity_id ? true : undefined}
             >
               <option value="">
                 {activityOptions.length ? 'Choose an activity' : 'Add an activity first'}
@@ -521,6 +525,7 @@ export default function ProjectPanel({
                 <option key={option.value} value={option.value}>{option.label}</option>
               ))}
             </select>
+            <InlineError message={errors.related_activity_id} />
           </div>
           <div>
             <Segmented
@@ -536,13 +541,11 @@ export default function ProjectPanel({
 
         {mode === 'create' && (
           <footer className="prj-panel__footer">
-            <p className={`prj-required${canCreate ? ' prj-required--done' : ''}`} role="status">
-              {canCreate ? '✓ ' : ''}{completed} of 1 required fields
-            </p>
+            <ValidationSummary validation={validation} className="prj-required" completeClassName="prj-required--done" />
             {createError && <p className="prj-field-error" role="alert">{createError}</p>}
             <div className="prj-panel__footer-actions">
               <button type="button" className="prj-btn prj-btn--ghost" onClick={cancelCreate}>Cancel</button>
-              <button type="submit" className="prj-btn prj-btn--primary" disabled={!canCreate || creating}>
+              <button type="submit" className="prj-btn prj-btn--primary" disabled={creating}>
                 {creating ? 'Creating…' : 'Create project'}
               </button>
             </div>

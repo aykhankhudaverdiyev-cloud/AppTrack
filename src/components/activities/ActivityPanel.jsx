@@ -9,13 +9,16 @@
  * switching type never loses shared data.
  * ============================================================================
  */
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useRef, useState } from 'react'
+import { GradeChips, TagSelect } from '../section'
+import { usePanelValidation } from '../../hooks/usePanelValidation'
+import { InlineError, ValidationSummary, NumericInput, MONTH_INPUT_PATTERN } from '../forms/PanelValidation'
 import { useAutosave } from '../../hooks/useAutosave'
-import { ACTIVITY_CATEGORIES, ACTIVITY_LIMITS, categoryLabel } from '../../constants/activityTypes'
+import { ACTIVITY_CATEGORIES, ACTIVITY_LIMITS } from '../../constants/activityTypes'
 import {
   MODE_LABELS, OUTPUT_LABELS, REQUIRED_FIELDS, TIMING_LABELS,
   draftFromRow, emptyDraft, expectedDescriptionFields, formatMonthInput, hoursHelperText,
-  parseMonthInput, requiredCompleted, validateActivity,
+  parseMonthInput, validateActivity,
 } from '../../utils/activities'
 
 const MODE_OPTIONS = Object.entries(MODE_LABELS).map(([value, label]) => ({ value, label }))
@@ -39,23 +42,21 @@ function savedLabel(savedAt, now) {
 
 /* ── small building blocks ───────────────────────────────────────────────── */
 
-function FieldError({ id, message }) {
-  if (!message) return null
-  return <p className="act-field-error" id={id} role="alert">{message}</p>
-}
-
-function TextField({ label, value, onChange, onBlur, error, required, hint, placeholder, maxLength, inputMode, type = 'text' }) {
+function TextField({ label, value, onChange, onBlur, error, required, fieldKey, min, max, hint, placeholder, maxLength, inputMode, type = 'text' }) {
   const id = useId()
+  const Input = type === 'number' ? NumericInput : 'input'
   return (
-    <div className={`act-field${error ? ' act-field--invalid' : ''}`}>
+    <div data-form-field={fieldKey} className={`act-field${error ? ' act-field--invalid' : ''}`}>
       <label className="act-label" htmlFor={id}>
         {label}
         {required && <span className="act-req" aria-hidden="true"> *</span>}
       </label>
-      <input
+      <Input
         id={id}
         className="act-input"
         type={type}
+        min={min}
+        max={max}
         inputMode={inputMode}
         value={value}
         placeholder={placeholder}
@@ -66,12 +67,12 @@ function TextField({ label, value, onChange, onBlur, error, required, hint, plac
         onBlur={onBlur}
       />
       {hint && !error && <p className="act-hint">{hint}</p>}
-      <FieldError id={`${id}-err`} message={error} />
+      <InlineError id={`${id}-err`} message={error} />
     </div>
   )
 }
 
-function MonthField({ label, value, onChange, onBlur, error, required }) {
+function MonthField({ label, value, onChange, onBlur, error, required, fieldKey }) {
   const id = useId()
   const [text, setText] = useState(() => formatMonthInput(value))
   const lastValue = useRef(value)
@@ -92,10 +93,8 @@ function MonthField({ label, value, onChange, onBlur, error, required }) {
     }
   }
 
-  const invalid = text.trim() !== '' && !parseMonthInput(text)
-
   return (
-    <div className={`act-field${error || invalid ? ' act-field--invalid' : ''}`}>
+    <div data-form-field={fieldKey} className={`act-field${error ? ' act-field--invalid' : ''}`}>
       <label className="act-label" htmlFor={id}>
         {label}
         {required && <span className="act-req" aria-hidden="true"> *</span>}
@@ -105,13 +104,15 @@ function MonthField({ label, value, onChange, onBlur, error, required }) {
         className="act-input"
         value={text}
         placeholder="MM/YYYY"
+        pattern={MONTH_INPUT_PATTERN}
+        data-validation-message="Use MM/YYYY"
         inputMode="numeric"
         maxLength={7}
-        aria-invalid={error || invalid ? 'true' : undefined}
+        aria-invalid={error ? 'true' : undefined}
         onChange={(event) => handle(event.target.value)}
         onBlur={onBlur}
       />
-      <FieldError id={`${id}-err`} message={error || (invalid ? 'Use MM/YYYY' : '')} />
+      <InlineError id={`${id}-err`} message={error} />
     </div>
   )
 }
@@ -138,32 +139,6 @@ function Segmented({ label, value, onChange, options, name }) {
   )
 }
 
-function GradeChips({ value, onChange, error, required }) {
-  return (
-    <fieldset className={`act-field act-grades${error ? ' act-field--invalid' : ''}`}>
-      <legend className="act-label">
-        Grade levels{required && <span className="act-req" aria-hidden="true"> *</span>}
-        <span className="act-label__hint">US grade levels</span>
-      </legend>
-      <div className="act-chips-grade">
-        {ACTIVITY_LIMITS.gradeLevels.map((grade) => {
-          const on = value.includes(grade)
-          return (
-            <label key={grade} className={`act-grade${on ? ' act-grade--on' : ''}`}>
-              <input
-                type="checkbox"
-                checked={on}
-                onChange={() => onChange(on ? value.filter((g) => g !== grade) : [...value, grade].sort((a, b) => a - b))}
-              />
-              <span>{grade}</span>
-            </label>
-          )
-        })}
-      </div>
-      {error && <p className="act-field-error" role="alert">{error}</p>}
-    </fieldset>
-  )
-}
 
 function CopyButton({ text, label }) {
   const [copied, setCopied] = useState(false)
@@ -189,7 +164,7 @@ function CopyButton({ text, label }) {
   )
 }
 
-function DescriptionField({ id, label, value, max, onChange, onBlur, error, autoFocus }) {
+function DescriptionField({ id, label, value, max, onChange, onBlur, error, autoFocus, fieldKey }) {
   const ref = useRef(null)
   const [shortened, setShortened] = useState(false)
   useEffect(() => { if (autoFocus) ref.current?.focus() }, [autoFocus])
@@ -210,7 +185,7 @@ function DescriptionField({ id, label, value, max, onChange, onBlur, error, auto
   }
 
   return (
-    <div className={`act-field act-desc${error ? ' act-field--invalid' : ''}`}>
+    <div data-form-field={fieldKey} className={`act-field act-desc${error ? ' act-field--invalid' : ''}`}>
       <div className="act-label-row">
         <label className="act-label" htmlFor={id}>{label}<CopyButton text={value} label={label} /></label>
         <span className="act-counter" aria-live="polite">{length} / {max}</span>
@@ -231,7 +206,7 @@ function DescriptionField({ id, label, value, max, onChange, onBlur, error, auto
         <span style={{ width: `${percent}%` }} />
       </div>
       {shortened && <p className="act-hint act-hint--warn" role="status">Pasted text was shortened to {max} characters.</p>}
-      <FieldError id={`${id}-err`} message={error} />
+      <InlineError id={`${id}-err`} message={error} />
     </div>
   )
 }
@@ -265,10 +240,9 @@ export default function ActivityPanel({
     return () => clearInterval(timer)
   }, [])
 
-  const errors = useMemo(() => validateActivity(draft, mode), [draft, mode])
+  const validation = usePanelValidation(validateActivity(draft, mode), draft.ongoing ? REQUIRED_FIELDS : [...REQUIRED_FIELDS, { key: 'end_month', label: 'End date' }])
+  const { errors } = validation
   const blocked = Object.keys(errors).length > 0
-  const completed = requiredCompleted(draft)
-  const canCreate = completed === REQUIRED_FIELDS.length && !blocked
 
   const persist = useCallback(async (payload) => {
     if (!onSave) return
@@ -321,7 +295,7 @@ export default function ActivityPanel({
 
   const submitCreate = async (event) => {
     event.preventDefault()
-    if (!canCreate || creating) return
+    if (mode !== 'create' || creating || !validation.validateSubmit()) return
     setCreating(true)
     setCreateError('')
     try {
@@ -337,7 +311,6 @@ export default function ActivityPanel({
   const isResearch = draft.activity_type === 'research'
   const descFields = expectedDescriptionFields(draft.activity_type)
   const showsOrgDescription = descFields.includes('organization_description')
-  const category = categoryLabel(draft.activity_type)
 
   const statusText = mode === 'create'
     ? 'Not saved yet'
@@ -368,19 +341,9 @@ export default function ActivityPanel({
         <h2 className="act-panel__title">
           {mode === 'create' ? 'New activity' : (draft.organization_name.trim() || 'Untitled activity')}
         </h2>
-        <label className="act-category">
-          <span className="act-category__text">{category}</span>
-          <span aria-hidden="true">▾</span>
-          <select
-            value={draft.activity_type}
-            onChange={(event) => set('activity_type', event.target.value)}
-            aria-label="Activity category"
-          >
-            {ACTIVITY_CATEGORIES.map((option) => (
-              <option key={option.key} value={option.key}>{option.label}</option>
-            ))}
-          </select>
-        </label>
+        <TagSelect label="Activity category" value={draft.activity_type}
+          options={ACTIVITY_CATEGORIES.map(({ key, label }) => ({ value: key, label }))}
+          onChange={(value) => set('activity_type', value)} />
         <span className={`act-save${saveError ? ' act-save--error' : ''}`} role="status" aria-live="polite">
           {saveError ? (
             <button type="button" className="act-save__retry" onClick={flush}>Couldn&apos;t save · Retry</button>
@@ -391,7 +354,7 @@ export default function ActivityPanel({
         </button>
       </header>
 
-      <form className="act-panel__body" onSubmit={submitCreate}>
+      <form className="act-panel__body panel-validation" onSubmit={submitCreate} {...validation.formProps}>
         <SectionLabel>Basics</SectionLabel>
         <div className="act-grid">
           <TextField
@@ -400,6 +363,7 @@ export default function ActivityPanel({
             value={draft.organization_name}
             onChange={(value) => set('organization_name', value.slice(0, ACTIVITY_LIMITS.organizationName))}
             onBlur={blur}
+            fieldKey="organization_name"
             error={errors.organization_name}
             placeholder="e.g. City Library"
           />
@@ -409,6 +373,7 @@ export default function ActivityPanel({
             value={draft.position}
             onChange={(value) => set('position', value.slice(0, ACTIVITY_LIMITS.position))}
             onBlur={blur}
+            fieldKey="position"
             error={errors.position}
             placeholder="e.g. Organiser"
           />
@@ -416,6 +381,7 @@ export default function ActivityPanel({
           <GradeChips
             value={draft.grade_levels}
             onChange={(value) => set('grade_levels', value)}
+            fieldKey="grade_levels"
             error={errors.grade_levels}
             required
           />
@@ -427,12 +393,13 @@ export default function ActivityPanel({
             options={MODE_OPTIONS}
           />
 
-          <div className="act-field">
+          <div className="act-field" data-form-field="hours_per_week">
             <label className="act-label" htmlFor="act-hours">Hours per week<span className="act-req" aria-hidden="true"> *</span></label>
-            <input
+            <NumericInput
               id="act-hours"
               className={`act-input${errors.hours_per_week ? ' act-input--invalid' : ''}`}
-              type="number"
+              placeholder="e.g. 5"
+              aria-describedby={errors.hours_per_week ? 'act-hours-err' : undefined}
               min={ACTIVITY_LIMITS.hoursPerWeek.min}
               max={ACTIVITY_LIMITS.hoursPerWeek.max}
               step={ACTIVITY_LIMITS.hoursPerWeek.step}
@@ -442,16 +409,19 @@ export default function ActivityPanel({
               onBlur={blur}
             />
             <p className="act-hint">{hoursHelperText(draft.hours_per_week, draft.weeks_per_year, draft.ongoing)}</p>
-            <FieldError id="act-hours-err" message={errors.hours_per_week} />
+            <InlineError id="act-hours-err" message={errors.hours_per_week} />
           </div>
           <TextField
             label="Weeks per year"
             required
             type="number"
             inputMode="numeric"
+            min={ACTIVITY_LIMITS.weeksPerYear.min}
+            max={ACTIVITY_LIMITS.weeksPerYear.max}
             value={draft.weeks_per_year}
             onChange={(value) => set('weeks_per_year', value)}
             onBlur={blur}
+            fieldKey="weeks_per_year"
             error={errors.weeks_per_year}
             placeholder="e.g. 30"
           />
@@ -464,6 +434,7 @@ export default function ActivityPanel({
                 value={draft.start_month}
                 onChange={(value) => set('start_month', value)}
                 onBlur={blur}
+                fieldKey="start_month"
                 error={errors.start_month}
               />
               <label className="act-switch">
@@ -492,6 +463,7 @@ export default function ActivityPanel({
               value={draft.end_month}
               onChange={(value) => set('end_month', value)}
               onBlur={blur}
+              fieldKey="end_month"
               error={errors.end_month}
             />
           )}
@@ -547,6 +519,7 @@ export default function ActivityPanel({
                 value={draft.supervisor_email}
                 onChange={(value) => set('supervisor_email', value)}
                 onBlur={blur}
+                fieldKey="supervisor_email"
                 error={errors.supervisor_email}
                 placeholder="name@company.com"
               />
@@ -578,6 +551,7 @@ export default function ActivityPanel({
                 value={draft.research_question}
                 onChange={(value) => set('research_question', value.slice(0, ACTIVITY_LIMITS.researchQuestion))}
                 onBlur={blur}
+                fieldKey="research_question"
                 error={errors.research_question}
                 placeholder="What did you investigate?"
               />
@@ -608,6 +582,7 @@ export default function ActivityPanel({
               max={ACTIVITY_LIMITS.organizationDescription}
               onChange={(value) => set('organization_description', value)}
               onBlur={blur}
+              fieldKey="organization_description"
               error={errors.organization_description}
               autoFocus={instantFocus && !draft.organization_description}
             />
@@ -619,6 +594,7 @@ export default function ActivityPanel({
             max={ACTIVITY_LIMITS.longDescription}
             onChange={(value) => set('long_description', value)}
             onBlur={blur}
+            fieldKey="long_description"
             error={errors.long_description}
             autoFocus={instantFocus && (showsOrgDescription ? Boolean(draft.organization_description) : true)}
           />
@@ -628,13 +604,11 @@ export default function ActivityPanel({
 
         {mode === 'create' && (
           <footer className="act-panel__footer">
-            <p className={`act-required${canCreate ? ' act-required--done' : ''}`} role="status">
-              {canCreate ? '✓ ' : ''}{completed} of {REQUIRED_FIELDS.length} required fields
-            </p>
+            <ValidationSummary validation={validation} className="act-required" completeClassName="act-required--done" />
             {createError && <p className="act-field-error" role="alert">{createError}</p>}
             <div className="act-panel__footer-actions">
               <button type="button" className="act-btn act-btn--ghost" onClick={cancelCreate}>Cancel</button>
-              <button type="submit" className="act-btn act-btn--primary" disabled={!canCreate || creating}>
+              <button type="submit" className="act-btn act-btn--primary" disabled={creating}>
                 {creating ? 'Creating…' : 'Create activity'}
               </button>
             </div>

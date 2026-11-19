@@ -1,0 +1,22 @@
+.panel-field-error {
+  margin: 0;
+  color: #b91c1c;
+  font-size: 12px;
+  line-height: 1.4;
+}
+.panel-field-error > span { margin-right: 2px; }
+.panel-field-jump {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+form.panel-validation :is(input, textarea, select)[aria-invalid='true'],
+.panel-validation [aria-invalid='true'] .chip-group__item:not(.chip-group__item--on) {
+  border-color: #fca5a5;
+  box-shadow: none;
+}
+form.panel-validation .test-section-box:has(input[aria-invalid='true']) { border-color: #fca5a5; }
