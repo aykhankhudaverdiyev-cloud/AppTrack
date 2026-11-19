@@ -24,20 +24,25 @@ test.describe('Honors & Awards', () => {
     await panel.getByRole('combobox', { name: 'Category' }).click()
     await page.getByRole('option', { name: 'Olympiad', exact: true }).click()
     await panel.getByRole('radio', { name: 'Silver / 2nd' }).click()
-    await panel.getByLabel('Date received').fill('06/2025')
+    await panel.getByRole('button', { name: 'Date received', exact: true }).click()
+    const picker = page.getByRole('dialog', { name: 'Choose date received' })
+    for (let year = new Date().getFullYear(); year > 2025; year--) {
+      await picker.getByRole('button', { name: 'Previous year' }).click()
+    }
+    await picker.getByRole('button', { name: 'Jun 2025' }).click()
     // Grade levels + level of recognition are real selectable chip buttons (A1).
     await panel.getByRole('checkbox', { name: '9' }).click()
-    await panel.getByRole('checkbox', { name: 'National' }).click()
+    await panel.getByRole('radio', { name: 'National' }).click()
 
     await expect(panel.getByText(/of 4 required fields/)).toContainText('4 of 4')
     await panel.getByRole('button', { name: 'Create honor' }).click()
 
     await expect(panel.getByRole('heading', { name: title })).toBeVisible()
     await page.reload()
-    await expect(panel.getByLabel('Date received')).toHaveValue('06/2025')
+    await expect(panel.getByRole('button', { name: 'Date received', exact: true })).toHaveText('Jun 2025')
     await expect(panel.getByRole('radio', { name: 'Silver / 2nd' })).toHaveAttribute('aria-checked', 'true')
     await expect(panel.getByRole('checkbox', { name: '9' })).toHaveAttribute('aria-checked', 'true')
-    await expect(panel.getByRole('checkbox', { name: 'National' })).toHaveAttribute('aria-checked', 'true')
+    await expect(panel.getByRole('radio', { name: 'National' })).toHaveAttribute('aria-checked', 'true')
 
     // Clean up: delete what this test created.
     const card = page.locator('.honor-card, .honors-card').filter({ hasText: title })

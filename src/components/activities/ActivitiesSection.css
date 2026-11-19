@@ -561,7 +561,7 @@
   color: #4b5563;
 }
 .act-label__hint { margin-left: 6px; font-weight: 500; color: var(--act-placeholder); font-size: 0.72rem; }
-.act-req { color: var(--act-accent); font-weight: 700; }
+.act-req { color: #dc2626; font-weight: 700; }
 
 .act-input {
   width: 100%;
@@ -629,35 +629,6 @@
 .act-switch input:checked + .act-switch__track span { transform: translateX(16px); }
 .act-switch input:focus-visible + .act-switch__track { box-shadow: 0 0 0 2px rgba(109, 91, 240, 0.35); }
 .act-switch__text { font-size: 0.8rem; color: var(--act-body); font-weight: 600; }
-
-/* segmented radio groups */
-.act-segmented-field { border: none; margin: 0; padding: 0; }
-.act-segmented {
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: 1fr;
-  gap: 2px;
-  padding: 3px;
-  background: #f4f4f9;
-  border-radius: 10px;
-}
-.act-seg {
-  position: relative;
-  display: grid;
-  place-items: center;
-  height: 34px;
-  border-radius: 8px;
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: #6b7280;
-  cursor: pointer;
-  text-align: center;
-}
-.act-seg input { position: absolute; opacity: 0; width: 1px; height: 1px; }
-.act-seg:hover { color: var(--act-ink); }
-.act-seg--on,
-.act-seg--on:hover { background: var(--act-accent); color: #fff; box-shadow: 0 2px 6px rgba(109, 91, 240, 0.28); }
-.act-seg input:focus-visible + span { text-decoration: underline; }
 
 /* description fields */
 .act-desc-stack { display: flex; flex-direction: column; gap: 16px; }

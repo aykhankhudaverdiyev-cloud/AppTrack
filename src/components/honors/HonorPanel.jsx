@@ -8,9 +8,9 @@
 import { useCallback, useEffect, useState } from 'react'
 import { usePanelValidation } from '../../hooks/usePanelValidation'
 import { InlineError, ValidationSummary } from '../forms/PanelValidation'
-import { useAutosave } from '../../hooks/useAutosave'
+import { readCreateDraft, useCreateDraft, useAutosave } from '../../hooks/useAutosave'
 import {
-  ChipGroup, GradeChips, TagSelect, TextAreaField, MonthYearInput, DocumentPicker, TipBox,
+  ChipGroup, GradeChips, TagSelect, TextAreaField, DatePicker, DocumentPicker, TipBox,
 } from '../section'
 import { getDocument } from '../../Services/documentApi'
 import {
@@ -39,8 +39,10 @@ export default function HonorPanel({
   mode = 'edit', row, userId, defaultCategory = 'other', defaultTop5 = false,
   onSave, onCreate, onClose,
 }) {
+  const draftKey = mode === 'create' && userId ? `honors:${userId}` : null
   const [initial] = useState(() => (mode === 'edit' && row ? draftFromRow(row) : emptyHonorDraft(defaultCategory, defaultTop5)))
-  const [draft, setDraft] = useState(initial)
+  const [draft, setDraft] = useState(() => readCreateDraft(draftKey) ?? initial)
+  const clearDraft = useCreateDraft(draftKey, draft)
   const [creating, setCreating] = useState(false)
   const [createError, setCreateError] = useState('')
   const [now, setNow] = useState(() => Date.now())
@@ -91,9 +93,9 @@ export default function HonorPanel({
 
   const cancelCreate = useCallback(() => {
     const untouched = JSON.stringify(draft) === JSON.stringify(emptyHonorDraft(defaultCategory, defaultTop5))
-    if (untouched) onClose?.()
+    if (untouched) { clearDraft(); onClose?.() }
     else setConfirmDiscard(true)
-  }, [draft, onClose, defaultCategory, defaultTop5])
+  }, [draft, onClose, defaultCategory, defaultTop5, clearDraft])
 
   const requestClose = useCallback(async () => {
     if (mode === 'create') { cancelCreate(); return }
@@ -114,6 +116,7 @@ export default function HonorPanel({
     setCreateError('')
     try {
       await onCreate?.(draft)
+      clearDraft()
     } catch (error) {
       setCreateError(mapDbError(error).message)
     } finally {
@@ -197,8 +200,8 @@ export default function HonorPanel({
             <InlineError id="honor-subject-error" message={errors.subject} />
           </div>
           <div className="honor-field">
-            <MonthYearInput
-              label="Date received" fieldKey="received_month" error={errors.received_month}
+            <DatePicker
+              label="Date received" allowFuture={false} fieldKey="received_month" error={errors.received_month}
               value={draft.received_month}
               onChange={(value) => set('received_month', value)}
               onBlur={() => { if (mode === 'edit') flush() }}
@@ -235,13 +238,14 @@ export default function HonorPanel({
           <div className="honor-field honor-span-2">
             <ChipGroup
               label="Level of recognition" fieldKey="levels"
-              value={draft.levels}
-              onChange={(value) => set('levels', value)}
+              value={draft.levels[0] || null}
+              singleSelect locked
+              onChange={(value) => set('levels', [value])}
               options={LEVEL_OPTIONS}
               required
               equal
               error={errors.levels}
-              helper="Select all that apply"
+              helper="Choose the highest level"
             />
           </div>
           <div className="honor-field honor-span-2">
@@ -345,7 +349,7 @@ export default function HonorPanel({
             <p>Nothing has been saved yet.</p>
             <div className="honor-discard__actions">
               <button type="button" className="honor-btn honor-btn--ghost" onClick={() => setConfirmDiscard(false)}>Keep editing</button>
-              <button type="button" className="honor-btn honor-btn--danger" onClick={() => { setConfirmDiscard(false); onClose?.() }}>Discard</button>
+              <button type="button" className="honor-btn honor-btn--danger" onClick={() => { setConfirmDiscard(false); clearDraft(); onClose?.() }}>Discard</button>
             </div>
           </div>
         </div>

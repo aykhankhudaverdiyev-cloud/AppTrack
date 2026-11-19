@@ -40,16 +40,20 @@ export async function listDocuments(userId, categories = []) {
   return unwrap(await query) || []
 }
 
+export function validateDocumentFile(file) {
+  if (!Object.hasOwn(ACCEPTED, file.type)) return 'Choose a PDF, JPG or PNG file.'
+  if (file.size > MAX_SIZE) return 'Choose a file that is 10 MB or smaller.'
+  return ''
+}
+
 /** Upload + insert a document_files row. Deletes the upload if the row fails. */
 export async function uploadDocument(userId, category, file) {
   if (!userId) throw new Error('userId is required')
   if (!category) throw new Error('category is required')
   if (!file) throw new Error('No file selected')
-  if (!ACCEPTED[file.type]) throw new Error('Only PDF, JPG and PNG files are allowed')
-  if (file.size > MAX_SIZE) throw new Error('File must be smaller than 10 MB')
-
-  const ext = file.name.split('.').pop().toLowerCase() || 'pdf'
-  const filePath = `${userId}/${crypto.randomUUID()}-${safeFileName(file.name)}.${ext}`
+  const invalid = validateDocumentFile(file)
+  if (invalid) throw new Error(invalid)
+  const filePath = `${userId}/${crypto.randomUUID()}-${safeFileName(file.name)}`
 
   const { error: uploadError } = await supabase.storage.from(BUCKET).upload(filePath, file, {
     cacheControl: '3600',
@@ -63,7 +67,7 @@ export async function uploadDocument(userId, category, file) {
       .from('document_files')
       .insert({
         user_id: userId,
-        title: file.name.replace(/\.[^/.]+$/, '') || 'Document',
+        title: file.name || 'Document',
         category,
         file_path: filePath,
         mime_type: file.type,

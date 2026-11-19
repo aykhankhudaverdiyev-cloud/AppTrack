@@ -42,7 +42,7 @@ export function usePanelValidation(ruleErrors, requiredFields) {
       },
       onBlurCapture: ({ target, relatedTarget }) => {
         const field = target.closest(FIELD)
-        if (!field || (relatedTarget && field.contains(relatedTarget))) return
+        if (!field || (relatedTarget && (field.contains(relatedTarget) || relatedTarget.closest?.(FIELD)?.dataset.formField === field.dataset.formField))) return
         const key = field.dataset.formField
         if (target.validity) updateNative(target, key)
         setBlurred((previous) => ({ ...previous, [key]: true }))

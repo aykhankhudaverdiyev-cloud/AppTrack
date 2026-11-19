@@ -45,7 +45,7 @@ for (const { tab, kind, label, error, value, missing } of panels) {
 
     if (kind === 'activity') {
       await form.locator('footer').getByRole('button', { name: 'Start date', exact: true }).click()
-      await expect(form.getByRole('textbox', { name: 'Start date', exact: true })).toBeFocused()
+      await expect(form.getByRole('button', { name: 'Start date', exact: true })).toBeFocused()
     }
   })
 }

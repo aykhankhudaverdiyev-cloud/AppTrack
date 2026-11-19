@@ -19,7 +19,7 @@
 }
 
 .field-required {
-  color: #7c3aed;
+  color: #dc2626;
 }
 
 .field-optional {
@@ -131,17 +131,6 @@
 .cwc-warning {
   color: #dc2626;
   font-weight: 600;
-}
-
-/* ---------- MonthYearPicker ---------- */
-.month-year {
-  display: flex;
-  gap: 8px;
-}
-
-.month-year select {
-  flex: 1;
-  min-width: 0;
 }
 
 /* ---------- ConfirmDialog ---------- */

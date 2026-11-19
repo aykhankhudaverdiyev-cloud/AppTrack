@@ -10,15 +10,15 @@
  * ============================================================================
  */
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
-import { GradeChips, TagSelect } from '../section'
+import { DatePicker, GradeChips, SegmentedControl, TagSelect } from '../section'
 import { usePanelValidation } from '../../hooks/usePanelValidation'
-import { InlineError, ValidationSummary, NumericInput, MONTH_INPUT_PATTERN } from '../forms/PanelValidation'
-import { useAutosave } from '../../hooks/useAutosave'
+import { InlineError, ValidationSummary, NumericInput } from '../forms/PanelValidation'
+import { readCreateDraft, useCreateDraft, useAutosave } from '../../hooks/useAutosave'
 import { ACTIVITY_CATEGORIES, ACTIVITY_LIMITS } from '../../constants/activityTypes'
 import {
   MODE_LABELS, OUTPUT_LABELS, REQUIRED_FIELDS, TIMING_LABELS,
-  draftFromRow, emptyDraft, expectedDescriptionFields, formatMonthInput, hoursHelperText,
-  parseMonthInput, validateActivity,
+  draftFromRow, emptyDraft, expectedDescriptionFields, hoursHelperText,
+  validateActivity,
 } from '../../utils/activities'
 
 const MODE_OPTIONS = Object.entries(MODE_LABELS).map(([value, label]) => ({ value, label }))
@@ -72,72 +72,6 @@ function TextField({ label, value, onChange, onBlur, error, required, fieldKey, 
   )
 }
 
-function MonthField({ label, value, onChange, onBlur, error, required, fieldKey }) {
-  const id = useId()
-  const [text, setText] = useState(() => formatMonthInput(value))
-  const lastValue = useRef(value)
-
-  useEffect(() => {
-    if (value !== lastValue.current) {
-      lastValue.current = value
-      setText(formatMonthInput(value))
-    }
-  }, [value])
-
-  const handle = (raw) => {
-    setText(raw)
-    const parsed = parseMonthInput(raw)
-    if (parsed || raw.trim() === '') {
-      lastValue.current = parsed
-      onChange(parsed)
-    }
-  }
-
-  return (
-    <div data-form-field={fieldKey} className={`act-field${error ? ' act-field--invalid' : ''}`}>
-      <label className="act-label" htmlFor={id}>
-        {label}
-        {required && <span className="act-req" aria-hidden="true"> *</span>}
-      </label>
-      <input
-        id={id}
-        className="act-input"
-        value={text}
-        placeholder="MM/YYYY"
-        pattern={MONTH_INPUT_PATTERN}
-        data-validation-message="Use MM/YYYY"
-        inputMode="numeric"
-        maxLength={7}
-        aria-invalid={error ? 'true' : undefined}
-        onChange={(event) => handle(event.target.value)}
-        onBlur={onBlur}
-      />
-      <InlineError id={`${id}-err`} message={error} />
-    </div>
-  )
-}
-
-function Segmented({ label, value, onChange, options, name }) {
-  return (
-    <fieldset className="act-field act-segmented-field">
-      <legend className="act-label">{label}</legend>
-      <div className="act-segmented" role="radiogroup" aria-label={label}>
-        {options.map((option) => (
-          <label key={option.value} className={`act-seg${value === option.value ? ' act-seg--on' : ''}`}>
-            <input
-              type="radio"
-              name={name}
-              value={option.value}
-              checked={value === option.value}
-              onChange={() => onChange(option.value)}
-            />
-            <span>{option.label}</span>
-          </label>
-        ))}
-      </div>
-    </fieldset>
-  )
-}
 
 
 function CopyButton({ text, label }) {
@@ -219,7 +153,7 @@ function SectionLabel({ children }) {
 
 export default function ActivityPanel({
   mode = 'edit',
-  row,
+  row, userId,
   defaultType = 'other',
   onSave,
   onCreate,
@@ -228,8 +162,10 @@ export default function ActivityPanel({
 }) {
   // The baseline is captured once: the parent remounts the panel (key) when a
   // different activity is selected, so autosaves can never reset what is typed.
+  const draftKey = mode === 'create' && userId ? `activities:${userId}` : null
   const [initial] = useState(() => (mode === 'edit' && row ? draftFromRow(row) : emptyDraft(defaultType)))
-  const [draft, setDraft] = useState(initial)
+  const [draft, setDraft] = useState(() => readCreateDraft(draftKey) ?? initial)
+  const clearDraft = useCreateDraft(draftKey, draft)
   const [creating, setCreating] = useState(false)
   const [createError, setCreateError] = useState('')
   const [now, setNow] = useState(() => Date.now())
@@ -269,7 +205,7 @@ export default function ActivityPanel({
 
   const cancelCreate = () => {
     const untouched = JSON.stringify(draft) === JSON.stringify(emptyDraft(defaultType))
-    if (untouched) onClose?.()
+    if (untouched) { clearDraft(); onClose?.() }
     else setConfirmDiscard(true)
   }
 
@@ -300,6 +236,7 @@ export default function ActivityPanel({
     setCreateError('')
     try {
       await onCreate?.(draft)
+      clearDraft()
     } catch (error) {
       setCreateError(error?.message || 'Could not create the activity. Please try again.')
     } finally {
@@ -385,7 +322,7 @@ export default function ActivityPanel({
             error={errors.grade_levels}
             required
           />
-          <Segmented
+          <SegmentedControl
             label="Mode"
             name="activity-mode"
             value={draft.participation_mode}
@@ -428,8 +365,8 @@ export default function ActivityPanel({
 
           <div className="act-field">
             <div className="act-start-row">
-              <MonthField
-                label="Start date"
+              <DatePicker
+                label="Start date" allowFuture={false}
                 required
                 value={draft.start_month}
                 onChange={(value) => set('start_month', value)}
@@ -457,7 +394,7 @@ export default function ActivityPanel({
               placeholder="City, Country"
             />
           ) : (
-            <MonthField
+            <DatePicker
               label="End date"
               required
               value={draft.end_month}
@@ -478,7 +415,7 @@ export default function ActivityPanel({
             />
           )}
           {isWork && (
-            <Segmented
+            <SegmentedControl
               label="Timing"
               name="activity-timing"
               value={draft.timing}
@@ -492,14 +429,14 @@ export default function ActivityPanel({
           <>
             <SectionLabel>Work details</SectionLabel>
             <div className="act-grid">
-              <Segmented
+              <SegmentedControl
                 label="Pay"
                 name="activity-pay"
                 value={draft.is_paid ? 'paid' : 'unpaid'}
                 onChange={(value) => set('is_paid', value === 'paid')}
                 options={PAY_OPTIONS}
               />
-              <Segmented
+              <SegmentedControl
                 label="Type"
                 name="activity-employment"
                 value={draft.employment_type}
@@ -556,17 +493,9 @@ export default function ActivityPanel({
                 placeholder="What did you investigate?"
               />
               <div className="act-field">
-                <label className="act-label" htmlFor="act-output">Output status</label>
-                <select
-                  id="act-output"
-                  className="act-input act-select"
-                  value={draft.output_status}
-                  onChange={(event) => set('output_status', event.target.value)}
-                >
-                  {OUTPUT_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>{option.label}</option>
-                  ))}
-                </select>
+                <label className="act-label">Output status</label>
+                <TagSelect label="Output status" value={draft.output_status} options={OUTPUT_OPTIONS}
+                  onChange={(value) => set('output_status', value)} />
               </div>
             </div>
           </>
@@ -623,7 +552,7 @@ export default function ActivityPanel({
             <p>Nothing has been saved yet.</p>
             <div className="act-discard__actions">
               <button type="button" className="act-btn act-btn--ghost" onClick={() => setConfirmDiscard(false)}>Keep editing</button>
-              <button type="button" className="act-btn act-btn--danger" onClick={() => { setConfirmDiscard(false); onClose?.() }}>Discard</button>
+              <button type="button" className="act-btn act-btn--danger" onClick={() => { setConfirmDiscard(false); clearDraft(); onClose?.() }}>Discard</button>
             </div>
           </div>
         </div>

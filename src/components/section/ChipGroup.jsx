@@ -9,19 +9,28 @@ import { InlineError } from '../forms/PanelValidation'
  * clicked again — something a native <input type="radio"> cannot do.
  * ============================================================================ */
 export default function ChipGroup({
-  label, value = [], onChange, options, singleSelect = false, required, disabled, helper, equal, labelHint, error, fieldKey,
+  label, value = [], onChange, options, singleSelect = false, required, disabled, helper, equal, labelHint, error, fieldKey, locked,
 }) {
   const errorId = useId()
   const on = (key) => (singleSelect ? value === key : (value || []).includes(key))
   const toggle = (key) => {
     if (disabled) return
     if (singleSelect) {
-      onChange(value === key ? null : key)
+      onChange(value === key ? (locked ? key : null) : key)
       return
     }
     onChange(on(key) ? (value || []).filter((k) => k !== key) : [...(value || []), key])
   }
   const handleKeyDown = (key) => (event) => {
+    if (singleSelect && !disabled && ['ArrowLeft', 'ArrowUp', 'ArrowRight', 'ArrowDown'].includes(event.key)) {
+      event.preventDefault()
+      const index = options.findIndex((option) => option.value === key)
+      const offset = ['ArrowLeft', 'ArrowUp'].includes(event.key) ? -1 : 1
+      const next = (index + offset + options.length) % options.length
+      onChange(options[next].value)
+      event.currentTarget.parentElement.children[next]?.focus()
+      return
+    }
     if (event.key === ' ' || event.key === 'Enter') {
       event.preventDefault()
       toggle(key)

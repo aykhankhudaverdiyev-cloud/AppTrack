@@ -11,7 +11,7 @@
 import { formatDate, dateToMonth } from './dates.js'
 import {
   HONOR_LIMITS, HONOR_GRADE_LEVELS,
-  honorLevelLabel, highestLevel,
+  honorLevelLabel,
 } from '../constants/honors.js'
 
 const trim = (value) => (value == null ? '' : String(value)).trim()
@@ -86,7 +86,7 @@ export function buildHonorMeta(row = {}) {
   const parts = []
   const grades = gradesLabel(row.grade_levels)
   if (grades) parts.push(grades)
-  const level = highestLevel(row.levels)
+  const level = row.levels?.[0]
   if (level) parts.push(honorLevelLabel(level))
   const date = receivedDateLabel(row)
   if (date) parts.push(date)
@@ -128,7 +128,7 @@ export function draftFromRow(row = {}) {
     issuer: trim(row.issuer || ''),
     result: row.result || '',
     grade_levels: [...(row.grade_levels || [])].map(Number).sort((a, b) => a - b),
-    levels: [...(row.levels || [])],
+    levels: (row.levels || []).slice(0, 1),
     participants_context: trim(row.participants_context || ''),
     description: trim(row.description || ''),
     certificate_document_id: row.certificate_document_id || '',
@@ -157,7 +157,7 @@ export function rowFromDraft(draft = {}) {
       .filter((level) => HONOR_GRADE_LEVELS.includes(level))
       .sort((a, b) => a - b),
     levels: [...new Set(draft.levels || [])].filter((level) =>
-      ['school', 'city', 'regional', 'national', 'international'].includes(level)),
+      ['school', 'city', 'regional', 'national', 'international'].includes(level)).slice(0, 1),
     participants_context: nullable(draft.participants_context, HONOR_LIMITS.participantsContext),
     description: nullable(draft.description, HONOR_LIMITS.description),
     certificate_document_id: draft.certificate_document_id || null,

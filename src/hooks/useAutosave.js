@@ -93,3 +93,20 @@ export function useUnsavedGuard(isDirty) {
     return () => window.removeEventListener('beforeunload', handler)
   }, [isDirty])
 }
+
+export function readCreateDraft(key) {
+  if (!key) return undefined
+  try { return JSON.parse(sessionStorage.getItem(`apptrack:create:${key}`) || 'null') || undefined }
+  catch { return undefined }
+}
+
+export function useCreateDraft(key, draft) {
+  useEffect(() => {
+    if (!key) return
+    try { sessionStorage.setItem(`apptrack:create:${key}`, JSON.stringify(draft)) } catch { /* Storage can be unavailable. */ }
+  }, [key, draft])
+  return useCallback(() => {
+    if (!key) return
+    try { sessionStorage.removeItem(`apptrack:create:${key}`) } catch { /* Storage can be unavailable. */ }
+  }, [key])
+}

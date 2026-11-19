@@ -291,7 +291,7 @@
   position: relative;
   display: grid;
   place-items: center;
-  height: 34px;
+  min-height: 34px;
   border-radius: 8px;
   font-size: 0.8rem;
   font-weight: 600;
@@ -411,42 +411,13 @@
 .textarea-field__track--warn span { background: #f59e0b; }
 .textarea-field__hint-note { color: #b45309; }
 
-/* ── number with suffix ───────────────────────────────────────────────── */
-
-.number-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-.number-input-wrap {
-  position: relative; display: inline-flex; width: 100%; align-items: center;
-}
-.number-input {
-  width: 100%; height: 40px; padding: 0 12px; padding-right: 34px;
-  border: 1px solid var(--section-line-strong); border-radius: 10px;
-  background: var(--section-field); color: var(--section-ink);
-  font-family: inherit; font-size: 0.88rem;
-}
-.number-input:focus { outline: none; background: #fff; border-color: var(--section-accent); box-shadow: 0 0 0 2px rgba(109, 91, 240, 0.28); }
-.number-input--invalid { border-color: #fca5a5; }
-.number-suffix {
-  position: absolute; right: 12px; color: #6b7280; font-size: 0.88rem; pointer-events: none;
-}
-
-/* ── month input (YYYY-MM, displayed MM/YYYY while typing) ─────────────── */
-
-.month-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-.month-field input {
-  width: 100%; height: 40px; padding: 0 12px; border: 1px solid var(--section-line-strong);
-  border-radius: 10px; background: var(--section-field); color: var(--section-ink);
-  font-family: inherit; font-size: 0.88rem; inputmode: numeric; maxLength: 7;
-}
-.month-field input:focus { outline: none; background: #fff; border-color: var(--section-accent); box-shadow: 0 0 0 2px rgba(109, 91, 240, 0.28); }
-.month-field input--invalid { border-color: #fca5a5; }
-
 /* ── labels, hints, errors ─────────────────────────────────────────────── */
 
 .sfield-label {
   display: flex; align-items: center; gap: 4px;
   font-size: 0.78rem; font-weight: 600; color: #4b5563;
 }
-.sfield-req { color: var(--section-accent); font-weight: 700; }
+.sfield-req { color: #dc2626; font-weight: 700; }
 .sfield-hint { margin: 0; font-size: 0.74rem; color: var(--section-muted); }
 .sfield-error { margin: 0; font-size: 0.74rem; color: #dc2626; font-weight: 600; }
 
@@ -636,26 +607,11 @@
 .document-modal__use:hover { text-decoration: underline; }
 .document-modal__empty { grid-column: 1 / -1; text-align: center; color: var(--section-muted); font-size: 0.86rem; padding: 16px; }
 
-.document-modal__upload { display: flex; flex-direction: column; gap: 8px; }
-.document-modal__field { display: flex; flex-direction: column; gap: 6px; }
-.document-modal__field span { font-size: 0.78rem; font-weight: 600; color: #4b5563; }
-.document-modal__field input[type="file"] { width: 100%; font-size: 0.78rem; }
-.document-modal__error { margin: 0; font-size: 0.74rem; color: #dc2626; font-weight: 600; }
 .document-modal__upload-btn {
   align-self: start; height: 34px; padding: 0 14px; border-radius: 8px; border: none;
   background: var(--section-accent); color: #fff; font-weight: 700; font-size: 0.8rem; cursor: pointer;
 }
 .document-modal__upload-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-
-/* ── empty state ───────────────────────────────────────────────────────── */
-
-.aw-empty {
-  display: flex; flex-direction: column; align-items: center; gap: 16px;
-  padding: 48px 24px; background: #fff; border: 1px solid var(--section-line);
-  border-radius: var(--section-radius); text-align: center;
-}
-.aw-empty__tiles { display: flex; gap: 10px; }
-.aw-empty p { margin: 0; max-width: 420px; color: var(--section-muted); font-size: 0.9rem; line-height: 1.5; }
 
 /* ── responsive ────────────────────────────────────────────────────────── */
 
@@ -714,3 +670,31 @@
 }
 .chip-group--equal .chip-group__item { padding: 0 2px; font-size: clamp(0.65rem, 2.5vw, 0.86rem); }
 .chip-group__label-hint { margin-left: 8px; font-size: 0.72rem; font-weight: 400; color: var(--section-muted); }
+
+.document-modal[open] { inset: 0; margin: 0; width: 100%; height: 100%; max-width: none; max-height: none; border: 0; background: transparent; }
+.document-modal::backdrop { background: rgba(17, 24, 39, .42); }
+.document-modal__tabs { display: flex; gap: 8px; }
+.document-modal__list { margin: 0; padding: 0; list-style: none; }
+.document-modal__drop { min-height: 112px; border: 1px dashed #b9acf7; background: #f8f6ff; border-radius: 12px; color: #5946c6; font: inherit; font-weight: 650; cursor: pointer; }
+.document-modal__drop span { display: block; color: #6b7280; font-size: .78rem; margin-top: 6px; font-weight: 400; }
+.document-modal__drop--active, .document-modal__drop:hover { background: #eee8ff; }
+.document-picker__row { flex-wrap: wrap; }
+.date-picker { display: grid; gap: 6px; min-width: 0; }
+.date-picker__trigger { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 40px; width: 100%; border: 1px solid var(--section-line-strong); border-radius: 10px; padding: 0 12px; background: var(--section-field); color: var(--section-ink); font: inherit; font-size: .875rem; cursor: pointer; text-align: left; }
+.date-picker__trigger--empty { color: #6b7280; }
+.date-picker__trigger[aria-invalid='true'] { border-color: #fca5a5; }
+.date-picker__popover { position: fixed; z-index: 1000; overflow: auto; background: #fff; border: 1px solid var(--section-line); border-radius: 12px; padding: 12px; box-shadow: 0 12px 36px #11182728; color: var(--section-ink); font-size: .85rem; }
+.date-picker__navigation, .date-picker__footer { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.date-picker__popover button, .date-picker__navigation select { min-height: 32px; padding: 0 8px; border: 1px solid transparent; border-radius: 8px; background: #f8f7fc; color: inherit; font: inherit; cursor: pointer; }
+.date-picker__popover button:hover:not(:disabled) { background: #f5f3ff; color: #5140c4; }
+.date-picker__popover button:disabled { opacity: .36; cursor: not-allowed; }
+.date-picker__grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; text-align: center; margin: 10px 0; }
+.date-picker__grid--days { grid-template-columns: repeat(7, minmax(0, 1fr)); }
+.date-picker__grid--days span { padding: 3px 0; color: #6b7280; }
+.date-picker__popover button[aria-pressed='true'] { background: #6d5bf0; color: #fff; }
+
+
+.panel-validation input[type='number'] { appearance: textfield; }
+.panel-validation input[type='number']::-webkit-inner-spin-button,
+.panel-validation input[type='number']::-webkit-outer-spin-button { appearance: none; margin: 0; }
+.segmented-field .sfield-label { margin-bottom: 6px; }

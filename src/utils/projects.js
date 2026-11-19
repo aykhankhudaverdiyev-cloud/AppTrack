@@ -95,6 +95,7 @@ export function emptyProjectDraft(projectType = 'software_app') {
     title: '',
     role_type: 'solo',
     start_month: '',
+    end_month: '',
     status: 'in_progress',
     short_description: '',
     problem: '',
@@ -115,6 +116,7 @@ export function draftFromRow(row = {}) {
     title: row.title || '',
     role_type: row.role_type || 'solo',
     start_month: dateToMonth(row.start_date),
+    end_month: dateToMonth(row.end_date),
     status: row.status || 'in_progress',
     short_description: row.short_description || '',
     problem: row.problem || '',
@@ -140,6 +142,7 @@ export function rowFromDraft(draft = {}) {
     title: trim(draft.title).slice(0, PROJECT_LIMITS.title),
     role_type: draft.role_type || 'solo',
     start_date: monthToDate(draft.start_month),
+    end_date: monthToDate(draft.end_month),
     status: draft.status || 'in_progress',
     short_description: nullable(draft.short_description, PROJECT_LIMITS.summary),
     problem: nullable(draft.problem, PROJECT_LIMITS.problem),
@@ -179,6 +182,9 @@ export function validateProject(draft = {}, mode = 'edit') {
 
   const start = trim(draft.start_month)
   if (start && !/^\d{4}-(0[1-9]|1[0-2])$/.test(start)) errors.start_month = 'Use MM/YYYY'
+
+  const end = trim(draft.end_month)
+  if (start && end && end < start) errors.end_month = 'Choose an end date on or after the start date'
 
   const given = (value) => value !== undefined && value !== null && value !== ''
   if (given(draft.project_type) && !PROJECT_TYPES.some((type) => type.key === draft.project_type)) errors.project_type = 'Pick a project type'

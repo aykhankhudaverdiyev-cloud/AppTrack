@@ -4,9 +4,6 @@
 
 .test-panel { --act-line: #e9e9f3; --act-radius: 18px; --act-ink: #111827; }
 
-.test-panel .chip-group { display: flex; gap: 0; flex-wrap: wrap; padding: 3px; border-radius: 10px; background: #f3f3f8; }
-.test-panel .chip-group__item { flex: 1 1 auto; border: 0; background: transparent; min-height: 34px; }
-.test-panel .chip-group__item--on { background: #6d5bf0; color: #fff; }
 
 .test-panel__tile {
   display: grid; place-items: center;
@@ -69,7 +66,8 @@
 .test-section-item {
   display: flex; flex-direction: column; gap: 6px; min-width: 120px; flex: 1 1 120px;
 }
-.test-section-item__head { display: flex; align-items: center; gap: 4px; }
+.test-section-item__head { display: flex; align-items: center; justify-content: space-between; gap: 4px; }
+.test-score-suffix { flex: 0 0 auto; margin-left: auto; white-space: nowrap; color: #6b7280; }
 .test-section-name {
   flex: 1; min-width: 0; border: none; background: none; padding: 0;
   font-size: 0.8rem; font-weight: 600; color: #374151; font-family: inherit;
@@ -114,12 +112,6 @@
 .test-switch input:checked + .test-switch__track span { transform: translateX(16px); }
 .test-switch__text { font-size: 0.86rem; color: #374151; font-weight: 600; }
 .test-switch__aside { margin-left: auto; font-size: 0.78rem; color: #9ca3af; }
-
-.test-add-note {
-  border: none; background: none; color: #6d5bf0; font-size: 0.78rem; font-weight: 700; cursor: pointer;
-  padding: 0;
-}
-.test-add-note:hover { text-decoration: underline; }
 
 .test-panel__footer {
   position: sticky; bottom: -24px;

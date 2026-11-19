@@ -1,3 +1,4 @@
+import { readCreateDraft } from '../../hooks/useAutosave'
 /**
  * ============================================================================
  * ProjectsSection — the Projects page (cards + sticky detail panel)
@@ -121,7 +122,7 @@ export default function ProjectsSection({ userId, activities = [], level, librar
   const actions = useProjects(userId)
   const { items, loading, error } = actions
   const [searchParams, setSearchParams] = useSearchParams()
-  const [adding, setAdding] = useState(false)
+  const [adding, setAdding] = useState(() => Boolean(readCreateDraft(userId && `projects:${userId}`)))
   const [focusId, setFocusId] = useState(null)
   const [deleting, setDeleting] = useState(null)
   const [toast, setToast] = useState(null)
@@ -335,6 +336,7 @@ export default function ProjectsSection({ userId, activities = [], level, librar
             key={adding ? 'new' : selected?.id}
             mode={adding ? 'create' : 'edit'}
             row={adding ? undefined : selected}
+            userId={userId}
             defaultType={filter === 'all' ? 'software_app' : filter}
             activities={activities}
             onSave={adding ? undefined : handleSave}

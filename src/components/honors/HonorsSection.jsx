@@ -1,3 +1,4 @@
+import { readCreateDraft } from '../../hooks/useAutosave'
 /** ============================================================================
  * HonorsSection — Honors & Awards page (spec §3)
  * ============================================================================
@@ -122,7 +123,7 @@ export default function HonorsSection({ userId }) {
   const { items, loading, error } = actions
   const { toast, showToast, hideToast } = useUndoToast()
   const [searchParams, setSearchParams] = useSearchParams()
-  const [adding, setAdding] = useState(false)
+  const [adding, setAdding] = useState(() => Boolean(readCreateDraft(userId && `honors:${userId}`)))
   const [deleting, setDeleting] = useState(null)
   const [dragId, setDragId] = useState(null)
   const toastTimer = useRef(null)

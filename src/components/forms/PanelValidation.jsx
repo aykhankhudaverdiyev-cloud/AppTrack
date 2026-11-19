@@ -22,8 +22,6 @@ export function ValidationSummary({ validation, className, completeClassName }) 
   )
 }
 
-export const MONTH_INPUT_PATTERN = '(0?[1-9]|1[0-2])/[0-9]{4}'
-
 export function NumericInput({ step, onKeyDown, onPaste, ...props }) {
   const decimal = step === 'any' || !Number.isInteger(Number(step ?? 1))
   return <input {...props} type="number" step={step} inputMode={props.inputMode ?? (decimal ? 'decimal' : 'numeric')}

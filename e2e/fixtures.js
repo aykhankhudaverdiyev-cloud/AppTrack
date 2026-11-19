@@ -3,6 +3,7 @@
 // account — never a real student account. Tests skip (not fail) when the
 // credentials are not provided, so `npm run test:e2e` is safe to run in any
 // environment without silently reporting false passes.
+import process from 'node:process'
 import { test as base, expect } from '@playwright/test'
 
 export const test = base.extend({})

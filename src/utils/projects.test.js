@@ -120,3 +120,11 @@ test('sort: creation order, not alphabetical', () => {
   const items = [{ id: 'b', created_at: '2026-01-02' }, { id: 'a', created_at: '2026-01-01' }]
   assert.deepEqual(sortProjects(items).map((item) => item.id), ['a', 'b'])
 })
+
+test('project month pickers round-trip start and end without a time zone conversion', () => {
+  const row = rowFromDraft({ ...emptyProjectDraft(), start_month: '2025-06', end_month: '2025-07' })
+  assert.equal(row.start_date, '2025-06-01')
+  assert.equal(row.end_date, '2025-07-01')
+  assert.equal(draftFromRow(row).end_month, '2025-07')
+  assert.ok(validateProject({ start_month: '2025-07', end_month: '2025-06' }).end_month)
+})
