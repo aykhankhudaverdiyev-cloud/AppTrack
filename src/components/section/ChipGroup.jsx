@@ -1,3 +1,6 @@
+import { useId } from 'react'
+import { InlineError } from '../forms/PanelValidation'
+
 /** ============================================================================
  * ChipGroup — separate chips with 8 px gaps, single- or multi-select.
  * Selected = solid purple with white text; unselected = white with grey border.
@@ -6,8 +9,9 @@
  * clicked again — something a native <input type="radio"> cannot do.
  * ============================================================================ */
 export default function ChipGroup({
-  label, value = [], onChange, options, singleSelect = false, required, disabled, helper,
+  label, value = [], onChange, options, singleSelect = false, required, disabled, helper, equal, labelHint, error, fieldKey,
 }) {
+  const errorId = useId()
   const on = (key) => (singleSelect ? value === key : (value || []).includes(key))
   const toggle = (key) => {
     if (disabled) return
@@ -24,9 +28,9 @@ export default function ChipGroup({
     }
   }
   return (
-    <fieldset className={`chip-group-field${!singleSelect && required ? ' chip-group--required' : ''}`}>
-      {label && <legend className="sfield-label">{label}{required && <span className="sfield-req" aria-hidden="true"> *</span>}</legend>}
-      <div className="chip-group" role={singleSelect ? 'radiogroup' : 'group'} aria-label={label}>
+    <fieldset data-form-field={fieldKey} aria-invalid={error ? true : undefined} aria-describedby={error ? errorId : undefined} className={`chip-group-field${!singleSelect && required ? ' chip-group--required' : ''}`}>
+      {label && <legend className="sfield-label">{label}{required && <span className="sfield-req" aria-hidden="true"> *</span>}{labelHint && <span className="chip-group__label-hint">{labelHint}</span>}</legend>}
+      <div className={`chip-group${equal ? ' chip-group--equal' : ''}`} role={singleSelect ? 'radiogroup' : 'group'} aria-label={label}>
         {options.map((option) => {
           const active = on(option.value)
           return (
@@ -46,6 +50,7 @@ export default function ChipGroup({
           )
         })}
       </div>
+      <InlineError id={errorId} message={error} />
       {helper && <p className="sfield-hint">{helper}</p>}
     </fieldset>
   )

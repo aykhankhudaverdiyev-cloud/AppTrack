@@ -91,7 +91,7 @@ test('row: empty fields become null and tags are de-duplicated', () => {
 /* ── validation ──────────────────────────────────────────────────────────── */
 
 test('validation: create needs a title, defaults are otherwise valid', () => {
-  assert.deepEqual(validateProject(emptyProjectDraft(), 'create'), { title: 'Project title is required' })
+  assert.deepEqual(validateProject(emptyProjectDraft(), 'create'), { title: 'Add the project title' })
   assert.deepEqual(validateProject(emptyProjectDraft(), 'edit'), {})
   assert.equal(requiredCompleted(emptyProjectDraft()), 0)
   assert.equal(requiredCompleted({ title: 'AppTrack' }), 1)

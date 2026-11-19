@@ -81,7 +81,7 @@ export function testTint(testType) {
 export const TEST_PRESETS = {
   SAT: { overallMax: 1600, sections: [['Reading & Writing', 800], ['Math', 800]], overall: 'sum-auto' },
   PSAT: { overallMax: 1520, sections: [['Reading & Writing', 760], ['Math', 760]], overall: 'sum-auto' },
-  ACT: { overallMax: 36, sections: [['English', 36], ['Math', 36], ['Reading', 36], ['Science', 36]], overall: 'avg' },
+  ACT: { overallMax: 36, sections: [['English', 36], ['Math', 36], ['Reading', 36], ['Science', 36]], overall: null },
   AP: { overallMax: null, sections: [], overall: null },
   IB: { overallMax: 45, sections: [], overall: null },
   ALEVEL: { overallMax: null, sections: [], overall: null },

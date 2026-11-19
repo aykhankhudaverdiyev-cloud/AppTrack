@@ -22,7 +22,7 @@ import { ConfirmDialog } from '../forms'
 import {
   HONOR_CATEGORIES, honorEmoji, honorTint,
 } from '../../constants/honors.js'
-import { computeHonorStatus, buildHonorMeta, honorTitle, honorCategoryCounts } from '../../utils/honors.js'
+import { computeHonorStatus, buildHonorMeta, honorTitle, honorCategoryCounts, mapDbError } from '../../utils/honors.js'
 import './HonorsSection.css'
 
 const STATUS_CLASS = { draft: 'draft', missing: 'missing', complete: 'complete' }
@@ -149,7 +149,7 @@ export default function HonorsSection({ userId }) {
     }, { replace: true })
   }, [setSearchParams])
 
-  const openRow = useCallback((row) => { setAdding(false); setParams({ category: row.category, id: row.id }) }, [setParams])
+  const openRow = useCallback((row) => { setAdding(false); setParams({ id: row.id }) }, [setParams])
 
   const closePanel = useCallback(() => { setAdding(false); setParams({ id: null }) }, [setParams])
 
@@ -162,11 +162,9 @@ export default function HonorsSection({ userId }) {
   }, [setParams])
 
   const handleCreate = useCallback(async (draft) => {
-    // New honors join the top 5 by default while there is room.
-    const withTop5 = top5Count < 5 ? { ...draft, is_top5_commonapp: true } : draft
-    const row = await actions.create(withTop5)
+    const row = await actions.create(draft)
     setAdding(false)
-    setParams({ category: row.category, id: row.id })
+    setParams({ category: filter === 'all' ? null : row.category, id: row.id })
     showToast(`${honorTitle(row)} added`, {
       label: 'Undo',
       run: async () => {
@@ -175,11 +173,11 @@ export default function HonorsSection({ userId }) {
           setParams({ id: null })
           hideToast()
         } catch (cause) {
-          showToast(cause?.message || 'Could not undo that.')
+          showToast(mapDbError(cause).message)
         }
       },
     })
-  }, [actions, setParams, showToast, hideToast, top5Count])
+  }, [actions, setParams, showToast, hideToast, filter])
 
   const handleSave = useCallback(async (draft) => {
     if (!selected) return
@@ -197,12 +195,12 @@ export default function HonorsSection({ userId }) {
             await actions.restore(honor)
             showToast('Restored')
           } catch (cause) {
-            showToast(cause?.message || 'Could not restore that honor.')
+            showToast(mapDbError(cause).message)
           }
         },
       })
     } catch (cause) {
-      showToast(cause?.message || 'Could not delete that honor.')
+      showToast(mapDbError(cause).message)
     }
   }, [actions, setParams, showToast])
 
@@ -211,13 +209,13 @@ export default function HonorsSection({ userId }) {
       const copy = await actions.duplicate(honor.id)
       showToast(`${honorTitle(copy)} created`, { label: 'Edit', run: () => openRow(copy) })
     } catch (cause) {
-      showToast(cause?.message || 'Could not duplicate that honor.')
+      showToast(mapDbError(cause).message)
     }
   }, [actions, openRow, showToast])
 
   const handleMoveTop = useCallback(async (honor) => {
     try { await actions.moveToTop(honor.id) } catch (cause) {
-      showToast(cause?.message || 'Could not save the new order.')
+      showToast(mapDbError(cause).message)
     }
   }, [actions, showToast])
 
@@ -241,8 +239,8 @@ export default function HonorsSection({ userId }) {
     try {
       await actions.reorder(next)
       showToast('Order saved')
-    } catch {
-      showToast("Couldn't save the new order · Retry", { label: 'Retry', run: () => actions.reorder(next).catch(() => showToast('Still could not save the order.')) })
+    } catch (cause) {
+      showToast(mapDbError(cause).message, { label: 'Retry', run: () => actions.reorder(next).catch((error) => showToast(mapDbError(error).message)) })
     }
   }
 
@@ -265,7 +263,7 @@ export default function HonorsSection({ userId }) {
         <div className="honors-main">
           {error ? (
             <div className="honors-state honors-state--error">
-              <p>Couldn&apos;t load your honors</p>
+              <p role="alert">{mapDbError({ message: error }).message}</p>
               <button type="button" className="honors-btn honors-btn--retry" onClick={actions.retry}>Retry</button>
             </div>
           ) : loading ? (
@@ -274,7 +272,7 @@ export default function HonorsSection({ userId }) {
             </div>
           ) : adding ? (
             <div className="honors-cards">
-              <HonorCard honor={{ title: '', category: filter === 'all' ? 'academic_olympiad' : filter }} isNew selected onClick={() => {}} />
+              <HonorCard honor={{ title: '', category: filter === 'all' ? 'other' : filter }} isNew selected onClick={() => {}} />
             </div>
           ) : items.length === 0 ? (
             <div className="honors-empty">
@@ -331,7 +329,7 @@ export default function HonorsSection({ userId }) {
                 />
               ))}
               {adding && (
-                <HonorCard honor={{ title: '', category: filter === 'all' ? 'academic_olympiad' : filter }} isNew selected onClick={() => {}} />
+                <HonorCard honor={{ title: '', category: filter === 'all' ? 'other' : filter }} isNew selected onClick={() => {}} />
               )}
             </div>
           )}
@@ -352,7 +350,8 @@ export default function HonorsSection({ userId }) {
             mode={adding ? 'create' : 'edit'}
             row={adding ? undefined : selected}
             userId={userId}
-            defaultCategory={filter === 'all' ? 'academic_olympiad' : filter}
+            defaultCategory={filter === 'all' ? 'other' : filter}
+            defaultTop5={top5Count < 5}
             onSave={adding ? undefined : handleSave}
             onCreate={adding ? handleCreate : undefined}
             onClose={closePanel}

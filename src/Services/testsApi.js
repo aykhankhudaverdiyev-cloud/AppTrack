@@ -8,7 +8,7 @@
  * ============================================================================ */
 
 import { supabase } from '../lib/supabase'
-import { rowFromDraft } from '../utils/tests.js'
+import { rowFromDraft, toNumberOrNull } from '../utils/tests.js'
 
 export const TEST_COLUMNS = [
   'id', 'user_id', 'test_type', 'national_exam_name', 'status', 'attempt_number',
@@ -18,7 +18,7 @@ export const TEST_COLUMNS = [
 
 export const WRITABLE_TEST_COLUMNS = [
   'test_type', 'national_exam_name', 'status', 'attempt_number', 'test_date',
-  'overall_score', 'overall_max', 'trf_number', 'expires_on', 'is_best',
+  'overall_score', 'overall_max', 'trf_number', 'expires_on',
   'notes', 'report_document_id',
 ]
 
@@ -40,8 +40,9 @@ function sortItems(items) {
 export async function listTests(userId) {
   const data = unwrap(await supabase
     .from('test_attempts')
-    .select(TEST_COLUMNS)
-    .eq('user_id', userId))
+    .select(`${TEST_COLUMNS}, sections:test_section_scores(id, section, score, score_max, sort_order)`)
+    .eq('user_id', userId)
+    .order('sort_order', { referencedTable: 'sections' }))
   return sortItems(data || [])
 }
 
@@ -74,7 +75,6 @@ export async function restoreTest(userId, row) {
 
 export async function duplicateTest(userId, source) {
   const copy = pickWritable(source)
-  copy.national_exam_name = `${String(copy.national_exam_name || copy.test_type || 'Test')} (copy)`.slice(0, 100)
   return unwrap(await supabase
     .from('test_attempts')
     .insert({ ...copy, user_id: userId })
@@ -89,5 +89,8 @@ export async function setBestTest(id, on) {
 
 /** Save every section of one attempt atomically (insert / update / delete). */
 export async function saveSections(attemptId, sections) {
-  unwrap(await supabase.rpc('save_test_sections', { p_attempt_id: attemptId, p_sections: sections }))
+  unwrap(await supabase.rpc('save_test_sections', { p_attempt_id: attemptId, p_sections: sections.filter((s) => s.section.trim()).map((s) => ({
+    ...(s.id ? { id: s.id } : {}), section: s.section.trim(),
+    score: toNumberOrNull(s.score), score_max: toNumberOrNull(s.score_max),
+  })) }))
 }

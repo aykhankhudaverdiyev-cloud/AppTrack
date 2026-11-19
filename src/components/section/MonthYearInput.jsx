@@ -3,9 +3,10 @@
  * month), displayed in inputs as MM/YYYY while typing.
  * ============================================================================ */
 import { useId, useRef, useState, useEffect } from 'react'
+import { InlineError, MONTH_INPUT_PATTERN } from '../forms/PanelValidation'
 import { parseMonthInput, formatMonthInput } from '../../utils/dates.js'
 
-export default function MonthYearInput({ label, value = '', onChange, onBlur, required, error }) {
+export default function MonthYearInput({ label, value = '', onChange, onBlur, required, error, fieldKey }) {
   const id = useId()
   const [text, setText] = useState(() => formatMonthInput(value))
   const lastValue = useRef(value)
@@ -26,11 +27,9 @@ export default function MonthYearInput({ label, value = '', onChange, onBlur, re
     }
   }
 
-  const invalid = text.trim() !== '' && !/^\d{4}-(0[1-9]|1[0-2])$/.test(text)
-
   return (
-    <div className={`month-field${error || invalid ? ' month-field--invalid' : ''}`}>
-      <label className="sfield-label">{label}{required && <span className="sfield-req" aria-hidden="true"> *</span>}</label>
+    <div data-form-field={fieldKey} className={`month-field${error ? ' month-field--invalid' : ''}`}>
+      <label className="sfield-label" htmlFor={id}>{label}{required && <span className="sfield-req" aria-hidden="true"> *</span>}</label>
       <input
         id={id}
         className="month-field__input"
@@ -38,11 +37,14 @@ export default function MonthYearInput({ label, value = '', onChange, onBlur, re
         placeholder="MM/YYYY"
         inputMode="numeric"
         maxLength={7}
-        aria-invalid={error || invalid ? 'true' : undefined}
+        aria-invalid={error ? 'true' : undefined}
+        aria-describedby={error ? `${id}-error` : undefined}
+        pattern={MONTH_INPUT_PATTERN}
+        data-validation-message="Use MM/YYYY"
         onChange={(event) => handle(event.target.value)}
         onBlur={onBlur}
       />
-      {error && <p className="sfield-error" role="alert">{error}</p>}
+      <InlineError id={`${id}-error`} message={error} />
     </div>
   )
 }

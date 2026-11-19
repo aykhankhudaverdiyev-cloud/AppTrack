@@ -530,7 +530,7 @@
 
 .prj-desc--single .prj-textarea { min-height: 42px; }
 
-.prj-field--invalid .prj-input { border-color: #fca5a5; background: #fff7f7; }
+.prj-field--invalid .prj-input { border-color: #fca5a5; }
 
 .prj-field-error { margin: 0; font-size: 0.74rem; color: #b91c1c; }
 

@@ -3,9 +3,11 @@
  * 4 px track under the textarea, fill green < 90 % / amber 90–100 %.
  * Typing beyond the limit is blocked; pasted text is truncated with a note.
  * ============================================================================ */
-import { useRef, useState, useEffect } from 'react'
+import { useId, useRef, useState, useEffect } from 'react'
+import { InlineError } from '../forms/PanelValidation'
 
-export default function TextAreaField({ label, value = '', max, onChange, onBlur, error, copyLabel }) {
+export default function TextAreaField({ label, value = '', max, onChange, onBlur, error, copyLabel, fieldKey }) {
+  const id = useId()
   const ref = useRef(null)
   const [shortened, setShortened] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -37,13 +39,15 @@ export default function TextAreaField({ label, value = '', max, onChange, onBlur
   }
 
   return (
-    <div className={`textarea-field${error ? ' textarea-field--invalid' : ''}`}>
+    <div data-form-field={fieldKey} className={`textarea-field${error ? ' textarea-field--invalid' : ''}`}>
       <div className="label-row">
-        <label className="sfield-label" htmlFor="textarea-field">{label}</label>
+        <label className="sfield-label" htmlFor={id}>{label}</label>
         <span className="counter" aria-live="polite">{length} / {max}</span>
       </div>
       <textarea
-        id="textarea-field"
+        id={id}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={error ? `${id}-error` : undefined}
         ref={ref}
         className="textarea-field__input"
         value={value}
@@ -52,11 +56,11 @@ export default function TextAreaField({ label, value = '', max, onChange, onBlur
         onChange={(event) => handle(event.target.value)}
         onBlur={onBlur}
       />
-      <div className={`textarea-field__track textarea-field__track--${tone}`} aria-hidden="true">
+      <div data-form-field={fieldKey} className={`textarea-field__track textarea-field__track--${tone}`} aria-hidden="true">
         <span style={{ width: `${percent}%` }} />
       </div>
       {shortened && <p className="sfield-hint textarea-field__hint-note" role="status">Pasted text was shortened to {max} characters.</p>}
-      {error && <p className="sfield-error" role="alert">{error}</p>}
+      <InlineError id={`${id}-error`} message={error} />
       <button
         type="button"
         className="copy"

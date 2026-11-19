@@ -76,15 +76,15 @@ test('draftFromRow rebuilds YYYY-MM', () => {
 
 test('validateHonor create mode requires title/category/levels/grades', () => {
   const errors = validateHonor({}, 'create', { touched: { title: true, category: true, grade_levels: true, levels: true } })
-  assert.equal(errors.title, 'Honor title is required')
+  assert.equal(errors.title, 'Add the honor title')
   assert.equal(errors.category, 'Pick a category')
-  assert.equal(errors.grade_levels, 'Pick at least one grade level')
+  assert.equal(errors.grade_levels, 'Pick at least one grade')
   assert.equal(errors.levels, 'Pick at least one level of recognition')
 })
 
 test('validateHonor edit mode is silent on an untouched draft', () => {
   assert.deepEqual(validateHonor({}, 'edit'), {})
-  assert.deepEqual(validateHonor({}, 'edit', { touched: { title: true } }), { title: 'Honor title is required' })
+  assert.deepEqual(validateHonor({}, 'edit', { touched: { title: true } }), { title: 'Add the honor title' })
 })
 
 test('validateHonor length limits and URL', () => {

@@ -486,29 +486,6 @@
   white-space: nowrap;
 }
 
-.act-category {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 30px;
-  padding: 0 10px;
-  border-radius: 8px;
-  background: var(--act-accent-soft);
-  color: #5b4bd6;
-  font-size: 0.8rem;
-  font-weight: 600;
-  cursor: pointer;
-}
-.act-category select {
-  position: absolute;
-  inset: 0;
-  opacity: 0;
-  width: 100%;
-  cursor: pointer;
-}
-.act-category__text { white-space: nowrap; }
-
 .act-save {
   margin-left: auto;
   font-size: 0.78rem;
@@ -606,7 +583,7 @@
   box-shadow: 0 0 0 2px rgba(109, 91, 240, 0.28);
 }
 .act-input--invalid,
-.act-field--invalid .act-input { border-color: #f2b8b5; background: #fffafa; }
+.act-field--invalid .act-input { border-color: #fca5a5; }
 
 .act-select { appearance: none; background-image: linear-gradient(45deg, transparent 50%, #9ca3af 50%), linear-gradient(135deg, #9ca3af 50%, transparent 50%); background-position: calc(100% - 16px) 17px, calc(100% - 11px) 17px; background-size: 5px 5px, 5px 5px; background-repeat: no-repeat; }
 
@@ -681,30 +658,6 @@
 .act-seg--on,
 .act-seg--on:hover { background: var(--act-accent); color: #fff; box-shadow: 0 2px 6px rgba(109, 91, 240, 0.28); }
 .act-seg input:focus-visible + span { text-decoration: underline; }
-
-/* grade chips */
-.act-grades { border: none; margin: 0; padding: 0; }
-.act-grades .act-label { margin-bottom: 6px; }
-.act-chips-grade { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
-.act-grade {
-  position: relative;
-  display: grid;
-  place-items: center;
-  height: 40px;
-  border: 1px solid var(--act-line-strong);
-  border-radius: 10px;
-  background: var(--act-field);
-  font-size: 0.86rem;
-  font-weight: 600;
-  color: #4b5563;
-  cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
-}
-.act-grade input { position: absolute; opacity: 0; width: 1px; height: 1px; }
-.act-grade:hover { border-color: #d8d5f7; }
-.act-grade--on,
-.act-grade--on:hover { background: var(--act-accent); border-color: var(--act-accent); color: #fff; }
-.act-grade input:focus-visible ~ span { text-decoration: underline; }
 
 /* description fields */
 .act-desc-stack { display: flex; flex-direction: column; gap: 16px; }

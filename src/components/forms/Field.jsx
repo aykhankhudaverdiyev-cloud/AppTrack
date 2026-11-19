@@ -13,6 +13,7 @@
  */
 import { useId } from 'react'
 import './forms.css'
+import { InlineError } from './PanelValidation'
 
 export default function Field({
   label,
@@ -22,13 +23,14 @@ export default function Field({
   hint,
   children,
   className = '',
+  fieldKey,
 }) {
   const id = useId()
   const hintId = `${id}-hint`
   const errorId = `${id}-error`
 
   return (
-    <div className={`field${error ? ' field-has-error' : ''} ${className}`.trim()}>
+    <div data-form-field={fieldKey} className={`field${error ? ' field-has-error' : ''} ${className}`.trim()}>
       {label && (
         <label className="field-label" htmlFor={id}>
           {label}
@@ -40,7 +42,7 @@ export default function Field({
         ? children({ id, describedBy: [hint ? hintId : null, error ? errorId : null].filter(Boolean).join(' ') || undefined, invalid: !!error })
         : children}
       {hint && <p className="field-hint" id={hintId}>{hint}</p>}
-      {error && <p className="field-error" id={errorId} role="alert">{error}</p>}
+      {error && <InlineError id={errorId} message={error} />}
     </div>
   )
 }

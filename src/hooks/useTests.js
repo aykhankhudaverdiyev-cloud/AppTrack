@@ -7,7 +7,7 @@
  * ============================================================================ */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { rowFromDraft, testSortKey } from '../utils/tests.js'
+import { rowFromDraft } from '../utils/tests.js'
 import {
   createTest, deleteTest, duplicateTest, listTests, restoreTest, saveSections as saveSectionsApi, setBestTest, updateTest,
 } from '../Services/testsApi'
@@ -42,23 +42,21 @@ export function useTests(userId) {
 
   const retry = useCallback(() => setAttempt((value) => value + 1), [])
 
-  const sorted = useCallback(() => [...itemsRef.current].sort((a, b) => testSortKey(a).localeCompare(testSortKey(b))), [])
-
   const create = useCallback(async (draft) => {
     const created = await createTest(userId, draft)
-    setItems(sorted().concat([created]).sort((a, b) => testSortKey(a).localeCompare(testSortKey(b))))
+    setItems((prev) => [...prev, created])
     return created
-  }, [userId, sorted])
+  }, [userId])
 
   const update = useCallback(async (id, draft) => {
     const snapshot = itemsRef.current
     const before = snapshot.find((item) => item.id === id)
     if (!before) return null
-    const optimistic = { ...before, ...rowFromDraft(draft) }
+    const optimistic = { ...before, ...rowFromDraft(draft), is_best: before.is_best }
     setItems((prev) => prev.map((item) => (item.id === id ? optimistic : item)))
     try {
       const saved = await updateTest(userId, id, draft)
-      setItems((prev) => prev.map((item) => (item.id === id ? saved : item)))
+      setItems((prev) => prev.map((item) => (item.id === id ? { ...item, ...saved } : item)))
       return saved
     } catch (cause) {
       setItems(snapshot)
@@ -79,41 +77,39 @@ export function useTests(userId) {
     }
   }, [userId])
 
+  const saveSections = useCallback(async (id, sections) => {
+    await saveSectionsApi(id, sections)
+    setItems((prev) => prev.map((item) => item.id === id ? {
+      ...item, sections: sections.filter((s) => s.section.trim()).map((s, sort_order) => ({ ...s, sort_order })),
+    } : item))
+  }, [])
+
   const restore = useCallback(async (row) => {
     const restored = await restoreTest(userId, row)
-    setItems((prev) => [...prev, restored].sort((a, b) => testSortKey(a).localeCompare(testSortKey(b))))
+    setItems((prev) => [...prev, restored])
+    if (row.sections?.length) await saveSections(restored.id, row.sections)
+    if (row.is_best) {
+      await setBestTest(restored.id, true)
+      setItems(await listTests(userId))
+    }
     return restored
-  }, [userId])
+  }, [userId, saveSections])
 
   const duplicate = useCallback(async (id) => {
     const source = itemsRef.current.find((item) => item.id === id)
     if (!source) throw new Error('That test no longer exists.')
     const copy = await duplicateTest(userId, source)
-    setItems((prev) => [...prev, copy].sort((a, b) => testSortKey(a).localeCompare(testSortKey(b))))
+    setItems((prev) => [...prev, copy])
+    if (source.sections?.length) await saveSections(copy.id, source.sections.map((s) => ({ ...s, id: crypto.randomUUID() })))
     return copy
-  }, [userId])
-
-  const saveSections = useCallback(async (id, sections) => {
-    await saveSectionsApi(id, sections)
-  }, [])
+  }, [userId, saveSections])
 
   const setBest = useCallback(async (id, on) => {
-    const snapshot = itemsRef.current
-    const row = snapshot.find((item) => item.id === id)
-    if (!row) return
-    const optimistic = { ...row, is_best: on }
-    setItems((prev) => prev.map((item) => (item.id === id ? optimistic : item)))
-    try {
-      await setBestTest(id, on)
-      const rows = await listTests(userId)
-      setItems(rows)
-    } catch (cause) {
-      setItems(snapshot)
-      throw cause
-    }
+    await setBestTest(id, on)
+    setItems(await listTests(userId))
   }, [userId])
 
-  return { items, loading, error, retry, sorted, create, update, remove, restore, duplicate, setBest, saveSections }
+  return { items, loading, error, retry, create, update, remove, restore, duplicate, setBest, saveSections }
 }
 
 export default useTests

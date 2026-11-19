@@ -12,15 +12,18 @@ test.describe('Test Scores', () => {
   })
 
   test('the 40/60 list+panel layout appears while a panel is open (C-category)', async ({ page }) => {
-    await page.getByRole('button', { name: '+ Add test' }).first().click()
+    await page.getByRole('button', { name: 'Add test', exact: true }).first().click()
     await expect(page.locator('.tests-columns--panel')).toBeVisible()
+    await expect(page.locator('.test-card--new')).toContainText('Not saved yet')
+    await expect(page.getByRole('region', { name: 'New test' })).toBeVisible()
     await page.getByRole('button', { name: 'Cancel' }).click()
   })
 
   test('IELTS status chips select correctly and overall rounds to the nearest 0.5', async ({ page }) => {
-    await page.getByRole('button', { name: '+ Add test' }).first().click()
+    await page.getByRole('button', { name: 'Add test', exact: true }).first().click()
     const panel = page.locator('.test-panel')
-    await panel.locator('.test-panel__type select').selectOption('IELTS')
+    await panel.getByRole('combobox', { name: 'Test type' }).click()
+    await page.getByRole('option', { name: 'IELTS', exact: true }).click()
     await panel.getByRole('radio', { name: 'Released' }).click()
     await expect(panel.getByRole('radio', { name: 'Released' })).toHaveAttribute('aria-checked', 'true')
 
@@ -36,9 +39,10 @@ test.describe('Test Scores', () => {
   })
 
   test('document picker opens and lists documents without extra clicks (A9)', async ({ page }) => {
-    await page.getByRole('button', { name: '+ Add test' }).first().click()
+    await page.getByRole('button', { name: 'Add test', exact: true }).first().click()
     const panel = page.locator('.test-panel')
-    await panel.locator('.test-panel__type select').selectOption('IELTS')
+    await panel.getByRole('combobox', { name: 'Test type' }).click()
+    await page.getByRole('option', { name: 'IELTS', exact: true }).click()
     await panel.getByRole('radio', { name: 'Released' }).click()
     await panel.getByRole('button', { name: /add file|change/i }).click()
     await expect(page.getByRole('dialog', { name: 'Choose a document' })).toBeVisible()

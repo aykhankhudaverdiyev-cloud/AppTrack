@@ -5,21 +5,24 @@
  * fields. Category / result / grade levels / recognition levels are chip
  * groups; dates are month-year pickers.
  * ============================================================================ */
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import { usePanelValidation } from '../../hooks/usePanelValidation'
+import { InlineError, ValidationSummary } from '../forms/PanelValidation'
 import { useAutosave } from '../../hooks/useAutosave'
 import {
-  ChipGroup, TextAreaField, MonthYearInput, DocumentPicker, TipBox,
+  ChipGroup, GradeChips, TagSelect, TextAreaField, MonthYearInput, DocumentPicker, TipBox,
 } from '../section'
 import { getDocument } from '../../Services/documentApi'
 import {
-  HONOR_CATEGORIES, HONOR_RESULTS, HONOR_GRADE_LEVELS, HONOR_LEVELS, HONOR_LIMITS,
+  HONOR_CATEGORIES, HONOR_RESULTS, HONOR_LEVELS, HONOR_LIMITS,
   honorCategory,
 } from '../../constants/honors.js'
-import { draftFromRow, emptyHonorDraft, validateHonor, requiredCompleted } from '../../utils/honors.js'
+import { draftFromRow, emptyHonorDraft, validateHonor, requiredCompleted, mapDbError, HONOR_REQUIRED_FIELDS } from '../../utils/honors.js'
 import './HonorPanel.css'
 
+const REQUIRED_TOUCHED = Object.fromEntries(HONOR_REQUIRED_FIELDS.map(({ key }) => [key, true]))
+
 const RESULT_OPTIONS = HONOR_RESULTS.map((r) => ({ value: r.key, label: r.label }))
-const GRADE_OPTIONS = HONOR_GRADE_LEVELS.map((n) => ({ value: String(n), label: String(n) }))
 const LEVEL_OPTIONS = HONOR_LEVELS.map((l) => ({ value: l.key, label: l.label }))
 
 function savedLabel(savedAt, now) {
@@ -33,15 +36,14 @@ function savedLabel(savedAt, now) {
 }
 
 export default function HonorPanel({
-  mode = 'edit', row, userId, defaultCategory = 'academic_olympiad',
+  mode = 'edit', row, userId, defaultCategory = 'other', defaultTop5 = false,
   onSave, onCreate, onClose,
 }) {
-  const [initial] = useState(() => (mode === 'edit' && row ? draftFromRow(row) : emptyHonorDraft(defaultCategory)))
+  const [initial] = useState(() => (mode === 'edit' && row ? draftFromRow(row) : emptyHonorDraft(defaultCategory, defaultTop5)))
   const [draft, setDraft] = useState(initial)
   const [creating, setCreating] = useState(false)
   const [createError, setCreateError] = useState('')
   const [now, setNow] = useState(() => Date.now())
-  const [touched, setTouched] = useState({})
   const [confirmDiscard, setConfirmDiscard] = useState(false)
   const [certDoc, setCertDoc] = useState(null)
 
@@ -61,18 +63,19 @@ export default function HonorPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draft.certificate_document_id, userId])
 
-  const errors = useMemo(() => validateHonor(draft, mode, { touched }), [draft, mode, touched])
+  const validation = usePanelValidation(validateHonor(draft, mode, { touched: REQUIRED_TOUCHED }), HONOR_REQUIRED_FIELDS)
+  const { errors } = validation
   const blocked = Object.keys(errors).length > 0
-  const completed = requiredCompleted(draft)
-  const canCreate = completed === 4 && !blocked
 
   const persist = useCallback(async (payload) => {
     if (!onSave) return
-    if (Object.keys(validateHonor(payload, 'edit')).length) return
+    if (requiredCompleted(payload) !== 4 || Object.keys(validateHonor(payload, 'edit')).length) {
+      throw new Error('Check the required fields before saving.')
+    }
     await onSave(payload)
   }, [onSave])
 
-  const { saving, savedAt, error: saveError, markDirty, flush } = useAutosave(draft, persist, {
+  const { saving, savedAt, error: saveError, isDirty, markDirty, flush } = useAutosave(draft, persist, {
     delay: 800,
     enabled: mode === 'edit',
   })
@@ -87,14 +90,14 @@ export default function HonorPanel({
   }
 
   const cancelCreate = useCallback(() => {
-    const untouched = JSON.stringify(draft) === JSON.stringify(emptyHonorDraft(defaultCategory))
+    const untouched = JSON.stringify(draft) === JSON.stringify(emptyHonorDraft(defaultCategory, defaultTop5))
     if (untouched) onClose?.()
     else setConfirmDiscard(true)
-  }, [draft, onClose, defaultCategory])
+  }, [draft, onClose, defaultCategory, defaultTop5])
 
-  const requestClose = useCallback(() => {
+  const requestClose = useCallback(async () => {
     if (mode === 'create') { cancelCreate(); return }
-    flush()
+    await flush()
     onClose?.()
   }, [mode, cancelCreate, flush, onClose])
 
@@ -106,13 +109,13 @@ export default function HonorPanel({
 
   const submitCreate = async (event) => {
     event.preventDefault()
-    if (!canCreate || creating) return
+    if (mode !== 'create' || creating || !validation.validateSubmit()) return
     setCreating(true)
     setCreateError('')
     try {
-      await onCreate?.({ ...draft, touched })
+      await onCreate?.(draft)
     } catch (error) {
-      setCreateError(error?.message || 'Could not create the honor. Please try again.')
+      setCreateError(mapDbError(error).message)
     } finally {
       setCreating(false)
     }
@@ -127,11 +130,9 @@ export default function HonorPanel({
       ? 'Check the highlighted fields'
       : saving
         ? 'Saving…'
-        : saveError
-          ? "Couldn't save · Retry"
-          : savedAt
-            ? `${savedLabel(savedAt, now)} ✓`
-            : 'Saved just now ✓'
+        : savedAt && !isDirty
+          ? `${savedLabel(savedAt, now)} ✓`
+          : isDirty ? 'Unsaved changes' : 'All changes saved'
 
   const top5On = Boolean(draft.is_top5_commonapp)
   const top5PositionText = top5On ? `Position ${row?.top5_order ?? draft.top5_order ?? '—'} of 5` : ''
@@ -146,130 +147,120 @@ export default function HonorPanel({
           {mode === 'create' ? '＋' : category.emoji}
         </span>
         <h2 className="honor-panel__title">{title}</h2>
-        <label className="honor-panel__category">
-          <select
-            value={draft.category}
-            aria-label="Category"
-            onChange={(event) => {
-              set('category', event.target.value)
-              setTouched((t) => ({ ...t, category: true }))
-              if (mode === 'edit') flush()
-            }}
-          >
-            {HONOR_CATEGORIES.map((c) => (
-              <option key={c.key} value={c.key}>{c.label}</option>
-            ))}
-          </select>
-          <span aria-hidden="true">▾</span>
-        </label>
+        <TagSelect label="Category" value={draft.category}
+          options={HONOR_CATEGORIES.map(({ key, label }) => ({ value: key, label }))}
+          onChange={(value) => set('category', value)} />
         <span className={`honor-panel__save${saveError ? ' honor-panel__save--error' : ''}`} role="status" aria-live="polite">
-          {saveError ? (
-            <button type="button" className="honor-panel__retry" onClick={flush}>Couldn&apos;t save · Retry</button>
-          ) : statusText}
+          {saveError ? <>{mapDbError(saveError).message}{' '}
+            <button type="button" className="honor-panel__retry" onClick={flush}>Retry</button>
+          </> : statusText}
         </span>
         <button type="button" className="honor-panel__close" onClick={requestClose} aria-label="Close panel">
           <span aria-hidden="true">×</span>
         </button>
       </header>
 
-      <form className="honor-panel__body" onSubmit={submitCreate}>
+      <form className="honor-panel__body panel-validation" onSubmit={submitCreate} {...validation.formProps}>
         <p className="honor-section-label">Basics</p>
         <div className="honor-grid">
           <div className="honor-field honor-span-2">
             <div className="honor-field__row">
-              <label className="sfield-label">Honor title<span className="sfield-req" aria-hidden="true"> *</span></label>
+              <label className="sfield-label" htmlFor="honor-title">Honor title<span className="sfield-req" aria-hidden="true"> *</span></label>
               <span className="honor-field__counter">{draft.title.length} / {HONOR_LIMITS.title}</span>
             </div>
             <input
+              id="honor-title" data-form-field="title"
+              aria-invalid={errors.title ? true : undefined}
+              aria-describedby={errors.title ? "honor-title-error" : undefined}
               className={`honor-input${errors.title ? ' honor-input--invalid' : ''}`}
               value={draft.title}
               onChange={(event) => set('title', event.target.value.slice(0, HONOR_LIMITS.title))}
-              onBlur={() => { setTouched((t) => ({ ...t, title: true })); if (mode === 'edit') flush() }}
+              onBlur={() => { if (mode === 'edit') flush() }}
               placeholder="e.g. Silver Medal, National Informatics Olympiad"
               maxLength={HONOR_LIMITS.title}
             />
-            {touched.title && errors.title && <p className="sfield-error" role="alert">{errors.title}</p>}
+            <InlineError id="honor-title-error" message={errors.title} />
           </div>
           <div className="honor-field">
-            <label className="sfield-label">Subject</label>
+            <label className="sfield-label" htmlFor="honor-subject">Subject</label>
             <input
+              id="honor-subject" data-form-field="subject"
+              aria-invalid={errors.subject ? true : undefined}
+              aria-describedby={errors.subject ? "honor-subject-error" : undefined}
               className={`honor-input${errors.subject ? ' honor-input--invalid' : ''}`}
               value={draft.subject}
               onChange={(event) => set('subject', event.target.value.slice(0, HONOR_LIMITS.subject))}
-              onBlur={() => { setTouched((t) => ({ ...t, subject: true })); if (mode === 'edit') flush() }}
+              onBlur={() => { if (mode === 'edit') flush() }}
               placeholder="e.g. Informatics"
               maxLength={HONOR_LIMITS.subject}
             />
-            {touched.subject && errors.subject && <p className="sfield-error" role="alert">{errors.subject}</p>}
+            <InlineError id="honor-subject-error" message={errors.subject} />
           </div>
           <div className="honor-field">
             <MonthYearInput
-              label="Date received"
+              label="Date received" fieldKey="received_month" error={errors.received_month}
               value={draft.received_month}
               onChange={(value) => set('received_month', value)}
-              onBlur={() => { setTouched((t) => ({ ...t, received_month: true })); if (mode === 'edit') flush() }}
-              required
-              error={touched.received_month ? errors.received_month : undefined}
+              onBlur={() => { if (mode === 'edit') flush() }}
             />
-            {touched.received_month && errors.received_month && <p className="sfield-error" role="alert">{errors.received_month}</p>}
           </div>
           <div className="honor-field honor-span-2">
-            <label className="sfield-label">Awarding body</label>
+            <label className="sfield-label" htmlFor="honor-issuer">Awarding body</label>
             <input
+              id="honor-issuer" data-form-field="issuer"
+              aria-invalid={errors.issuer ? true : undefined}
+              aria-describedby={errors.issuer ? "honor-issuer-error" : undefined}
               className={`honor-input${errors.issuer ? ' honor-input--invalid' : ''}`}
               value={draft.issuer}
               onChange={(event) => set('issuer', event.target.value.slice(0, HONOR_LIMITS.issuer))}
-              onBlur={() => { setTouched((t) => ({ ...t, issuer: true })); if (mode === 'edit') flush() }}
+              onBlur={() => { if (mode === 'edit') flush() }}
               placeholder="e.g. Ministry of Science and Education"
               maxLength={HONOR_LIMITS.issuer}
             />
-            {touched.issuer && errors.issuer && <p className="sfield-error" role="alert">{errors.issuer}</p>}
+            <InlineError id="honor-issuer-error" message={errors.issuer} />
           </div>
           <div className="honor-field honor-span-2">
             <ChipGroup
               label="Result"
               value={draft.result || null}
-              onChange={(value) => { set('result', value); setTouched((t) => ({ ...t, result: true })); if (mode === 'edit') flush() }}
+              onChange={(value) => set('result', value)}
               options={RESULT_OPTIONS}
               singleSelect
             />
-            {touched.result && errors.result && <p className="sfield-error" role="alert">{errors.result}</p>}
           </div>
-          <div className="honor-field">
-            <ChipGroup
-              label="Grade levels"
-              value={draft.grade_levels.map(String)}
-              onChange={(value) => { set('grade_levels', value.map(Number)); setTouched((t) => ({ ...t, grade_levels: true })); if (mode === 'edit') flush() }}
-              options={GRADE_OPTIONS}
-              required
-            />
-            {touched.grade_levels && errors.grade_levels && <p className="sfield-error" role="alert">{errors.grade_levels}</p>}
+          <div className="honor-field honor-span-2">
+            <GradeChips fieldKey="grade_levels" value={draft.grade_levels} required error={errors.grade_levels}
+              onChange={(value) => set('grade_levels', value)} />
           </div>
-          <div className="honor-field">
+          <div className="honor-field honor-span-2">
             <ChipGroup
-              label="Level of recognition"
+              label="Level of recognition" fieldKey="levels"
               value={draft.levels}
-              onChange={(value) => { set('levels', value); setTouched((t) => ({ ...t, levels: true })); if (mode === 'edit') flush() }}
+              onChange={(value) => set('levels', value)}
               options={LEVEL_OPTIONS}
               required
+              equal
+              error={errors.levels}
               helper="Select all that apply"
             />
-            {touched.levels && errors.levels && <p className="sfield-error" role="alert">{errors.levels}</p>}
           </div>
           <div className="honor-field honor-span-2">
             <div className="honor-field__row">
-              <label className="sfield-label">Selectivity</label>
+              <label className="sfield-label" htmlFor="honor-participants_context">Selectivity</label>
               <span className="honor-field__optional">Optional</span>
             </div>
             <input
+              id="honor-participants_context" data-form-field="participants_context"
+              aria-invalid={errors.participants_context ? true : undefined}
+              aria-describedby={errors.participants_context ? "honor-participants_context-error" : undefined}
               className={`honor-input${errors.participants_context ? ' honor-input--invalid' : ''}`}
               value={draft.participants_context}
               onChange={(event) => set('participants_context', event.target.value.slice(0, HONOR_LIMITS.participantsContext))}
-              onBlur={() => { setTouched((t) => ({ ...t, participants_context: true })); if (mode === 'edit') flush() }}
+              onBlur={() => { if (mode === 'edit') flush() }}
               placeholder="e.g. Top 30 of 2,000 students"
               maxLength={HONOR_LIMITS.participantsContext}
             />
-            {touched.participants_context && errors.participants_context && <p className="sfield-error" role="alert">{errors.participants_context}</p>}
+            <InlineError id="honor-participants_context-error" message={errors.participants_context} />
           </div>
         </div>
 
@@ -281,11 +272,10 @@ export default function HonorPanel({
               value={draft.description}
               max={HONOR_LIMITS.description}
               onChange={(value) => set('description', value)}
-              onBlur={() => { setTouched((t) => ({ ...t, description: true })); if (mode === 'edit') flush() }}
-              error={touched.description ? errors.description : undefined}
+              onBlur={() => { if (mode === 'edit') flush() }}
+              fieldKey="description" error={errors.description}
               copyLabel="Description"
             />
-            {touched.description && errors.description && <p className="sfield-error" role="alert">{errors.description}</p>}
           </div>
         </div>
 
@@ -297,19 +287,22 @@ export default function HonorPanel({
               value={draft.certificate_document_id ? (certDoc || { id: draft.certificate_document_id, title: 'Certificate' }) : null}
               category="award_certificate"
               userId={userId}
-              onChange={(doc) => { setCertDoc(doc); set('certificate_document_id', doc.id); if (mode === 'edit') flush() }}
+              onChange={(doc) => { setCertDoc(doc); set('certificate_document_id', doc?.id || '') }}
             />
           </div>
           <div className="honor-field">
-            <label className="sfield-label">Verification link</label>
+            <label className="sfield-label" htmlFor="honor-verification_url">Verification link</label>
             <input
+              id="honor-verification_url" data-form-field="verification_url"
+              aria-invalid={errors.verification_url ? true : undefined}
+              aria-describedby={errors.verification_url ? "honor-verification_url-error" : undefined}
               className={`honor-input${errors.verification_url ? ' honor-input--invalid' : ''}`}
               value={draft.verification_url}
               onChange={(event) => set('verification_url', event.target.value)}
-              onBlur={() => { setTouched((t) => ({ ...t, verification_url: true })); if (mode === 'edit') flush() }}
+              onBlur={() => { if (mode === 'edit') flush() }}
               placeholder="https://…"
             />
-            {touched.verification_url && errors.verification_url && <p className="sfield-error" role="alert">{errors.verification_url}</p>}
+            <InlineError id="honor-verification_url-error" message={errors.verification_url} />
           </div>
         </div>
 
@@ -320,7 +313,7 @@ export default function HonorPanel({
               <input
                 type="checkbox"
                 checked={top5On}
-                onChange={(event) => { set('is_top5_commonapp', event.target.checked); if (mode === 'edit') flush() }}
+                onChange={(event) => set('is_top5_commonapp', event.target.checked)}
               />
               <span className="honor-switch__track" aria-hidden="true"><span /></span>
               <span className="honor-switch__text">Include in top 5 for forms</span>
@@ -331,13 +324,11 @@ export default function HonorPanel({
 
         {mode === 'create' && (
           <footer className="honor-panel__footer">
-            <p className={`honor-required${canCreate ? ' honor-required--done' : ''}`} role="status">
-              {canCreate ? '✓ ' : ''}{completed} of 4 required fields
-            </p>
+            <ValidationSummary validation={validation} className="honor-required" completeClassName="honor-required--done" />
             {createError && <p className="sfield-error" role="alert">{createError}</p>}
             <div className="honor-panel__footer-actions">
               <button type="button" className="honor-btn honor-btn--ghost" onClick={cancelCreate}>Cancel</button>
-              <button type="submit" className="honor-btn honor-btn--primary" disabled={!canCreate || creating}>
+              <button type="submit" className="honor-btn honor-btn--primary" disabled={creating}>
                 {creating ? 'Creating…' : 'Create honor'}
               </button>
             </div>

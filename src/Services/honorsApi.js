@@ -6,16 +6,17 @@
  * ============================================================================ */
 
 import { supabase } from '../lib/supabase'
+import { HONOR_LIMITS } from '../constants/honors.js'
 import { rowFromDraft } from '../utils/honors.js'
 
 export const HONOR_COLUMNS = [
   'id', 'user_id', 'title', 'category', 'subject', 'received_month', 'received_year',
-  'result', 'issuer', 'participants_context', 'description', 'certificate_document_id',
+  'result', 'grade_levels', 'levels', 'issuer', 'participants_context', 'description', 'certificate_document_id',
   'verification_url', 'is_top5_commonapp', 'top5_order', 'sort_order', 'created_at', 'updated_at',
 ].join(', ')
 
 export const WRITABLE_HONOR_COLUMNS = [
-  'title', 'category', 'subject', 'received_month', 'received_year', 'result',
+  'title', 'category', 'subject', 'received_month', 'received_year', 'result', 'grade_levels', 'levels',
   'issuer', 'participants_context', 'description', 'certificate_document_id',
   'verification_url', 'is_top5_commonapp',
 ]
@@ -75,8 +76,8 @@ export async function restoreHonor(userId, row) {
 }
 
 export async function duplicateHonor(userId, source, sortOrder) {
-  const copy = pickWritable(source)
-  copy.title = `${String(copy.title || 'Honor')} (copy)`.slice(0, 100)
+  const copy = { ...pickWritable(source), is_top5_commonapp: false }
+  copy.title = `${String(copy.title || 'Honor').slice(0, HONOR_LIMITS.title - ' (copy)'.length)} (copy)`
   return unwrap(await supabase
     .from('honors')
     .insert({ ...copy, user_id: userId, sort_order: sortOrder })

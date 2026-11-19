@@ -166,7 +166,7 @@ export function validateProject(draft = {}, mode = 'edit') {
   const errors = {}
   const title = trim(draft.title)
 
-  if (mode === 'create' && !title) errors.title = 'Project title is required'
+  if (mode === 'create' && !title) errors.title = 'Add the project title'
   else if (title.length > PROJECT_LIMITS.title) errors.title = `Keep it to ${PROJECT_LIMITS.title} characters or fewer`
 
   if (trim(draft.problem).length > PROJECT_LIMITS.problem) errors.problem = `Keep it to ${PROJECT_LIMITS.problem} characters or fewer`
