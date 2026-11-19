@@ -22,7 +22,7 @@ export const PROJECT_COLUMNS = [
 
 /** Exactly the keys rowFromDraft produces — the write whitelist. */
 export const WRITABLE_PROJECT_COLUMNS = [
-  'project_type', 'title', 'role_type', 'start_date', 'status',
+  'project_type', 'title', 'role_type', 'start_date', 'end_date', 'status',
   'short_description', 'problem', 'build_summary', 'result', 'tech_tags',
   'github_url', 'demo_url', 'related_activity_id', 'visibility',
 ]

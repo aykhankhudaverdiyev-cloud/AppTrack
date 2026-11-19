@@ -1,3 +1,4 @@
+import { readCreateDraft } from '../../hooks/useAutosave'
 /** ============================================================================
  * TestScoresSection — Test Scores page (spec §4)
  * ============================================================================
@@ -112,7 +113,7 @@ export default function TestScoresSection({ userId, onOpenApplications }) {
   const { items, loading, error } = actions
   const { toast, showToast, hideToast } = useUndoToast()
   const [searchParams, setSearchParams] = useSearchParams()
-  const [adding, setAdding] = useState(false)
+  const [adding, setAdding] = useState(() => Boolean(readCreateDraft(userId && `tests:${userId}`)))
   const [deleting, setDeleting] = useState(null)
   const toastTimer = useRef(null)
 

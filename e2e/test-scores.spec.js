@@ -25,7 +25,7 @@ test.describe('Test Scores', () => {
     await panel.getByRole('combobox', { name: 'Test type' }).click()
     await page.getByRole('option', { name: 'IELTS', exact: true }).click()
     await panel.getByRole('radio', { name: 'Released' }).click()
-    await expect(panel.getByRole('radio', { name: 'Released' })).toHaveAttribute('aria-checked', 'true')
+    await expect(panel.getByRole('radio', { name: 'Released' })).toBeChecked()
 
     const sections = panel.locator('.test-section-item')
     await sections.nth(0).locator('.test-score-input').fill('7.5') // Listening
@@ -46,8 +46,8 @@ test.describe('Test Scores', () => {
     await panel.getByRole('radio', { name: 'Released' }).click()
     await panel.getByRole('button', { name: /add file|change/i }).click()
     await expect(page.getByRole('dialog', { name: 'Choose a document' })).toBeVisible()
-    await expect(page.getByText(/Your documents \(\d+\)/)).toBeVisible()
-    await page.getByRole('button', { name: '×' }).click()
+    await expect(page.getByRole('button', { name: 'Your documents', exact: true })).toBeVisible()
+    await page.getByRole('button', { name: 'Close document picker' }).click()
     await page.getByRole('button', { name: 'Cancel' }).click()
   })
 })

@@ -1,3 +1,4 @@
+import { DatePicker, SegmentedControl, TagSelect } from '../section'
 /**
  * ============================================================================
  * ProjectPanel — the right-hand panel of the Projects page (spec mockup)
@@ -14,16 +15,15 @@
  */
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { usePanelValidation } from '../../hooks/usePanelValidation'
-import { InlineError, ValidationSummary, MONTH_INPUT_PATTERN } from '../forms/PanelValidation'
-import { useAutosave } from '../../hooks/useAutosave'
+import { InlineError, ValidationSummary } from '../forms/PanelValidation'
+import { readCreateDraft, useCreateDraft, useAutosave } from '../../hooks/useAutosave'
 import {
   PROJECT_LIMITS, PROJECT_ROLES, PROJECT_STATUSES, PROJECT_TYPES, PROJECT_VISIBILITIES,
 } from '../../constants/projectTypes'
 import {
-  draftFromRow, emptyProjectDraft, projectTile, projectTypeMeta,
+  draftFromRow, emptyProjectDraft, projectTile,
   rowFromDraft, validateProject,
 } from '../../utils/projects'
-import { formatMonthInput, parseMonthInput } from '../../utils/activities'
 
 const ROLE_OPTIONS = PROJECT_ROLES.map((role) => ({ value: role.key, label: role.label }))
 const STATUS_OPTIONS = PROJECT_STATUSES.map((status) => ({ value: status.key, label: status.label }))
@@ -71,70 +71,7 @@ function TextField({ label, value, onChange, onBlur, error, placeholder, maxLeng
   )
 }
 
-function MonthField({ label, value, onChange, onBlur, error, fieldKey }) {
-  const id = useId()
-  const [text, setText] = useState(() => formatMonthInput(value))
-  const lastValue = useRef(value)
 
-  useEffect(() => {
-    if (value !== lastValue.current) {
-      lastValue.current = value
-      setText(formatMonthInput(value))
-    }
-  }, [value])
-
-  const handle = (raw) => {
-    setText(raw)
-    const parsed = parseMonthInput(raw)
-    if (parsed || raw.trim() === '') {
-      lastValue.current = parsed
-      onChange(parsed)
-    }
-  }
-
-  return (
-    <div data-form-field={fieldKey} className={`prj-field${error ? ' prj-field--invalid' : ''}`}>
-      <label className="prj-label" htmlFor={id}>{label}</label>
-      <input
-        id={id}
-        className="prj-input"
-        value={text}
-        placeholder="MM/YYYY"
-        pattern={MONTH_INPUT_PATTERN}
-        data-validation-message="Use MM/YYYY"
-        inputMode="numeric"
-        maxLength={7}
-        aria-invalid={error ? 'true' : undefined}
-        aria-describedby={error ? `${id}-err` : undefined}
-        onChange={(event) => handle(event.target.value)}
-        onBlur={onBlur}
-      />
-      <InlineError id={`${id}-err`} message={error} />
-    </div>
-  )
-}
-
-function Segmented({ label, value, onChange, options, name }) {
-  return (
-    <fieldset className="prj-field prj-segmented-field">
-      <legend className="prj-label">{label}</legend>
-      <div className="prj-segmented" role="radiogroup" aria-label={label}>
-        {options.map((option) => (
-          <label key={option.value} className={`prj-seg${value === option.value ? ' prj-seg--on' : ''}`}>
-            <input
-              type="radio"
-              name={name}
-              value={option.value}
-              checked={value === option.value}
-              onChange={() => onChange(option.value)}
-            />
-            <span>{option.label}</span>
-          </label>
-        ))}
-      </div>
-    </fieldset>
-  )
-}
 
 function DescriptionField({ id, label, value, max, onChange, onBlur, error, rows = 2, fieldKey }) {
   const ref = useRef(null)
@@ -252,7 +189,7 @@ function TechnologyInput({ tags, onChange, onBlur, error, fieldKey }) {
 
 export default function ProjectPanel({
   mode = 'edit',
-  row,
+  row, userId,
   defaultType = 'software_app',
   activities = [],
   onSave,
@@ -262,8 +199,10 @@ export default function ProjectPanel({
 }) {
   // The baseline is captured once: the parent remounts the panel (key) when a
   // different project is selected, so autosaves can never reset what is typed.
+  const draftKey = mode === 'create' && userId ? `projects:${userId}` : null
   const [initial] = useState(() => (mode === 'edit' && row ? draftFromRow(row) : emptyProjectDraft(defaultType)))
-  const [draft, setDraft] = useState(initial)
+  const [draft, setDraft] = useState(() => readCreateDraft(draftKey) ?? initial)
+  const clearDraft = useCreateDraft(draftKey, draft)
   const [creating, setCreating] = useState(false)
   const [createError, setCreateError] = useState('')
   const [now, setNow] = useState(() => Date.now())
@@ -304,7 +243,7 @@ export default function ProjectPanel({
 
   const cancelCreate = () => {
     const untouched = JSON.stringify(draft) === JSON.stringify(emptyProjectDraft(defaultType))
-    if (untouched) onClose?.()
+    if (untouched) { clearDraft(); onClose?.() }
     else setConfirmDiscard(true)
   }
 
@@ -335,6 +274,7 @@ export default function ProjectPanel({
     setCreateError('')
     try {
       await onCreate?.(draft)
+      clearDraft()
     } catch (error) {
       setCreateError(error?.message || 'Could not create the project. Please try again.')
     } finally {
@@ -342,9 +282,8 @@ export default function ProjectPanel({
     }
   }
 
-  const meta = projectTypeMeta(draft.project_type)
   const tile = mode === 'create'
-    ? { emoji: '＋', tint: meta.tint }
+    ? { emoji: '＋', tint: projectTile(draft).tint }
     : projectTile({ ...rowFromDraft(draft), created_at: row?.created_at })
   const title = mode === 'create' ? 'New project' : String(draft.title || '').trim() || 'Untitled project'
 
@@ -380,19 +319,9 @@ export default function ProjectPanel({
           {tile.emoji}
         </span>
         <h2 className="prj-panel__title">{title}</h2>
-        <label className="prj-type-tag">
-          <span className="prj-type-tag__text">{meta.label}</span>
-          <span aria-hidden="true">▾</span>
-          <select
-            value={draft.project_type}
-            onChange={(event) => set('project_type', event.target.value)}
-            aria-label="Project type"
-          >
-            {PROJECT_TYPES.map((option) => (
-              <option key={option.key} value={option.key}>{option.full}</option>
-            ))}
-          </select>
-        </label>
+        <TagSelect label="Project type" value={draft.project_type}
+          options={PROJECT_TYPES.map(({ key, full }) => ({ value: key, label: full }))}
+          onChange={(value) => set('project_type', value)} />
         <span className={`prj-save${saveError ? ' prj-save--error' : ''}`} role="status" aria-live="polite">
           {saveError ? (
             <button type="button" className="prj-save__retry" onClick={flush}>Couldn&apos;t save · Retry</button>
@@ -417,14 +346,14 @@ export default function ProjectPanel({
             error={errors.title}
             placeholder="e.g. AppTrack"
           />
-          <Segmented
+          <SegmentedControl
             label="Your role"
             name="prj-role"
             value={draft.role_type}
             onChange={(value) => set('role_type', value)}
             options={ROLE_OPTIONS}
           />
-          <MonthField
+          <DatePicker
             label="Start date"
             value={draft.start_month}
             onChange={(value) => set('start_month', value)}
@@ -432,13 +361,15 @@ export default function ProjectPanel({
             fieldKey="start_month"
             error={errors.start_month}
           />
-          <Segmented
+          <SegmentedControl
             label="Status"
             name="prj-status"
             value={draft.status}
             onChange={(value) => set('status', value)}
             options={STATUS_OPTIONS}
           />
+          <DatePicker label="End date" fieldKey="end_month" value={draft.end_month || ''}
+            error={errors.end_month} onChange={(value) => set('end_month', value)} />
         </div>
 
         <SectionLabel>Details</SectionLabel>
@@ -508,27 +439,14 @@ export default function ProjectPanel({
         <SectionLabel>Connections</SectionLabel>
         <div className="prj-grid">
           <div data-form-field="related_activity_id" className={`prj-field${errors.related_activity_id ? ' prj-field--invalid' : ''}`}>
-            <label className="prj-label" htmlFor="prj-linked">Linked activity</label>
-            <select
-              id="prj-linked"
-              className="prj-input prj-select"
-              value={draft.related_activity_id}
-              onChange={(event) => set('related_activity_id', event.target.value)}
-              onBlur={blur}
-              disabled={!activityOptions.length}
-              aria-invalid={errors.related_activity_id ? true : undefined}
-            >
-              <option value="">
-                {activityOptions.length ? 'Choose an activity' : 'Add an activity first'}
-              </option>
-              {activityOptions.map((option) => (
-                <option key={option.value} value={option.value}>{option.label}</option>
-              ))}
-            </select>
+            <label className="prj-label">Linked activity</label>
+            <TagSelect label="Linked activity" value={draft.related_activity_id}
+              options={[{ value: '', label: 'No linked activity' }, ...activityOptions]}
+              onChange={(value) => set('related_activity_id', value)} />
             <InlineError message={errors.related_activity_id} />
           </div>
           <div>
-            <Segmented
+            <SegmentedControl
               label="Visibility"
               name="prj-visibility"
               value={draft.visibility}
@@ -566,7 +484,7 @@ export default function ProjectPanel({
             <p>Nothing has been saved yet.</p>
             <div className="prj-discard__actions">
               <button type="button" className="prj-btn prj-btn--ghost" onClick={() => setConfirmDiscard(false)}>Keep editing</button>
-              <button type="button" className="prj-btn prj-btn--danger" onClick={() => { setConfirmDiscard(false); onClose?.() }}>Discard</button>
+              <button type="button" className="prj-btn prj-btn--danger" onClick={() => { setConfirmDiscard(false); clearDraft(); onClose?.() }}>Discard</button>
             </div>
           </div>
         </div>

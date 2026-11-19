@@ -103,3 +103,8 @@ test('mapDbError friendly messages', () => {
   assert.equal(mapDbError({ message: 'new row for relation "honors" violates check constraint "honors_top5_limit" TOP5_LIMIT' }).message, 'You can include up to 5 honors. Turn one off first.')
   assert.equal(mapDbError({ message: 'DOCUMENT_OWNER_MISMATCH' }).message, 'This file could not be linked. Please choose it again.')
 })
+
+test('recognition uses the first level from legacy rows and writes a single level', () => {
+  assert.deepEqual(draftFromRow({ levels: ['national', 'city'] }).levels, ['national'])
+  assert.deepEqual(rowFromDraft({ levels: ['national', 'city'] }).levels, ['national'])
+})

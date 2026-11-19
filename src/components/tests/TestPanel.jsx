@@ -6,10 +6,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { usePanelValidation } from '../../hooks/usePanelValidation'
 import { InlineError, ValidationSummary, NumericInput } from '../forms/PanelValidation'
-import { useAutosave } from '../../hooks/useAutosave'
+import { readCreateDraft, useCreateDraft, useAutosave } from '../../hooks/useAutosave'
 import { Field } from '../forms'
 import '../activities/ActivitiesSection.css'
-import { ChipGroup, DocumentPicker, TagSelect, TipBox } from '../section'
+import { DatePicker, SegmentedControl, DocumentPicker, TagSelect, TipBox } from '../section'
 import { getDocument } from '../../Services/documentApi'
 import {
   TEST_TYPES, TEST_STATUSES, testPreset, needsExamName,
@@ -20,6 +20,12 @@ import { suggestOverall, defaultExpiry, applyPreset } from '../../utils/tests.js
 import './TestPanel.css'
 
 const STATUS_OPTIONS = TEST_STATUSES.map((s) => ({ value: s.key, label: s.label }))
+
+function ScoreInput({ onChange, ...props }) {
+  return <input {...props} type="text" inputMode="decimal" onChange={(event) => {
+    if (/^\d*(?:\.\d*)?$/.test(event.target.value)) onChange(event)
+  }} />
+}
 
 function sectionErrors(sections) {
   const errors = {}
@@ -49,11 +55,13 @@ export default function TestPanel({
   mode = 'edit', row, userId, defaultTestType = 'SAT',
   onSave, onCreate, onClose, onOpenApplications,
 }) {
-  const [draft, setDraft] = useState(() => (mode === 'edit' && row ? draftFromRow(row, row.sections) : emptyTestDraft(defaultTestType)))
+  const draftKey = mode === 'create' && userId ? `tests:${userId}` : null
+  const [recovered] = useState(() => readCreateDraft(draftKey))
+  const [draft, setDraft] = useState(() => (mode === 'edit' && row ? draftFromRow(row, row.sections) : recovered?.draft ?? emptyTestDraft(defaultTestType)))
   const [sections, setSections] = useState(() => mode === 'edit'
     ? draftFromRow(row, row?.sections).sections
-    : applyPreset(defaultTestType))
-  const [sectionEdited, setSectionEdited] = useState(false)
+    : recovered?.sections ?? applyPreset(defaultTestType))
+  const [sectionEdited, setSectionEdited] = useState(Boolean(recovered?.sections))
   const [expiryEdited, setExpiryEdited] = useState(false)
   const [creating, setCreating] = useState(false)
   const [createError, setCreateError] = useState('')
@@ -93,6 +101,7 @@ export default function TestPanel({
   }, [onSave])
   const autosavePayload = useMemo(() => ({ draft, sections }), [draft, sections])
 
+  const clearDraft = useCreateDraft(draftKey, autosavePayload)
   const { saving, savedAt, error: saveError, isDirty, markDirty, flush } = useAutosave(autosavePayload, persist, {
     delay: 800,
     enabled: mode === 'edit',
@@ -111,9 +120,9 @@ export default function TestPanel({
   const cancelCreate = useCallback(() => {
     const untouched = JSON.stringify(draft) === JSON.stringify(emptyTestDraft(defaultTestType))
       && !sectionEdited
-    if (untouched) onClose?.()
+    if (untouched) { clearDraft(); onClose?.() }
     else setConfirmDiscard(true)
-  }, [draft, sectionEdited, onClose, defaultTestType])
+  }, [draft, sectionEdited, onClose, defaultTestType, clearDraft])
 
   const requestClose = useCallback(async () => {
     if (mode === 'create') { cancelCreate(); return }
@@ -134,6 +143,7 @@ export default function TestPanel({
     setCreateError('')
     try {
       await onCreate?.({ ...draft, sections: sections.map((s) => ({ ...s, id: s.id || crypto.randomUUID() })) })
+      clearDraft()
     } catch (error) {
       setCreateError(error?.message || 'Could not create the test. Please try again.')
     } finally {
@@ -167,7 +177,7 @@ export default function TestPanel({
 
   const addSection = () => {
     setSectionEdited(true)
-    setSections((prev) => [...prev, { id: crypto.randomUUID(), section: '', score: '', score_max: '', sort_order: prev.length }])
+    setSections((prev) => [...prev, { id: crypto.randomUUID(), custom: true, section: '', score: '', score_max: '', sort_order: prev.length }])
     if (mode === 'edit') markDirty()
   }
 
@@ -182,8 +192,8 @@ export default function TestPanel({
       hint={draft.overall_score === '' && suggested != null ? `Suggested from sections: ${suggested}` : undefined}>
       {({ id, describedBy, invalid }) => (
         <div className="test-overall-row">
-          <NumericInput id={id} aria-describedby={describedBy} aria-invalid={invalid} className="test-input test-input--short"
-            step="any" min="0" max={draft.overall_max || undefined} value={draft.overall_score} placeholder={suggested ?? ''}
+          <ScoreInput id={id} aria-describedby={describedBy} aria-invalid={invalid} className="test-input test-input--short"
+            value={draft.overall_score} placeholder={suggested ?? ''}
             onChange={(event) => set('overall_score', event.target.value)} onBlur={blur} />
           {draft.overall_max !== '' && <span className="test-suffix">/ {draft.overall_max}</span>}
         </div>
@@ -234,21 +244,17 @@ export default function TestPanel({
             </Field>
           )}
           <div className="test-field test-span-2">
-            <ChipGroup label="Status" fieldKey="status" error={errors.status} value={draft.status || null}
+            <SegmentedControl name="test-status" label="Status" fieldKey="status" error={errors.status} value={draft.status || null}
               onChange={(value) => { if (value) set('status', value) }}
-              options={STATUS_OPTIONS} singleSelect required />
+              options={STATUS_OPTIONS} required />
           </div>
-          <Field label="Test date" className="test-field">
-            {({ id }) => <input id={id} className="test-input" type="date" value={draft.test_date}
-              onChange={(event) => {
-                set('test_date', event.target.value)
-                if (mode === 'create' && !expiryEdited) set('expires_on', defaultExpiry(draft.test_type, event.target.value) || '')
-              }} onBlur={blur} />}
-          </Field>
-          <Field label="Expires on" fieldKey="expires_on" className="test-field" error={errors.expires_on} hint={isEnglish ? 'Default: two years from the test date' : undefined}>
-            {({ id, describedBy, invalid }) => <input id={id} aria-describedby={describedBy} aria-invalid={invalid} className="test-input" type="date" value={draft.expires_on}
-              onChange={(event) => { setExpiryEdited(true); set('expires_on', event.target.value) }} onBlur={blur} />}
-          </Field>
+          <DatePicker mode="day" label="Test date" fieldKey="test_date" value={draft.test_date}
+            onChange={(value) => {
+              set('test_date', value)
+              if (mode === 'create' && !expiryEdited) set('expires_on', defaultExpiry(draft.test_type, value) || '')
+            }} />
+          <DatePicker mode="day" label="Expires on" fieldKey="expires_on" value={draft.expires_on} error={errors.expires_on}
+            onChange={(value) => { setExpiryEdited(true); set('expires_on', value) }} />
           <Field label={trfLabel} fieldKey="trf_number" className="test-field" error={errors.trf_number}>
             {({ id }) => <input id={id} className="test-input" aria-invalid={Boolean(errors.trf_number)} value={draft.trf_number}
               onChange={(event) => set('trf_number', event.target.value)} onBlur={blur} maxLength={40} />}
@@ -269,26 +275,28 @@ export default function TestPanel({
                   const key = section.id || index
                   const scoreKey = `section_score_${key}`
                   const maxKey = `section_max_${key}`
+                  const preset = !section.custom && testPreset(draft.test_type).sections.some(([name]) => name === section.section)
                   return <div key={key} className="test-section-item">
                     <div className="test-section-item__head">
-                      <input className="test-section-name" value={section.section}
+                      {preset ? <label className="sfield-label" htmlFor={scoreKey}>{section.section}</label> : <input className="test-section-name" aria-label="Custom section name" value={section.section}
                         onChange={(event) => setSection(index, 'section', event.target.value.slice(0, 60))}
                         onBlur={blur}
-                        placeholder="Section name" />
+                        placeholder="Section name" />}
                       <button type="button" className="test-remove" onClick={() => removeSection(index)} aria-label={`Remove ${section.section || 'section'}`}>×</button>
                     </div>
                     <div className="test-section-box">
-                      <NumericInput data-form-field={scoreKey} aria-invalid={errors[scoreKey] ? true : undefined}
-                        aria-describedby={errors[scoreKey] ? scoreKey : undefined} className="test-score-input" aria-label={`${section.section || 'Section'} score`} step="any" min="0" value={section.score}
+                      <ScoreInput id={scoreKey} data-form-field={scoreKey} aria-invalid={errors[scoreKey] ? true : undefined}
+                        aria-describedby={errors[scoreKey] ? `${scoreKey}-error` : undefined} className="test-score-input" aria-label={`${section.section || 'Section'} score`} value={section.score}
                         onChange={(event) => setSection(index, 'score', event.target.value)}
                         onBlur={blur} placeholder="0" />
+                      {preset ? <span className="test-score-suffix">/ {section.score_max}</span> : <>
                       <span className="test-slash">/</span>
-                      <NumericInput data-form-field={maxKey} aria-invalid={errors[maxKey] ? true : undefined}
-                        aria-describedby={errors[maxKey] ? maxKey : undefined} className="test-score-max-input" aria-label={`${section.section || 'Section'} maximum`} step="any" min="0" value={section.score_max}
+                      <ScoreInput data-form-field={maxKey} aria-invalid={errors[maxKey] ? true : undefined}
+                        aria-describedby={errors[maxKey] ? maxKey : undefined} className="test-score-max-input" aria-label={`${section.section || 'Section'} maximum`} value={section.score_max}
                         onChange={(event) => setSection(index, 'score_max', event.target.value)}
-                        onBlur={blur} placeholder="max" />
+                        onBlur={blur} placeholder="max" /></>}
                     </div>
-                    <InlineError id={scoreKey} message={errors[scoreKey]} />
+                    <InlineError id={`${scoreKey}-error`} message={errors[scoreKey]} />
                     <InlineError id={maxKey} message={errors[maxKey]} />
                   </div>
                 })}
@@ -324,7 +332,6 @@ export default function TestPanel({
 
         <label className="test-field">
           <span className="sfield-label">Notes</span>
-          <button type="button" className="test-add-note" onClick={() => set('notes', draft.notes || 'Add your note here…')}>Add note</button>
           <textarea data-form-field="notes" aria-invalid={errors.notes ? true : undefined} aria-describedby={errors.notes ? "test-notes-error" : undefined} className="test-input test-textarea" value={draft.notes} onChange={(event) => set('notes', event.target.value.slice(0, 500))}
             onBlur={blur} maxLength={500} />
           <InlineError id="test-notes-error" message={errors.notes} />
@@ -353,7 +360,7 @@ export default function TestPanel({
             <p>Nothing has been saved yet.</p>
             <div className="test-discard__actions">
               <button type="button" className="test-btn test-btn--ghost" onClick={() => setConfirmDiscard(false)}>Keep editing</button>
-              <button type="button" className="test-btn test-btn--danger" onClick={() => { setConfirmDiscard(false); onClose?.() }}>Discard</button>
+              <button type="button" className="test-btn test-btn--danger" onClick={() => { setConfirmDiscard(false); clearDraft(); onClose?.() }}>Discard</button>
             </div>
           </div>
         </div>

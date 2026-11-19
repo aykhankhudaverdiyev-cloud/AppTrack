@@ -1,3 +1,4 @@
+import { readCreateDraft } from '../../hooks/useAutosave'
 /**
  * ============================================================================
  * ActivitiesSection — Activities & Experiences (list + filters + panel)
@@ -193,7 +194,7 @@ export default function ActivitiesSection({ userId }) {
   const actions = useActivities(userId)
   const { items, loading, error } = actions
   const [searchParams, setSearchParams] = useSearchParams()
-  const [adding, setAdding] = useState(false)
+  const [adding, setAdding] = useState(() => Boolean(readCreateDraft(userId && `activities:${userId}`)))
   const [focusId, setFocusId] = useState(null)
   const [deleting, setDeleting] = useState(null)
   const [toast, setToast] = useState(null)
@@ -486,6 +487,7 @@ export default function ActivitiesSection({ userId }) {
             key={adding ? 'new' : selected?.id}
             mode={adding ? 'create' : 'edit'}
             row={adding ? undefined : selected}
+            userId={userId}
             defaultType={filter === 'all' ? 'other' : filter}
             onSave={adding ? undefined : handleSave}
             onCreate={adding ? handleCreate : undefined}

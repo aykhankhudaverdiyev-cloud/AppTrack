@@ -24,3 +24,6 @@ AppTrack is a comprehensive Student Application Tracking System designed to help
    ```env
    VITE_SUPABASE_URL=your_project_url
    VITE_SUPABASE_ANON_KEY=your_anon_key
+## Tests
+
+Run `npm test` for unit tests. For browser tests, configure `E2E_EMAIL` and `E2E_PASSWORD` locally for a dedicated test account, plus the Vite Supabase environment variables, then run `npm run test:e2e`. Never run browser tests with a real student account.

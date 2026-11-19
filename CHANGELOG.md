@@ -88,7 +88,7 @@ Rebuild driven by the college-counselor specification (20 sections). Delivered i
 | `Field` | Accessible wrapper: label + hint + inline error (aria-*) | #9, #10 |
 | `ValidatedInput` / `ValidatedSelect` | Inline errors that explain the rule ("SAT section scores are 200–800 in steps of 10") | #9 |
 | `CharWordCounter` | Live character AND word counts; binding limit emphasised; over-limit warning | #4 |
-| `MonthYearPicker` | Month + year selects (structured dates) | #3 |
+| `DatePicker` | Shared month/day calendar popover | #3 |
 | `ConfirmDialog` | Confirmation for every delete (Escape, focus control) | #8 |
 | `SortableList` | Drag-to-reorder + keyboard ↑↓ (mobile friendly) | #8, #10 |
 | `useAutosave` / `useUnsavedGuard` | Debounced draft autosave + close warning | #8 |
@@ -218,7 +218,7 @@ per-university AI-rules notes. No schema change — `essays`, `essay_versions`,
   pre-existing `StudentDashboard.jsx` errors are unchanged). A jsdom +
   mocked-Supabase React smoke test rendered all 8 tabs with zero runtime errors.
 - Live Supabase click-through was not possible in this sandbox — see
-  `HANDOFF.md` for the smoke-test checklist.
+  the Playwright specs in `e2e/` for smoke tests.
 
 ---
 
@@ -233,7 +233,7 @@ project data path or document picker was added.
 
 Tests: 50 passing; configured production build passes; six tabs rendered with
 representative data in a React server-render smoke test. Live Supabase and browser
-click-through remain to be verified before merge; see `HANDOFF.md`.
+click-through remain to be verified before merge; see the Playwright specs in `e2e/`.
 
 ---
 
