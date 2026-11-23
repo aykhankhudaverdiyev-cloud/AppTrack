@@ -2,12 +2,13 @@
  * SectionPage — white rounded container under the nav with a faint lavender
  * glow top-right: title, subtitle, primary gradient button top-right, a
  * filter-chip row and an optional right-aligned counter text.
+ * `className` lets one page tint the container (Education uses white).
  * ============================================================================ */
 import './section.css'
 
-export default function SectionPage({ title, subtitle, action, chips, counter, children }) {
+export default function SectionPage({ title, subtitle, action, chips, counter, className = '', children }) {
   return (
-    <section className="aw-page">
+    <section className={`aw-page${className ? ` ${className}` : ''}`}>
       <header className="aw-page__head">
         <div>
           <h1 className="aw-page__title">{title}</h1>

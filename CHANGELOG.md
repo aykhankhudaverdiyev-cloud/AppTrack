@@ -4,6 +4,63 @@ Rebuild driven by the college-counselor specification (20 sections). Delivered i
 
 ---
 
+## Education — rebuilt as its own page (2026-11-23)
+
+**Status:** ready · **Branch:** `arena/77b35614-apptrack`
+
+### What changed, where
+
+- **New page** `src/components/academic/EducationSection.jsx` (+ `.css`): a white
+  page container with the header "Education" / "Your schools, grades and
+  transcripts in one place.", the purple gradient "+ Add education", four
+  always-visible chips (`All 1`, `Secondary school 1`, `University 0`,
+  `Programs 0`) and a 36 / 64 layout with a 24 px gap. Cards carry the emoji
+  tile, two-line title, type · city · country, "Sep 2023 – Jun 2027 · Grade 11",
+  the `Average 5.00 / 5` · `Class of 33` chips, a green "Currently attending"
+  pill and a ⋯ menu; the dashed card below adds a university / program. The
+  open entry and the filter live in the URL (`?type=…&id=…`).
+- **Panel** `EducationPanel.jsx` (+ `.css`), `EducationField.jsx`,
+  `EducationInputs.jsx`, `GradeTable.jsx`: BASICS (four-segment Type control,
+  institution + country, city + CEEB, language, two month fields with calendar
+  icons, "Currently attending" switch), ACADEMIC RECORD (qualification,
+  grading scale, "Overall average 5.00 / 5", class size, disabled class rank +
+  "School does not rank"), GRADES (Subject × Grade 9/10/11 with grey `—`
+  placeholders, "+ Add subject"), COUNSELOR, PROOF (two text links that open the
+  shared document picker) and the pale-lilac tip. 800 ms autosave per edited
+  field, inline errors only after blur or submit, "Saved 2 s ago ✓" status.
+- **Data layer**: `src/Services/educationApi.js` (whitelisted columns, owner-scoped,
+  `notifyDataChanged()` so the dashboard realtime channel refreshes the stat
+  cards), `src/hooks/useEducation.js` (optimistic + rollback), `src/utils/education.js`
+  with 17 unit tests. Grades reuse `syncGradeRows()`, so an emptied cell deletes
+  its `grade_rows` row and semester-2 rows the table does not show are kept.
+- **Removed** the old Education / Test Scores / Honors form UI from
+  `AcademicSection.jsx`; `AcademicCollection` stays (Projects shows graduate
+  publications inside it) and is now the file's only export.
+- **Shared bits**: `SectionPage` accepts `className`; `FilterChips` accepts
+  `alwaysShow` (zero-count chips); `DocumentPicker` accepts a `trigger` render
+  prop so PROOF can show "Choose from Documents" and "Upload" as two links.
+- **Migration** `010_education_redesign.sql` (applied to the AppTrack project,
+  version `20261123201219`): `education_entries.transcript_document_id` →
+  `document_files(id) on delete set null`, `assert_document_owner()` trigger,
+  lookup index. No rows touched, RLS unchanged.
+
+### Verification
+
+- `npm test` → **142/142** (125 existing + 17 new education tests).
+- `npm run build` → passes.
+- `npx eslint .` → 50 errors, all pre-existing outside the new files (baseline
+  was 47 for the old `AcademicSection`); the new Education, preview and service
+  files are clean.
+- Server-side render of the page and both panel modes: no runtime errors, all
+  labels/placeholders/emoji/labels present, card meta renders
+  "Sep 2023 – Jun 2027 · Grade 11".
+- Not verified in a browser here (this sandbox has no browser engine and no
+  route to the Supabase domain): the live page is exercised by
+  `npm run dev:education` against the offline stub, and the real flow by
+  `npm run test:e2e`.
+
+---
+
 ## Projects — rebuilt as its own page (2026-11-13)
 
 **Status:** ready · **Branch:** `arena/1ed31615-apptrack`

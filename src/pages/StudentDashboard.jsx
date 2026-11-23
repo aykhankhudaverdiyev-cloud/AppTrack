@@ -37,7 +37,7 @@ import PublicStudentDrawer from '../components/PublicStudentDrawer'
 import StudentCard from '../components/StudentCard'
 import MyProfileSection from '../components/profile/MyProfileSection'
 import AdmissionsOverview from '../components/applications/AdmissionsOverview'
-import AcademicSection from '../components/academic/AcademicSection'
+import EducationSection from '../components/academic/EducationSection'
 import ActivitiesSection from '../components/activities/ActivitiesSection'
 import ProjectsSection from '../components/projects/ProjectsSection'
 import HonorsSection from '../components/honors/HonorsSection'
@@ -969,7 +969,7 @@ export default function StudentDashboard() {
           <HonorsSection key={user?.id} userId={user?.id} />
         )}
         {activeTab === 'education' && (
-          <AcademicSection activeTab={activeTab} userId={user?.id} library={{ ...academic, applications: me.applications || [] }} loading={academicLoading} error={academicError} onRetry={() => setAcademicRetry(n => n + 1)} />
+          <EducationSection key={user?.id} userId={user?.id} />
         )}
 
         {/* ACTIVITIES: unified list (multi-category, drag-ranked) */}
