@@ -1,8 +1,27 @@
+/** ============================================================================
+ * AcademicCollection — the generic "one card per row" academic collection
+ * ============================================================================
+ * Education, Test Scores and Honors & Awards each have their own page now
+ * (EducationSection, TestScoresSection, HonorsSection). What is left here is
+ * the collection Projects still uses to show graduate Publications inside its
+ * "Publications (optional)" disclosure:
+ *
+ *   <AcademicCollection table="publications" userId={id} library={rows} />
+ *
+ * It keeps the original autosaving form: every edit is debounced and saved
+ * with the whitelisted columns of its table (see ProfileServiceV2), and child
+ * rows (grade rows, section scores) sync through `syncGradeRows` /
+ * `syncSectionScores`.
+ * ============================================================================ */
+
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Field, CharWordCounter, ConfirmDialog, SortableList } from '../forms'
+import { Field, CharWordCounter, ConfirmDialog } from '../forms'
 import { useAutosave, useUnsavedGuard } from '../../hooks/useAutosave'
 import * as rules from '../../utils/academicRules'
-import { saveEducationEntry, saveTestAttempt, saveHonor, savePublication, deleteAcademicRow, syncGradeRows, syncSectionScores, saveScoreSending, newApplicationRowId } from '../../Services/ProfileServiceV2'
+import {
+  savePublication, deleteAcademicRow, syncGradeRows, syncSectionScores,
+  saveScoreSending, newApplicationRowId,
+} from '../../Services/ProfileServiceV2'
 import '../profile/MyProfileSection.css'
 import './AcademicSection.css'
 
@@ -10,17 +29,12 @@ const label = (s) => String(s).replaceAll('_', ' ').replace(/\b\w/g, c => c.toUp
 const opt = (key, title, options, extra = {}) => ({ key, title, options, ...extra })
 const field = (key, title, type = 'text', extra = {}) => ({ key, title, type, ...extra })
 const grades = [9, 10, 11, 12, 13]
+
 const config = {
-  education_entries: { title: 'Education', singular: 'education entry', required: 'institution_name', save: saveEducationEntry, defaults: { entry_type: 'secondary_school' }, fields: [
-    opt('entry_type', 'Entry type', rules.EDUCATION_TYPES), field('institution_name', 'Institution name', 'text', { required: true }), field('country', 'Country'), field('city', 'City'), field('ceeb_code', 'CEEB code'), field('language_of_instruction', 'Language of instruction'), field('start_date', 'Start date', 'date'), field('end_date', 'End or expected graduation date', 'date'), field('is_current', 'Currently studying here', 'checkbox'),
-    ...['qualification', 'grading_scale', 'overall_average', 'scale_maximum', 'class_rank', 'class_size', 'school_does_not_rank', 'current_year_courses', 'predicted_grades', 'mid_year_grades', 'school_counselor_name', 'school_counselor_email', 'school_counselor_phone'].map(k => field(k, label(k), ['overall_average', 'scale_maximum', 'class_rank', 'class_size'].includes(k) ? 'number' : k === 'school_does_not_rank' ? 'checkbox' : ['current_year_courses', 'predicted_grades', 'mid_year_grades'].includes(k) ? 'textarea' : 'text', { when: 'school' })),
-    ...['degree', 'major', 'minor', 'gpa', 'gpa_scale', 'credits_completed', 'honours_classification', 'rank_percentile', 'thesis_title', 'thesis_supervisor', 'thesis_abstract'].map(k => field(k, label(k), ['gpa', 'gpa_scale', 'credits_completed', 'rank_percentile'].includes(k) ? 'number' : k === 'thesis_abstract' ? 'textarea' : 'text', { when: 'university' })),
-    opt('credential_eval_status', 'Credential evaluation status', rules.CREDENTIAL_EVALUATION_STATUSES, { when: 'university' }), field('credential_eval_provider', 'Evaluation provider', 'text', { when: 'university' }), field('credential_eval_number', 'Evaluation number', 'text', { when: 'university' }),
-  ] },
-  test_attempts: { title: 'Test Scores', singular: 'test attempt', required: 'test_type', save: saveTestAttempt, defaults: { test_type: 'SAT', status: 'planned', attempt_number: 1 }, fields: [
+  test_attempts: { title: 'Test Scores', singular: 'test attempt', required: 'test_type', save: null, defaults: { test_type: 'SAT', status: 'planned', attempt_number: 1 }, fields: [
     opt('test_type', 'Test', rules.TEST_TYPES), opt('status', 'Status', rules.TEST_STATUSES), field('attempt_number', 'Attempt number', 'number', { min: 1 }), field('test_date', 'Test date', 'date'), field('overall_score', 'Overall score', 'number'), field('overall_max', 'Maximum score', 'number'), field('trf_number', 'IELTS TRF number'), field('national_exam_name', 'National exam name'), field('is_home_edition', 'Home edition', 'checkbox'), field('is_mybest', 'TOEFL MyBest', 'checkbox'), field('is_best', 'Best attempt', 'checkbox'), field('notes', 'Private notes', 'textarea'),
   ] },
-  honors: { title: 'Honors & Awards', singular: 'honor', required: 'title', save: saveHonor, defaults: {}, fields: [
+  honors: { title: 'Honors & Awards', singular: 'honor', required: 'title', save: null, defaults: {}, fields: [
     field('title', 'Title', 'text', { required: true, max: 100 }), field('levels', 'Recognition levels', 'multi', { options: rules.HONOR_LEVELS }), field('grade_levels', 'Grade levels', 'multi', { options: grades }), field('received_month', 'Received month', 'number', { min: 1, maxValue: 12 }), field('received_year', 'Received year', 'number'), opt('category', 'Category', rules.HONOR_CATEGORIES), opt('result', 'Result', rules.HONOR_RESULTS), field('subject', 'Subject'), field('issuer', 'Issuer'), field('participants_context', 'Participants / context'), field('description', 'Description', 'textarea'), field('verification_url', 'Verification URL', 'url'), field('is_top5_commonapp', 'Include in Common App Top 5', 'checkbox'),
   ] },
   publications: { title: 'Publications', singular: 'publication', required: 'title', save: savePublication, defaults: { status: 'in_preparation' }, fields: [
@@ -29,7 +43,9 @@ const config = {
 }
 
 function StructuredText({ id, type, value, onCommit }) {
-  const encode = useCallback(v => type === 'tags' ? (v || []).join(', ') : (v || []).map(item => `${item.value}: ${item.label}`).join('\n'), [type])
+  const encode = useCallback(v => (type === 'tags'
+    ? (v || []).join(', ')
+    : (v || []).map(item => `${item.value}: ${item.label}`).join('\n')), [type])
   const [text, setText] = useState(() => encode(value))
   return <textarea id={id} rows={3} value={text} onChange={e => setText(e.target.value)} onBlur={() => {
     if (type === 'tags') onCommit(text.split(',').map(v => v.trim()).filter(Boolean))
@@ -59,7 +75,11 @@ function Input({ spec, value, set, library }) {
 }
 
 function Status({ save }) {
-  return save.saving ? <span className="mps-status mps-status--saving">Saving…</span> : save.error ? <span className="mps-status mps-status--error" title={save.error.message}>Save failed</span> : save.savedAt ? <span className="mps-status mps-status--saved">Saved</span> : null
+  return save.saving
+    ? <span className="mps-status mps-status--saving">Saving…</span>
+    : save.error
+      ? <span className="mps-status mps-status--error" title={save.error.message}>Save failed</span>
+      : save.savedAt ? <span className="mps-status mps-status--saved">Saved</span> : null
 }
 
 function AcademicCard({ table, row, userId, library }) {
@@ -92,18 +112,18 @@ function AcademicCard({ table, row, userId, library }) {
   useUnsavedGuard(save.isDirty)
   const set = (key, value) => { dirty.current.add(key); save.markDirty(); setDraft(old => ({ ...old, [key]: value })) }
   const remove = async () => { try { await deleteAcademicRow(table, userId, row.id); setConfirm(false) } catch (e) { setError(e.message) } }
-  const visible = spec => !spec.when || (spec.when === 'university' ? draft.entry_type === 'university' : draft.entry_type !== 'university')
-  const expiry = table === 'test_attempts' && rules.scoreExpiryDate(draft.test_type, draft.test_date)
-  const expiryDays = expiry ? Math.round((new Date(`${expiry}T00:00:00Z`) - new Date(`${new Date().toISOString().slice(0, 10)}T00:00:00Z`)) / 86400000) : null
   return <section className="mps-card academic-card">
-    <header className="mps-card__head"><div><h3>{draft.title || draft.institution_name || draft.position || draft.organization_name || draft.test_type || cfg.singular}</h3><p className="mps-card__sub">{table === 'projects' ? 'Public visibility does not bypass the existing approval flow.' : '🔒 Private to you and your assigned counselor.'}</p></div><div className="mps-card__meta"><Status save={save} /><button type="button" className="mps-btn mps-btn--ghost" onClick={() => setConfirm(true)}>Delete</button></div></header>
+    <header className="mps-card__head">
+      <div>
+        <h3>{draft.title || draft.institution_name || draft.position || draft.organization_name || draft.test_type || cfg.singular}</h3>
+        <p className="mps-card__sub">🔒 Private to you and your assigned counselor.</p>
+      </div>
+      <div className="mps-card__meta"><Status save={save} /><button type="button" className="mps-btn mps-btn--ghost" onClick={() => setConfirm(true)}>Delete</button></div>
+    </header>
     {(save.error || error) && <p className="academic-error" role="alert">{save.error?.message || error} <button type="button" onClick={() => save.flush()}>Retry save</button></p>}
-    {expiry && <p>Score expiry: {expiry}{expiryDays < 0 ? ' — expired' : expiryDays <= 90 ? ' — expires soon' : ''}</p>}
-    {table === 'publications' && draft.my_author_position > 0 && <p>⭐ Your author position: {draft.my_author_position}{draft.authors?.[draft.my_author_position - 1] ? ` — ${draft.authors[draft.my_author_position - 1]}` : ''}</p>}
-    <div className="mps-grid">{cfg.fields.filter(visible).map(spec => <Input key={spec.key} spec={spec} value={draft[spec.key]} set={set} library={library} />)}</div>
-    {['education_entries', 'test_attempts'].includes(table) && <ChildRows key={row.id} userId={userId} row={row} table={table} library={library} />}
+    <div className="mps-grid">{cfg.fields.map(spec => <Input key={spec.key} spec={spec} value={draft[spec.key]} set={set} library={library} />)}</div>
+    {table === 'test_attempts' && <ChildRows key={row.id} userId={userId} row={row} table={table} library={library} />}
     {table === 'test_attempts' && <ScoreSending userId={userId} attempt={row} library={library} />}
-    {['test_attempts', 'honors', 'projects', 'publications'].includes(table) && <p className="mps-card__sub">Document attachment picker will be available in Phase 5.</p>}
     <ConfirmDialog open={confirm} title={`Delete this ${cfg.singular}?`} message="This cannot be undone." onCancel={() => setConfirm(false)} onConfirm={remove} />
   </section>
 }
@@ -120,14 +140,9 @@ function ChildRows({ userId, row, table, library }) {
   }, [userId, row.id, isGrade]))
   useUnsavedGuard(save.isDirty)
   const update = (id, key, value) => { save.markDirty(); setRows(old => old.map(r => r.id === id ? { ...r, [key]: value } : r)) }
-  return <div className="academic-child"><h4>{isGrade ? 'Subject grades' : 'Section scores'}</h4><p className="mps-card__sub">{isGrade ? 'Enter subject, grade level (9–14) and semester (1–3) for each cell.' : 'SAT sections: 200–800 in steps of 10.'} Changes save automatically.</p>
-    {isGrade && [...new Set(rows.map(r => r.subject).filter(Boolean))].length > 0 && <div className="academic-grid-scroll"><table className="academic-grade-grid"><thead><tr><th>Subject</th>{[9, 10, 11, 12, 13, 14].flatMap(grade => [1, 2, 3].map(semester => <th key={`${grade}-${semester}`}>G{grade} S{semester}</th>))}</tr></thead><tbody>{[...new Set(rows.map(r => r.subject).filter(Boolean))].map(subject => <tr key={subject}><th>{subject}</th>{[9, 10, 11, 12, 13, 14].flatMap(grade => [1, 2, 3].map(semester => {
-      const cell = rows.find(r => r.subject === subject && r.grade_level === grade && r.semester === semester)
-      return <td key={`${grade}-${semester}`}><input aria-label={`${subject}, grade ${grade}, semester ${semester}`} value={cell?.grade || ''} onChange={e => {
-        if (cell) update(cell.id, 'grade', e.target.value)
-        else { save.markDirty(); setRows(old => [...old, { id: newApplicationRowId(), subject, grade_level: grade, semester, grade: e.target.value }]) }
-      }} /></td>
-    }))}</tr>)}</tbody></table></div>}
+  return <div className="academic-child">
+    <h4>{isGrade ? 'Subject grades' : 'Section scores'}</h4>
+    <p className="mps-card__sub">{isGrade ? 'Enter subject, grade level (9–14) and semester (1–3) for each cell.' : 'SAT sections: 200–800 in steps of 10.'} Changes save automatically.</p>
     {rows.map(r => <div className="academic-child-row" key={r.id}>
       <label>{isGrade ? 'Subject' : 'Section'}<input value={r[isGrade ? 'subject' : 'section'] || ''} onChange={e => update(r.id, isGrade ? 'subject' : 'section', e.target.value)} /></label>
       {isGrade && <><label>Grade level<input type="number" min="9" max="14" value={r.grade_level ?? ''} onChange={e => update(r.id, 'grade_level', e.target.value ? Number(e.target.value) : null)} /></label><label>Semester<input type="number" min="1" max="3" value={r.semester ?? ''} onChange={e => update(r.id, 'semester', e.target.value ? Number(e.target.value) : null)} /></label></>}
@@ -135,8 +150,14 @@ function ChildRows({ userId, row, table, library }) {
       {isGrade ? <label><input type="checkbox" checked={!!r.is_predicted} onChange={e => update(r.id, 'is_predicted', e.target.checked)} /> Predicted</label> : <label>Maximum<input type="number" value={r.score_max ?? ''} onChange={e => update(r.id, 'score_max', e.target.value ? Number(e.target.value) : null)} /></label>}
       <button type="button" onClick={() => setRemoveId(r.id)}>Delete</button>
     </div>)}
-    <div className="academic-actions"><button type="button" className="mps-btn mps-btn--ghost" onClick={() => setRows(old => [...old, { id: newApplicationRowId() }])}>＋ Add {isGrade ? 'grade' : 'section'}</button><button type="button" className="mps-btn" onClick={save.flush}>Save {isGrade ? 'grades' : 'sections'}</button><Status save={save} />{save.error && <span className="academic-error" role="alert">{save.error.message}</span>}</div>
-    <ConfirmDialog open={!!removeId} title="Delete this row?" message="This cannot be undone." onCancel={() => setRemoveId(null)} onConfirm={() => { save.markDirty(); setRows(old => old.filter(r => r.id !== removeId)); setRemoveId(null) }} />
+    <div className="academic-actions">
+      <button type="button" className="mps-btn mps-btn--ghost" onClick={() => setRows(old => [...old, { id: newApplicationRowId() }])}>＋ Add {isGrade ? 'grade' : 'section'}</button>
+      <button type="button" className="mps-btn" onClick={save.flush}>Save {isGrade ? 'grades' : 'sections'}</button>
+      <Status save={save} />
+      {save.error && <span className="academic-error" role="alert">{save.error.message}</span>}
+    </div>
+    <ConfirmDialog open={!!removeId} title="Delete this row?" message="This cannot be undone." onCancel={() => setRemoveId(null)}
+      onConfirm={() => { save.markDirty(); setRows(old => old.filter(r => r.id !== removeId)); setRemoveId(null) }} />
   </div>
 }
 
@@ -152,46 +173,47 @@ function SendingRow({ userId, attempt, application, existing }) {
     {save.error && <p className="academic-error" role="alert">{save.error.message} <button type="button" onClick={save.flush}>Retry</button></p>}
   </div>
 }
+
 function ScoreSending({ userId, attempt, library }) {
-  return <div className="academic-child"><h4>Score sending by application</h4>{!library.applications.length && <p>Add an application to track score sending.</p>}{library.applications.map(app => <SendingRow key={app.id} userId={userId} attempt={attempt} application={app} existing={(library.score_sending || []).find(s => s.attempt_id === attempt.id && s.application_id === app.id)} />)}</div>
+  return <div className="academic-child">
+    <h4>Score sending by application</h4>
+    {!library.applications.length && <p>Add an application to track score sending.</p>}
+    {library.applications.map(app => <SendingRow key={app.id} userId={userId} attempt={attempt} application={app}
+      existing={(library.score_sending || []).find(s => s.attempt_id === attempt.id && s.application_id === app.id)} />)}
+  </div>
 }
 
+/** One collection: an "add" card, then one autosaving form card per row. */
 export function AcademicCollection({ table, userId, library }) {
   const cfg = config[table]
   const [newTitle, setNewTitle] = useState('')
   const [adding, setAdding] = useState(false)
   const [error, setError] = useState('')
   const all = [...(library[table] || [])].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
-  const items = all
   const add = async () => {
     if (!newTitle.trim()) { setError('Enter a name first.'); return }
     const initial = { ...cfg.defaults, ...(cfg.required ? { [cfg.required]: newTitle.trim() } : {}), sort_order: all.length }
-    if (table === 'test_attempts') { initial.test_type = rules.TEST_TYPES.includes(newTitle.trim().toUpperCase()) ? newTitle.trim().toUpperCase() : 'OTHER'; if (initial.test_type === 'OTHER') initial.notes = `Test name: ${newTitle.trim()}` }
     setAdding(true); setError('')
     try { await cfg.save(userId, initial); setNewTitle('') } catch (e) { setError(e.message) } finally { setAdding(false) }
   }
-  const reorder = async (ordered, top) => {
-    setError('')
-    try { for (let i = 0; i < ordered.length; i++) await cfg.save(userId, { id: ordered[i].id, ...(top ? { top5_order: i } : { sort_order: i }) }) } catch (e) { setError(e.message) }
-  }
-  const topHonors = table === 'honors' ? all.filter(x => x.is_top5_commonapp).sort((a, b) => (a.top5_order ?? 999) - (b.top5_order ?? 999)) : []
-  return <div className="mps academic-section"><div className="section-head section-head--stack"><div><h3>{cfg.title}</h3><p className="section-head__sub">Saved securely to your academic library.</p></div></div>
-    {table === 'honors' && topHonors.length > 0 && <section className="mps-card"><h3>Common App Top 5</h3><SortableList items={topHonors} onReorder={next => reorder(next, true)} renderItem={r => r.title} /></section>}
-    <div className="mps-card academic-add"><label htmlFor={`add-${table}`}>{table === 'test_attempts' ? 'Test name (e.g. SAT, IELTS)' : `New ${cfg.singular} name`}</label><div className="academic-actions"><input id={`add-${table}`} value={newTitle} onChange={e => setNewTitle(e.target.value)} maxLength={table === 'honors' ? 100 : undefined} /><button className="mps-btn" type="button" disabled={adding} onClick={add}>＋ Add</button></div>{error && <p className="academic-error" role="alert">{error}</p>}</div>
-    {!items.length && <div className="mps-card">No {cfg.title.toLowerCase()} yet.</div>}
-    {all.map(row => <div key={row.id} hidden={!items.some(item => item.id === row.id)}><AcademicCard row={row} table={table} userId={userId} library={library} /></div>)}
+  return <div className="mps academic-section">
+    <div className="section-head section-head--stack">
+      <div>
+        <h3>{cfg.title}</h3>
+        <p className="section-head__sub">Saved securely to your academic library.</p>
+      </div>
+    </div>
+    <div className="mps-card academic-add">
+      <label htmlFor={`add-${table}`}>{`New ${cfg.singular} name`}</label>
+      <div className="academic-actions">
+        <input id={`add-${table}`} value={newTitle} onChange={e => setNewTitle(e.target.value)} maxLength={table === 'honors' ? 100 : undefined} />
+        <button className="mps-btn" type="button" disabled={adding} onClick={add}>＋ Add</button>
+      </div>
+      {error && <p className="academic-error" role="alert">{error}</p>}
+    </div>
+    {!all.length && <div className="mps-card">No {cfg.title.toLowerCase()} yet.</div>}
+    {all.map(row => <AcademicCard key={row.id} row={row} table={table} userId={userId} library={library} />)}
   </div>
 }
 
-export default function AcademicSection({ activeTab, userId, library, loading, error, onRetry }) {
-  const sections = [ ['education', 'education_entries'], ['test_scores', 'test_attempts'], ['honors', 'honors'] ]
-  const academicTabs = ['education', 'test_scores', 'honors']
-  return <div hidden={!academicTabs.includes(activeTab)}>
-    {error && <div className="mps-error" role="alert">{error} <button type="button" onClick={onRetry}>Retry</button></div>}
-    {loading ? <div className="mps-loading">Loading academic library…</div> : !library.education_entries ? null : <>
-      {sections.map(([tab, table]) => <div key={`${tab}-${table}`} hidden={tab !== activeTab}>
-        <AcademicCollection table={table} userId={userId} library={library} />
-      </div>)}
-    </>}
-  </div>
-}
+export default AcademicCollection

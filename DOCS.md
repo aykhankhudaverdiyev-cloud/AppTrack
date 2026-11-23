@@ -24,10 +24,28 @@ This project uses **React**, **Vite**, and **Supabase**. This guide will help yo
 ### Real-time Sync
 - The application uses Supabase `channels` (`postgres_changes`) to listen for database events. Whenever data in `profiles` or `applications` tables changes, the store automatically reloads the data.
 
+### Education page (rebuild)
+- **UI:** `src/components/academic/EducationSection.jsx` (+ `.css`) is the page
+  container (`SectionPage` with `className="edu-page"`), filter chips, the entry
+  cards and the empty "add another" card. `EducationPanel.jsx`, `EducationField.jsx`,
+  `EducationInputs.jsx` (country select + month picker) and `GradeTable.jsx` make up
+  the right-hand panel: BASICS · ACADEMIC RECORD · GRADES · COUNSELOR · PROOF.
+- **Data:** `src/Services/educationApi.js` (whitelisted columns, owner-scoped,
+  notifies the dashboard's realtime channel) and `src/hooks/useEducation.js`
+  (optimistic updates with rollback). Grade rows are synced through the existing
+  `syncGradeRows()` in `ProfileServiceV2.js`, so clearing a cell deletes its row.
+- **Pure rules:** `src/utils/education.js` — draft ⇄ row, `entryMeta()`
+  ("Sep 2023 – Jun 2027 · Grade 11"), filter counts, validation, and the
+  subject ⇄ `grade_rows` conversion. Covered by `education.test.js`.
+- **Design review without a session:** `npm run dev:education` serves
+  `index.education-preview.html` through `vite.preview.config.js`, which aliases
+  the API and the Supabase client to the offline stubs in `src/preview/`.
+  This entry is not part of `npm run build` and is not linked from the app.
+
 ## 3. Contributing
 1. **Adding a Feature:** Create a page in `src/pages/`.
 2. **Adding Data:** If a new table is needed, update the `getStudents` or `loadStudents` function in `studentsStore.js`.
-3. **Best Practices:** 
+3. **Best Practices:**
    - Keep logic in `Services/` or `store/`.
    - Maintain JSDoc comments for new functions.
 ## Supabase migration notes
@@ -45,6 +63,7 @@ Bu qovluqdakı faylları **Supabase Dashboard → SQL Editor**-da yuxarıdan aş
 | 5 | `005_drop_profile_university_major.sql` | `profiles.university` / `major` / `committed_university` sütunlarını silir (əvvəl `major` → `intended_major_1` köçürülür) |
 | 6 | `006_activities_redesign.sql` | `activities` cədvəlini yekunlaşdırır: 9 sabit kateqoriya, `organization_description` (≤250), `long_description` (≤350), tarix/grade CHECK-ləri, `(user_id, sort_order)` indeksi, `reorder_activities()` RPC (security invoker) |
 | 7 | `007_projects_redesign.sql` | `projects` səhifəsini yekunlaşdırır: `build_summary` sütunu, `status ∈ {in_progress, live, paused}`, `role_type ∈ {solo, team_lead, team_member}`, uzunluq CHECK-ləri (problem/result 300, summary 200, ≤12 texnologiya), `(user_id, created_at)` indeksi. Mövcud sətirlər avtomatik çevrilir |
+| 8 | `010_education_redesign.sql` | `education_entries.transcript_document_id` (→ `document_files`, `on delete set null`) + `assert_document_owner()` trigger-i + indeks. Education səhifəsinin PROOF bölməsi üçün. Heç bir sətir dəyişmir, RLS toxunulmur |
 
 ## Vacib zəmanətlər (v2)
 
