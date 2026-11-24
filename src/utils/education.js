@@ -62,11 +62,69 @@ export const GRADING_SCALES = [
 export const gradingMaximum = (scale) =>
   GRADING_SCALES.find((option) => option.value === scale)?.maximum ?? null
 
-/** Grade columns in the GRADES table (spec: Grade 9 / 10 / 11). */
-export const GRADE_COLUMNS = [9, 10, 11]
+/** Last grade the table can end on. Schools end anywhere between 10 and 14. */
+export const FINAL_GRADE_OPTIONS = [10, 11, 12, 13, 14]
 
-/** Grade levels the table can display, with their semesters. */
-export const SEMESTER_COLUMNS = [1, 2]
+export const DEFAULT_FINAL_GRADE = 12
+
+/** How many grade levels the table shows at most (grade 9 … 14). */
+export const FIRST_GRADE = 9
+
+/**
+ * The grade levels the table shows for one entry: the last three years of the
+ * school, ending on `final_grade_level` ("Grade 9 / 10 / 11" for 11, "Grade
+ * 10 / 11 / 12" for 12). The table never shows more than three columns.
+ */
+export function gradeLevels(finalGradeLevel) {
+  const last = Number(finalGradeLevel)
+  if (!FINAL_GRADE_OPTIONS.includes(last)) return [10, 11, 12]
+  return [last - 2, last - 1, last]
+}
+
+/** Semesters of a grade level. A null semester means "the final grade". */
+export const SEMESTERS = [1, 2, null]
+
+/** "S1", "S2", "Final" — the sub-header of a semester column. */
+export const semesterLabel = (semester) => (semester == null ? 'Final' : `S${semester}`)
+
+/** The final grade level an entry most plausibly has, from its dates. */
+export function suggestedFinalGrade(entry = {}, now = new Date()) {
+  if (entry.final_grade_level != null) return Number(entry.final_grade_level)
+  const end = startAcademicYear(entry.end_date)
+  const today = startAcademicYear(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`)
+  // A school that is still running keeps one grade ahead of the current year.
+  if (end != null && today != null && entry.is_current) {
+    const remaining = Math.max(0, end - today)
+    return Math.min(14, Math.max(10, FINAL_SECONDARY_GRADE + remaining))
+  }
+  return FINAL_SECONDARY_GRADE
+}
+
+/** The grade value as a number, for scale checks (null when not a number). */
+export const gradeNumber = (value) => {
+  const raw = String(value ?? '').replace(',', '.').trim()
+  if (!raw) return null
+  const number = Number(raw)
+  return Number.isFinite(number) ? number : null
+}
+
+/**
+ * Why a grade cannot be stored, or '' when it can.
+ * Scales that are numeric are checked against the scale; text scales (A*, IB
+ * 45) only reject empty/long values, which the input already limits.
+ */
+export function gradeError(value, gradingScale) {
+  const raw = String(value ?? '').trim()
+  if (!raw) return ''
+  if (raw.length > 10) return 'Use at most 10 characters'
+  if (!gradingScale) return ''
+  const maximum = gradingMaximum(gradingScale)
+  if (maximum == null) return ''
+  const number = gradeNumber(raw)
+  if (number == null) return `Enter a number from 0 to ${maximum}`
+  if (number < 0 || number > maximum) return `Use the ${gradingScale} scale (0–${maximum})`
+  return ''
+}
 
 const text = (value) => (value == null ? '' : String(value).trim())
 
@@ -211,6 +269,10 @@ export function validateEducation(draft = {}) {
   if (draft.start_date && draft.end_date && draft.end_date < draft.start_date) {
     errors.end_date = 'Expected graduation is before the start date'
   }
+  const email = text(draft.school_counselor_email)
+  if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/.test(email)) {
+    errors.school_counselor_email = 'Use an e-mail like name@school.az'
+  }
   if (text(draft.class_rank) && !draft.school_does_not_rank && Number(draft.class_size) > 0
     && Number(draft.class_rank) > Number(draft.class_size)) {
     errors.class_rank = 'Class rank is larger than the class size'
@@ -244,7 +306,7 @@ export function emptyEntryDraft(type = 'secondary_school') {
     school_counselor_name: '',
     school_counselor_email: '',
     school_counselor_phone: '',
-    transcript_document_id: '',
+    final_grade_level: type === 'secondary_school' ? DEFAULT_FINAL_GRADE : null,
     degree: '',
     major: '',
     gpa: '',
@@ -262,8 +324,8 @@ export function draftFromEntry(row = {}) {
   draft.overall_average = formatAverage(row.overall_average)
   draft.start_date = monthValue(row.start_date)
   draft.end_date = monthValue(row.end_date)
-  draft.transcript_document_id = row.transcript_document_id || ''
   draft.overall_average = draft.overall_average === '' ? '' : draft.overall_average
+  if (draft.final_grade_level == null) draft.final_grade_level = DEFAULT_FINAL_GRADE
   return draft
 }
 
@@ -294,7 +356,7 @@ export function entryPayload(draft = {}) {
     school_counselor_name: text(draft.school_counselor_name) || null,
     school_counselor_email: text(draft.school_counselor_email) || null,
     school_counselor_phone: text(draft.school_counselor_phone) || null,
-    transcript_document_id: draft.transcript_document_id || null,
+    final_grade_level: Number(draft.final_grade_level) || DEFAULT_FINAL_GRADE,
     degree: isUniversity(draft) ? text(draft.degree) || null : null,
     major: isUniversity(draft) ? text(draft.major) || null : null,
     gpa: isUniversity(draft) ? number(draft.gpa) : null,
@@ -311,25 +373,29 @@ export function patchFor(payload, keys) {
  * Grades: flat grade_rows ⇄ subject × grade table
  * ------------------------------------------------------------------------- */
 
-const cellKey = (gradeLevel, semester) => `${gradeLevel}:${semester}`
+const cellKey = (gradeLevel, semester) => `${gradeLevel}:${semester ?? 'final'}`
+
+const keyParts = (key) => {
+  const [level, semester] = String(key).split(':')
+  return [Number(level), semester === 'final' ? null : Number(semester)]
+}
 
 /**
- * Rows → [{ key, name, cells: { '9:1': { id, grade, is_predicted } } }] in
- * sort order. Rows for grade levels/semesters that the table does not display
- * are kept in `cells` so saving never drops them.
+ * Rows → [{ key, name, cells }] in sort order, where
+ * `cells['10:1'] = { id, grade, is_predicted }` and `cells['10:final']` is the
+ * final grade of grade 10. Rows for grade levels the table does not display are
+ * kept in `cells` as well, so saving a narrower table never drops them.
  */
 export function gradeSubjectsFromRows(rows = []) {
   const subjects = new Map()
-  const order = []
   for (const row of rows) {
     const name = text(row.subject)
     if (!name) continue
     if (!subjects.has(name)) {
       subjects.set(name, { key: name, name, cells: {}, order: Number(row.sort_order ?? 0) })
-      order.push(name)
     }
     const subject = subjects.get(name)
-    subject.cells[cellKey(row.grade_level, row.semester || 1)] = {
+    subject.cells[cellKey(row.grade_level, row.semester)] = {
       id: row.id,
       grade: row.grade == null ? '' : String(row.grade),
       is_predicted: Boolean(row.is_predicted),
@@ -339,13 +405,17 @@ export function gradeSubjectsFromRows(rows = []) {
 }
 
 /** Visible grade for a table cell ('' when the student has not typed one). */
-export const cellGrade = (subject, gradeLevel, semester = 1) =>
+export const cellGrade = (subject, gradeLevel, semester = null) =>
   subject?.cells?.[cellKey(gradeLevel, semester)]?.grade ?? ''
 
+/** The cell object (undefined when the cell was never filled in). */
+export const cellAt = (subject, gradeLevel, semester = null) =>
+  subject?.cells?.[cellKey(gradeLevel, semester)]
+
 /**
- * Subjects → grade_rows payload. Empty cells and unnamed subjects are skipped
- * (an empty cell means "no grade", and syncGradeRows deletes what it does not
- * receive). Every kept cell keeps its id so updates stay in place.
+ * Subjects → grade_rows payload. Empty cells are skipped (an empty cell means
+ * "no grade" — the table saves by replacing all rows) and unnamed subjects are
+ * ignored. Ids are not sent: the RPC deletes and re-inserts in one transaction.
  */
 export function gradeRowsFromSubjects(subjects = []) {
   const rows = []
@@ -353,11 +423,10 @@ export function gradeRowsFromSubjects(subjects = []) {
     const name = text(subject.name)
     if (!name) return
     Object.entries(subject.cells || {}).forEach(([key, cell], cellIndex) => {
-      const [gradeLevel, semester] = key.split(':').map(Number)
+      const [gradeLevel, semester] = keyParts(key)
       const grade = text(cell?.grade)
       if (!grade) return
       rows.push({
-        id: cell.id,
         subject: name,
         grade_level: gradeLevel,
         semester,
@@ -368,6 +437,57 @@ export function gradeRowsFromSubjects(subjects = []) {
     })
   })
   return rows
+}
+
+/** True when two subjects would collide inside one grade level + semester. */
+export function duplicateSubjectIndex(subjects = []) {
+  const seen = new Map()
+  for (let index = 0; index < subjects.length; index += 1) {
+    const name = text(subjects[index]?.name).toLowerCase()
+    if (!name) continue
+    if (seen.has(name)) return index
+    seen.set(name, index)
+  }
+  return -1
+}
+
+/** Subjects offered by the typeahead. Free text is always allowed. */
+export const SUBJECT_SUGGESTIONS = [
+  'Mathematics', 'Algebra', 'Geometry', 'Physics', 'Chemistry', 'Biology',
+  'English', 'Azerbaijani language and literature', 'Azerbaijani', 'Russian',
+  'History', 'Geography', 'Informatics', 'Computer science', 'Literature',
+  'World history', 'Social studies', 'Economics', 'Business studies',
+  'Psychology', 'Philosophy', 'Art', 'Music', 'Physical education',
+  'German', 'French', 'Spanish', 'Turkish', 'Environmental science',
+]
+
+/** Suggestions that start with what was typed, excluding names already used. */
+export function subjectSuggestions(query, used = []) {
+  const needle = text(query).toLowerCase()
+  const taken = new Set(used.map((name) => text(name).toLowerCase()))
+  return SUBJECT_SUGGESTIONS
+    .filter((name) => !taken.has(name.toLowerCase()))
+    .filter((name) => !needle || name.toLowerCase().includes(needle))
+    .slice(0, 6)
+}
+
+/**
+ * "Average of entered final grades: 4.86 · Use this" — the mean of every final
+ * grade in the table ('' when there is none). Non-numeric grades are ignored.
+ */
+export function finalGradeAverage(subjects = []) {
+  const values = []
+  for (const subject of subjects) {
+    for (const [key, cell] of Object.entries(subject?.cells || {})) {
+      const [, semester] = keyParts(key)
+      if (semester !== null) continue
+      const number = gradeNumber(cell?.grade)
+      if (number != null) values.push(number)
+    }
+  }
+  if (!values.length) return ''
+  const mean = values.reduce((sum, value) => sum + value, 0) / values.length
+  return mean.toFixed(2)
 }
 
 /** "Saved just now" / "Saved 2 s ago" / "Saved 3 min ago" — header status. */

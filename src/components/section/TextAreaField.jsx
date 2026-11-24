@@ -3,8 +3,14 @@
  * 4 px track under the textarea, fill green < 90 % / amber 90–100 %.
  * Typing beyond the limit is blocked; pasted text is truncated with a note.
  * ============================================================================ */
-import { useId, useRef, useState, useEffect } from 'react'
+import { useId, useLayoutEffect, useRef, useState, useEffect } from 'react'
 import { InlineError } from '../forms/PanelValidation'
+import './section.css'
+
+const MIN_ROWS = 3
+const MAX_ROWS = 12
+const LINE_HEIGHT = 22
+const PADDING = 24
 
 export default function TextAreaField({ label, value = '', max, onChange, onBlur, error, copyLabel, fieldKey }) {
   const id = useId()
@@ -17,6 +23,17 @@ export default function TextAreaField({ label, value = '', max, onChange, onBlur
   const length = value.length
   const percent = Math.min(100, max ? (length / max) * 100 : 0)
   const tone = percent >= 90 ? 'warn' : 'ok'
+
+  // Grow with the text: 3 lines to start, 12 at most, then scroll.
+  useLayoutEffect(() => {
+    const node = ref.current
+    if (!node) return
+    node.style.height = 'auto'
+    const min = MIN_ROWS * LINE_HEIGHT + PADDING
+    const max = MAX_ROWS * LINE_HEIGHT + PADDING
+    node.style.height = `${Math.min(max, Math.max(min, node.scrollHeight))}px`
+    node.style.overflowY = node.scrollHeight > max ? 'auto' : 'hidden'
+  }, [value])
 
   const handle = (raw) => {
     if (raw.length > max) {
@@ -51,7 +68,7 @@ export default function TextAreaField({ label, value = '', max, onChange, onBlur
         ref={ref}
         className="textarea-field__input"
         value={value}
-        rows={3}
+        rows={MIN_ROWS}
         maxLength={max}
         onChange={(event) => handle(event.target.value)}
         onBlur={onBlur}

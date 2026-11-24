@@ -4,14 +4,14 @@
  * ============================================================================
  * Owner-scoped twice: RLS (`user_id = auth.uid()`) plus an explicit
  * `.eq('user_id', userId)` filter. Only whitelisted columns are written.
- * Grade rows are synced through the existing, already-tested
- * `syncGradeRows()` in ProfileServiceV2 (upsert the sent rows, delete the rest)
- * so a cleared cell really deletes its row.
+ * Grade rows save through the `save_grade_rows` RPC (migration 011): delete +
+ * insert of the whole table in one transaction, so a cleared cell really
+ * deletes, a half-saved table is impossible and duplicate `(subject, grade
+ * level, semester)` rows cannot be created even from two tabs.
  * ============================================================================ */
 
 import { supabase } from '../lib/supabase'
 import { notifyDataChanged } from '../store/studentsStore'
-import { syncGradeRows } from './ProfileServiceV2'
 import { gradeRowsFromSubjects } from '../utils/education.js'
 
 export const ENTRY_COLUMNS = [
@@ -19,7 +19,7 @@ export const ENTRY_COLUMNS = [
   'language_of_instruction', 'start_date', 'end_date', 'is_current', 'qualification',
   'grading_scale', 'overall_average', 'scale_maximum', 'class_rank', 'class_size',
   'school_does_not_rank', 'school_counselor_name', 'school_counselor_email',
-  'school_counselor_phone', 'transcript_document_id', 'degree', 'major', 'gpa',
+  'school_counselor_phone', 'final_grade_level', 'degree', 'major', 'gpa',
   'gpa_scale', 'sort_order', 'created_at', 'updated_at',
 ].join(', ')
 
@@ -33,7 +33,7 @@ export const WRITABLE_ENTRY_COLUMNS = [
   'language_of_instruction', 'start_date', 'end_date', 'is_current', 'qualification',
   'grading_scale', 'overall_average', 'scale_maximum', 'class_rank', 'class_size',
   'school_does_not_rank', 'school_counselor_name', 'school_counselor_email',
-  'school_counselor_phone', 'transcript_document_id', 'degree', 'major', 'gpa',
+  'school_counselor_phone', 'final_grade_level', 'degree', 'major', 'gpa',
   'gpa_scale', 'sort_order',
 ]
 
@@ -131,10 +131,13 @@ export async function duplicateEntry(userId, entry, sortOrder = 0) {
 
 /**
  * Replace the entry's grade rows with the rows implied by the table.
- * An emptied cell is deleted, not stored as ''.
+ * An emptied cell is deleted, not stored as ''. The RPC returns the number of
+ * rows written; the payload is sent back so the panel can mirror the database.
  */
 export async function saveGrades(userId, entryId, subjects) {
+  if (!userId || !entryId) return []
   const rows = gradeRowsFromSubjects(subjects)
-  await syncGradeRows(userId, entryId, rows) // notifies on its own
+  unwrap(await supabase.rpc('save_grade_rows', { p_entry_id: entryId, p_rows: rows }))
+  notifyDataChanged()
   return rows
 }

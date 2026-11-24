@@ -38,6 +38,7 @@ import StudentCard from '../components/StudentCard'
 import MyProfileSection from '../components/profile/MyProfileSection'
 import AdmissionsOverview from '../components/applications/AdmissionsOverview'
 import EducationSection from '../components/academic/EducationSection'
+import DocumentsPage from '../components/DocumentsPage'
 import ActivitiesSection from '../components/activities/ActivitiesSection'
 import ProjectsSection from '../components/projects/ProjectsSection'
 import HonorsSection from '../components/honors/HonorsSection'
@@ -1071,33 +1072,7 @@ export default function StudentDashboard() {
 
         {/* 10. ADMISSIONS: DOCUMENTS VAULT */}
         {activeTab === 'documents' && (
-          <section className="students-section">
-            <div className="section-head">
-              <div>
-                <h3>All Documents</h3>
-                <p className="section-head__sub">Documents attached across all applications.</p>
-              </div>
-            </div>
-            <div className="doc-flat-list">
-              {(me.applications || []).flatMap(app => Object.entries(app.documents || {}).flatMap(([cat, docs]) => (docs || []).map(d => ({ ...d, appName: app.university, cat })))).map(d => (
-                <div key={d.id} className="doc-chip">
-                  <span className="doc-chip__file">📄</span>
-                  <div className="doc-chip__info">
-                    <strong>{d.name}</strong>
-                    <span>{d.appName} · {d.cat}</span>
-                  </div>
-                  {d.url && <a className="mini-btn" href={d.url} target="_blank" rel="noreferrer">Open</a>}
-                </div>
-              ))}
-              {(me.applications || []).every(app => !Object.values(app.documents || {}).some(arr => arr && arr.length)) && (
-                <div className="empty-state empty-state--cert">
-                  <div className="empty-state__icon">📁</div>
-                  <h4>No documents yet</h4>
-                  <p>Documents you upload on Applications will appear here.</p>
-                </div>
-              )}
-            </div>
-          </section>
+          <DocumentsPage key={user?.id} userId={user?.id} />
         )}
 
         {/* 11. ADMISSIONS: RECOMMENDATIONS */}

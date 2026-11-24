@@ -14,16 +14,15 @@ import { useAutosave } from '../../hooks/useAutosave'
 import { usePanelValidation } from '../../hooks/usePanelValidation'
 import { ValidationSummary } from '../forms/PanelValidation'
 import EducationField from './EducationField'
-import { CountrySelect, MonthInput } from './EducationInputs'
+import { CountrySelect } from './EducationInputs'
 import GradeTable from './GradeTable'
-import { DocumentPicker, TipBox } from '../section'
-import { getDocument } from '../../Services/documentApi'
+import { DatePicker, ProofBlock, TipBox } from '../section'
 import { saveGrades } from '../../Services/educationApi'
 import { COUNTRIES } from '../../utils/applicationRequirements'
 import {
-  EDUCATION_TYPES, GRADING_SCALES, LANGUAGE_OPTIONS, QUALIFICATION_OPTIONS,
-  REQUIRED_FIELDS, draftFromEntry, educationType, emptyEntryDraft, entryPayload,
-  gradingMaximum, gradeSubjectsFromRows, isUniversity, patchFor,
+  DEFAULT_FINAL_GRADE, EDUCATION_TYPES, FINAL_GRADE_OPTIONS, GRADING_SCALES, LANGUAGE_OPTIONS,
+  QUALIFICATION_OPTIONS, REQUIRED_FIELDS, draftFromEntry, educationType, emptyEntryDraft,
+  entryPayload, gradingMaximum, gradeSubjectsFromRows, isUniversity, patchFor,
   savedLabel, showsGrades, validateEducation,
 } from '../../utils/education.js'
 import './EducationPanel.css'
@@ -72,9 +71,9 @@ export default function EducationPanel({
   const [subjects, setSubjects] = useState(() => (mode === 'edit' && row ? gradeSubjectsFromRows(row.grades || []) : []))
   const [now, setNow] = useState(() => Date.now())
   const [creating, setCreating] = useState(false)
+  const [showSemesters, setShowSemesters] = useState(false)
   const [createError, setCreateError] = useState('')
   const [confirmDiscard, setConfirmDiscard] = useState(false)
-  const [transcriptDoc, setTranscriptDoc] = useState(null)
   const latest = useRef(draft)
   const dirtyFields = useRef(new Set())
 
@@ -83,17 +82,6 @@ export default function EducationPanel({
     const timer = setInterval(() => setNow(Date.now()), 15000)
     return () => clearInterval(timer)
   }, [])
-
-  // The draft stores only transcript_document_id; the title is fetched here.
-  const transcriptId = draft.transcript_document_id
-  useEffect(() => {
-    if (!transcriptId) return undefined
-    let cancelled = false
-    getDocument(userId, transcriptId)
-      .then((doc) => { if (!cancelled) setTranscriptDoc(doc) })
-      .catch(() => { if (!cancelled) setTranscriptDoc(null) })
-    return () => { cancelled = true }
-  }, [transcriptId, userId])
 
   const ruleErrors = useMemo(() => validateEducation(draft), [draft])
   const requiredKeys = useMemo(
@@ -137,12 +125,6 @@ export default function EducationPanel({
   }
   const blur = () => { if (mode === 'edit') flush() }
 
-  const gradesSave = useCallback(async (nextSubjects) => {
-    if (!entryId) return
-    const rows = await saveGrades(userId, entryId, nextSubjects)
-    onGradesSaved?.(entryId, rows)
-  }, [entryId, userId, onGradesSaved])
-
   const requestClose = useCallback(async () => {
     if (mode === 'create') { setConfirmDiscard(true); return }
     await flush()
@@ -171,6 +153,16 @@ export default function EducationPanel({
       setCreating(false)
     }
   }
+
+  // Database rows → table model after a grade save: the RPC re-inserts every
+  // row with a new id, so the panel must take the saved rows back (otherwise the
+  // next edit would still carry the old ids).
+  const gradesSaved = useCallback(async (nextSubjects) => {
+    if (!entryId) return
+    const rows = await saveGrades(userId, entryId, nextSubjects)
+    onGradesSaved?.(entryId, rows)
+    setSubjects(gradeSubjectsFromRows(rows))
+  }, [entryId, userId, onGradesSaved])
 
   const status = mode === 'create'
     ? 'Not saved yet'
@@ -268,18 +260,14 @@ export default function EducationPanel({
         </div>
 
         <div className="edu-row">
-          <EducationField label="Start date" required error={errors.start_date}>
-            {({ id, invalid }) => (
-              <MonthInput id={id} value={draft.start_date} invalid={invalid} max={draft.end_date || undefined}
-                onChange={(value) => { set('start_date', value); blur() }} />
-            )}
-          </EducationField>
-          <EducationField label="Expected graduation" required error={errors.end_date}>
-            {({ id, invalid }) => (
-              <MonthInput id={id} value={draft.end_date} invalid={invalid} min={draft.start_date || undefined}
-                onChange={(value) => { set('end_date', value); blur() }} />
-            )}
-          </EducationField>
+          <DatePicker label="Start date" mode="month" required fieldKey="start_date"
+            value={draft.start_date} error={errors.start_date}
+            onChange={(value) => { set('start_date', value); blur() }} />
+          <DatePicker label="Expected graduation" mode="month" required fieldKey="end_date"
+            value={draft.end_date} error={errors.end_date}
+            min={draft.start_date || undefined}
+            hint="The month you finish this school."
+            onChange={(value) => { set('end_date', value); blur() }} />
         </div>
 
         <Switch checked={draft.is_current} label="Currently attending"
@@ -352,16 +340,34 @@ export default function EducationPanel({
               </label>
             </div>
 
-            <SectionLabel aside={<Switch checked={false} label="Show semesters" onChange={() => {}} />}>
-              Grades
-            </SectionLabel>
+            <SectionLabel>Grades</SectionLabel>
+            <div className="edu-grades__toolbar">
+              <label className="edu-inline-select">
+                <span>Final grade</span>
+                <span className="edu-select">
+                  <select className="edu-input" value={draft.final_grade_level || DEFAULT_FINAL_GRADE}
+                    onChange={(event) => { set('final_grade_level', Number(event.target.value)); blur() }}>
+                    {FINAL_GRADE_OPTIONS.map((grade) => <option key={grade} value={grade}>{grade}</option>)}
+                  </select>
+                  <span className="edu-select__caret" aria-hidden="true">▾</span>
+                </span>
+              </label>
+              <Switch checked={showSemesters} label="Show semesters"
+                onChange={(value) => { setShowSemesters(value); blur() }} />
+            </div>
             <GradeTable
               subjects={subjects}
               gradingScale={draft.grading_scale}
+              finalGradeLevel={draft.final_grade_level}
+              showSemesters={showSemesters}
               onChange={setSubjects}
-              onSave={gradesSave}
+              onSave={gradesSaved}
+              onUseAverage={(value) => { set('overall_average', value); blur() }}
               enabled={mode === 'edit'}
             />
+            {!showSemesters && subjects.some((subject) => Object.keys(subject.cells || {}).some((key) => key.endsWith(':1') || key.endsWith(':2'))) && (
+              <p className="edu-helper">Semester grades are hidden, not deleted.</p>
+            )}
           </>
         )}
 
@@ -393,53 +399,38 @@ export default function EducationPanel({
                 onChange={(event) => set('school_counselor_name', event.target.value)} onBlur={blur} />
             )}
           </EducationField>
-          <EducationField label="Counselor email">
-            {({ id }) => (
-              <input id={id} className="edu-input" type="email" value={draft.school_counselor_email}
-                placeholder="name@school.az" autoComplete="email"
+          <EducationField label="Counselor email" error={errors.school_counselor_email}>
+            {({ id, invalid, describedBy }) => (
+              <input id={id} className={`edu-input${invalid ? ' edu-input--invalid' : ''}`} type="email"
+                value={draft.school_counselor_email} placeholder="name@school.az" autoComplete="email"
+                aria-invalid={invalid || undefined} aria-describedby={describedBy}
                 onChange={(event) => set('school_counselor_email', event.target.value)} onBlur={blur} />
             )}
           </EducationField>
         </div>
         <div className="edu-row">
-          <EducationField label="Counselor phone">
-            {({ id }) => (
+          <EducationField label="Counselor phone" hint="Used for your recommendation requests.">
+            {({ id, describedBy }) => (
               <input id={id} className="edu-input" value={draft.school_counselor_phone}
-                placeholder="+994 ..." inputMode="tel" autoComplete="tel"
+                placeholder="+994 ..." inputMode="tel" autoComplete="tel" aria-describedby={describedBy}
                 onChange={(event) => set('school_counselor_phone', event.target.value)} onBlur={blur} />
             )}
           </EducationField>
-          <p className="edu-helper edu-row__helper">Used for your recommendation requests.</p>
+          <div aria-hidden="true" />
         </div>
 
         <SectionLabel>Proof</SectionLabel>
-        <div className="edu-proof">
-          <DocumentPicker
-            value={transcriptDoc}
-            category="transcript"
+        {mode === 'edit' ? (
+          <ProofBlock
+            section="education"
+            itemId={entryId}
             userId={userId}
-            onChange={(doc) => {
-              setTranscriptDoc(doc)
-              set('transcript_document_id', doc?.id || '')
-              blur()
-            }}
-            trigger={({ open, openUpload }) => (
-              <>
-                <span className="edu-proof__icon" aria-hidden="true">📄</span>
-                <span className="edu-proof__text" title={transcriptDoc?.title || undefined}>
-                  {transcriptDoc?.title
-                    ? `${transcriptDoc.title}`
-                    : 'No transcript linked yet'}
-                </span>
-                <span className="edu-proof__links">
-                  <button type="button" className="edu-link" onClick={open}>Choose from Documents</button>
-                  <button type="button" className="edu-link" onClick={openUpload}>Upload</button>
-                </span>
-              </>
-            )}
+            title="Transcript and certificates"
+            hint="No transcript linked yet. Upload one or choose it from Documents."
           />
-        </div>
-        <p className="edu-helper">Uploads without leaving this page.</p>
+        ) : (
+          <p className="edu-helper">Save the entry first, then attach your transcript.</p>
+        )}
 
         <TipBox>Tip: many applications ask you to type your grades by year, so keep this table complete.</TipBox>
 

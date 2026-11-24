@@ -187,7 +187,7 @@ export default function ActivityPanel({
     await onSave(payload)
   }, [onSave])
 
-  const { saving, savedAt, error: saveError, markDirty, flush } = useAutosave(draft, persist, {
+  const { saving, savedAt, error: saveError, isDirty, markDirty, flush } = useAutosave(draft, persist, {
     delay: 800,
     enabled: mode === 'edit',
   })
@@ -256,10 +256,10 @@ export default function ActivityPanel({
       : saving
         ? 'Saving…'
         : saveError
-          ? 'Couldn\'t save · Retry'
-          : savedAt
+          ? "Couldn't save · Retry"
+          : savedAt && !isDirty
             ? `${savedLabel(savedAt, now)} ✓`
-            : 'Saved just now ✓'
+            : isDirty ? 'Unsaved changes' : 'All changes saved'
 
   return (
     <aside

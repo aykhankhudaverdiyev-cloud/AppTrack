@@ -122,7 +122,6 @@
   align-items: start;
 }
 .edu-row--rank { align-items: end; }
-.edu-row__helper { align-self: center; margin: 0 0 2px; }
 
 .edu-field {
   display: flex;
@@ -149,24 +148,25 @@
 
 .edu-input {
   width: 100%;
-  height: 40px;
-  padding: 0 12px;
+  min-width: 0;
+  height: 44px;
+  padding: 0 13px;
   border: 1px solid #e5e7eb;
   border-radius: 10px;
   background: #f9fafb;
   color: #111827;
   font-family: inherit;
-  font-size: 0.86rem;
-  line-height: 1.2;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+  font-size: 15px;
+  line-height: 1.3;
+  transition: border-color 0.15s ease, background 0.15s ease;
 }
 .edu-input::placeholder { color: #9ca3af; }
 .edu-input:hover { border-color: #d9dbe6; }
 .edu-input:focus {
-  outline: none;
+  outline: 2px solid #6d5bf0;
+  outline-offset: 2px;
   background: #fff;
   border-color: #6d5bf0;
-  box-shadow: 0 0 0 3px rgba(109, 91, 240, 0.14);
 }
 .edu-input:disabled {
   background: #f3f4f6;
@@ -210,27 +210,6 @@
   color: #9ca3af;
   pointer-events: none;
 }
-
-/* date input: calendar icon inside on the right */
-.edu-month { min-width: 0; }
-.edu-month__control { position: relative; }
-.edu-input--date { padding-right: 38px; }
-.edu-month__icon {
-  position: absolute;
-  right: 4px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 30px;
-  height: 30px;
-  display: grid;
-  place-items: center;
-  border: none;
-  border-radius: 7px;
-  background: none;
-  color: #9ca3af;
-  cursor: pointer;
-}
-.edu-month__icon:hover { background: #f1f0fb; color: #6d5bf0; }
 
 /* ── Type: four equal segments, selected = solid purple ─────────────────── */
 
@@ -331,18 +310,48 @@
 
 .edu-grades { display: flex; flex-direction: column; gap: 8px; }
 
+.edu-grades__toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: -4px;
+}
+
+.edu-inline-select { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: #6b7280; }
+.edu-inline-select .edu-select { width: 78px; }
+.edu-inline-select .edu-input { min-height: 36px; padding: 0 26px 0 10px; font-size: 14px; }
+
+/* The table scrolls inside its own box, never the panel. */
 .edu-grades__box {
   border: 1px solid #f0f0f5;
   border-radius: 12px;
   background: #fbfbfe;
-  overflow: hidden;
+  overflow-x: auto;
+  overflow-y: hidden;
+  max-width: 100%;
 }
 
 .edu-grades__table {
   width: 100%;
-  border-collapse: collapse;
+  min-width: 420px;
+  border-collapse: separate;
+  border-spacing: 0;
   table-layout: fixed;
 }
+
+/* Sticky Subject column. */
+.edu-grades__table thead th.edu-grades__subject,
+.edu-grades__table tbody th.edu-grades__subject {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: #f8f8fc;
+}
+.edu-grades__table tbody th.edu-grades__subject { background: #fbfbfe; }
+.edu-grades__table thead tr.edu-grades__subhead th { padding: 4px 8px; font-size: 0.68rem; color: #b6bac4; background: #f8f8fc; border-bottom: 1px solid #ededf4; }
+.edu-grades__group { text-align: center; }
 .edu-grades__table thead th {
   padding: 8px 10px;
   font-size: 0.72rem;
@@ -357,16 +366,111 @@
 .edu-grades__table tbody tr + tr td { border-top: 1px solid #f2f2f8; }
 .edu-grades__table tbody th,
 .edu-grades__table tbody td { padding: 7px 10px; text-align: center; vertical-align: middle; }
-.edu-grades__subject { width: 40%; }
-.edu-grades__action { width: 34px; }
+.edu-grades__subject { width: 42%; }
+.edu-grades__action { width: 32px; }
+
+.edu-grades__namewrap { position: relative; min-width: 0; }
+.edu-grades__suggest {
+  position: absolute;
+  z-index: 5;
+  top: calc(100% + 2px);
+  left: 0;
+  min-width: 200px;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  background: #fff;
+  border: 1px solid #ececf3;
+  border-radius: 10px;
+  box-shadow: 0 12px 28px #1118271f;
+}
+.edu-grades__suggest button {
+  display: block;
+  width: 100%;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 7px;
+  background: none;
+  font: inherit;
+  font-size: 13px;
+  color: #374151;
+  text-align: left;
+  cursor: pointer;
+}
+.edu-grades__suggest button:hover { background: #f4f1ff; color: #5140c4; }
+.edu-grades__error { margin: 3px 0 0; font-size: 12px; color: #b91c1c; }
+
+.edu-grades__cellwrap { position: relative; display: flex; align-items: center; justify-content: center; }
+.edu-grades__cell--invalid { border-color: #fca5a5 !important; background: #fff5f5; }
+.edu-grades__cell--predicted { font-style: italic; color: #6d5bf0; border-color: #dcd6fb; background: #faf8ff; }
+.edu-grades__badge {
+  position: absolute;
+  top: -3px;
+  right: -2px;
+  width: 12px;
+  height: 12px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #6d5bf0;
+  color: #fff;
+  font-size: 8px;
+  line-height: 1;
+}
+.edu-grades__more {
+  position: absolute;
+  right: -12px;
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: #c4c7d0;
+  font-size: 13px;
+  cursor: pointer;
+  opacity: 0;
+}
+.edu-grades__cellwrap:hover .edu-grades__more,
+.edu-grades__more:focus-visible { opacity: 1; }
+.edu-grades__more:hover { background: #f4f1ff; color: #5140c4; }
+.edu-grades__menu {
+  position: absolute;
+  z-index: 6;
+  top: calc(100% + 2px);
+  right: -4px;
+  min-width: 168px;
+  padding: 4px;
+  background: #fff;
+  border: 1px solid #ececf3;
+  border-radius: 10px;
+  box-shadow: 0 12px 28px #1118271f;
+}
+.edu-grades__menu button {
+  display: block;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 7px;
+  background: none;
+  font: inherit;
+  font-size: 13px;
+  color: #374151;
+  text-align: left;
+  cursor: pointer;
+}
+.edu-grades__menu button:hover { background: #f4f1ff; color: #5140c4; }
+.edu-grades__average { margin: 0; display: inline-flex; align-items: center; gap: 6px; }
+.edu-link--inline { margin-left: 4px; font-size: 13px; }
 
 .edu-grades__table tbody th.edu-grades__subject { text-align: left; padding-left: 14px; }
 
 /* Subject name reads like a table row, not an input, until focused. */
 .edu-grades__name {
   width: 100%;
-  height: 30px;
-  padding: 0 6px;
+  height: 40px;
+  padding: 0 10px;
   border: 1px solid transparent;
   border-radius: 7px;
   background: none;
@@ -409,8 +513,8 @@
 .edu-grades__cell--dash { color: #9ca3af; }
 
 .edu-grades__remove {
-  width: 24px;
-  height: 24px;
+  width: 32px;
+  height: 32px;
   display: grid;
   place-items: center;
   border: none;
@@ -464,32 +568,6 @@
 }
 .edu-link:hover { text-decoration: underline; }
 
-/* ── PROOF row ─────────────────────────────────────────────────────────── */
-
-.edu-proof {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-height: 48px;
-  padding: 0 14px;
-  border: 1px solid #eef0f4;
-  border-radius: 10px;
-  background: #f9fafb;
-}
-.edu-proof__icon { font-size: 0.95rem; line-height: 1; }
-.edu-proof__text {
-  min-width: 0;
-  flex: 1;
-  color: #9ca3af;
-  font-size: 0.82rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.edu-proof__links { display: inline-flex; align-items: center; gap: 16px; flex: 0 0 auto; }
-.edu-proof .document-picker { flex: 0 0 auto; }
-.edu-proof .panel-field-error { margin-top: 4px; }
-
 /* Tip box (TipBox renders .tip-box; keep the panel's tighter rhythm). */
 .edu-panel .tip-box {
   margin: 2px 0 0;
@@ -539,64 +617,6 @@
 .edu-discard__actions { display: flex; justify-content: flex-end; gap: 10px; }
 
 /* ── month popover (portalled to <body>) ───────────────────────────────── */
-
-.edu-month__popover {
-  position: fixed;
-  z-index: 1000;
-  max-width: calc(100vw - 16px);
-  padding: 12px;
-  border: 1px solid #ececf3;
-  border-radius: 12px;
-  background: #fff;
-  box-shadow: 0 12px 36px rgba(17, 24, 39, 0.16);
-  font-family: Inter, "Segoe UI", system-ui, sans-serif;
-}
-.edu-month__nav {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 6px;
-  margin-bottom: 8px;
-}
-.edu-month__nav strong { font-size: 0.86rem; color: #111827; }
-.edu-month__nav button,
-.edu-month__foot button {
-  min-height: 28px;
-  padding: 0 10px;
-  border: none;
-  border-radius: 7px;
-  background: #f6f6fb;
-  color: #4b5563;
-  font: inherit;
-  font-size: 0.8rem;
-  cursor: pointer;
-}
-.edu-month__nav button:hover,
-.edu-month__foot button:hover { background: #efecff; color: #5140c4; }
-.edu-month__grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 4px;
-}
-.edu-month__cell {
-  height: 32px;
-  border: none;
-  border-radius: 7px;
-  background: none;
-  color: #374151;
-  font: inherit;
-  font-size: 0.8rem;
-  cursor: pointer;
-}
-.edu-month__cell:hover:not(:disabled) { background: #f5f3ff; color: #5140c4; }
-.edu-month__cell[aria-pressed='true'] { background: #6d5bf0; color: #fff; }
-.edu-month__cell:disabled { color: #d1d5db; cursor: not-allowed; }
-.edu-month__foot {
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-  margin-top: 8px;
-}
 
 /* ── responsive ────────────────────────────────────────────────────────── */
 

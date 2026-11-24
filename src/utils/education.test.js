@@ -1,10 +1,12 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  cellGrade, currentGrade, dateValue, draftFromEntry, emptyEntryDraft, entryChips,
+  cellAt, cellGrade, currentGrade, dateValue, draftFromEntry, duplicateSubjectIndex,
+  emptyEntryDraft, entryChips,
   entryMeta, entryPayload, entryTitle, filterCounts, filterEntries, formatAverage,
-  gradeRowsFromSubjects, gradeSubjectsFromRows, gradingMaximum, inFilter, monthIso,
-  monthValue, parseMonthText, patchFor, savedLabel, validateEducation,
+  finalGradeAverage, gradeError, gradeLevels, gradeRowsFromSubjects, gradeSubjectsFromRows,
+  gradingMaximum, inFilter, monthIso, monthValue, parseMonthText, patchFor, savedLabel,
+  semesterLabel, subjectSuggestions, suggestedFinalGrade, validateEducation,
 } from './education.js'
 
 const NOW = new Date('2026-11-23T10:00:00Z')
@@ -155,33 +157,88 @@ test('validateEducation: required fields, date order and rank bounds', () => {
   }), {})
 })
 
-test('grade table ⇄ grade_rows: cells, empty cells and hidden rows', () => {
+test('gradeLevels: the last three years of the school, from final_grade_level', () => {
+  assert.deepEqual(gradeLevels(11), [9, 10, 11])
+  assert.deepEqual(gradeLevels(12), [10, 11, 12])
+  assert.deepEqual(gradeLevels(14), [12, 13, 14])
+  assert.deepEqual(gradeLevels(null), [10, 11, 12])
+  assert.equal(semesterLabel(1), 'S1')
+  assert.equal(semesterLabel(2), 'S2')
+  assert.equal(semesterLabel(null), 'Final')
+})
+
+test('suggestedFinalGrade counts forward from the expected graduation', () => {
+  // Finishing in 2027 while it is 2026-27 → this school ends at grade 11.
+  assert.equal(suggestedFinalGrade({ end_date: '2027-06-01', is_current: true }, NOW), 11)
+  assert.equal(suggestedFinalGrade({ end_date: '2028-06-01', is_current: true }, NOW), 12)
+  assert.equal(suggestedFinalGrade({ final_grade_level: 13 }, NOW), 13)
+  assert.equal(suggestedFinalGrade({}, NOW), 11)
+})
+
+test('gradeError explains the scale instead of just rejecting', () => {
+  assert.equal(gradeError('', '1–5'), '')
+  assert.equal(gradeError('5', '1–5'), '')
+  assert.equal(gradeError('4.5', '1–5'), '')
+  assert.equal(gradeError('4,5', '1–5'), '')
+  assert.equal(gradeError('7', '1–5'), 'Use the 1–5 scale (0–5)')
+  assert.equal(gradeError('101', '0–100'), 'Use the 0–100 scale (0–100)')
+  assert.equal(gradeError('A*', '1–5'), 'Enter a number from 0 to 5')
+  assert.equal(gradeError('A*', 'Other'), '')
+  assert.equal(gradeError('x'.repeat(11), ''), 'Use at most 10 characters')
+})
+
+test('grade table ⇄ grade_rows: cells, final grades and hidden grade levels', () => {
   const rows = [
     { id: 'a', subject: 'Mathematics', grade_level: 9, semester: 1, grade: '5', sort_order: 0 },
-    { id: 'b', subject: 'Mathematics', grade_level: 10, semester: 1, grade: '5', sort_order: 1 },
+    { id: 'b', subject: 'Mathematics', grade_level: 9, semester: null, grade: '5', sort_order: 1 },
     { id: 'c', subject: 'Physics', grade_level: 11, semester: 2, grade: '4', sort_order: 2 },
   ]
   const subjects = gradeSubjectsFromRows(rows)
   assert.deepEqual(subjects.map((subject) => subject.name), ['Mathematics', 'Physics'])
-  assert.equal(cellGrade(subjects[0], 9), '5')
-  assert.equal(cellGrade(subjects[0], 11), '')
+  assert.equal(cellGrade(subjects[0], 9, 1), '5')
+  assert.equal(cellGrade(subjects[0], 9, null), '5')
+  assert.equal(cellGrade(subjects[0], 11, 1), '')
+  assert.equal(cellAt(subjects[0], 9, null).id, 'b')
   assert.equal(cellGrade(subjects[1], 11, 2), '4')
 
   subjects[0].cells['11:1'] = { grade: '5' }
-  subjects[0].cells['10:1'].grade = ''
+  subjects[0].cells['9:1'].grade = ''
   const saved = gradeRowsFromSubjects(subjects)
-  assert.deepEqual(saved.map((row) => [row.subject, row.grade_level, row.semester, row.grade, Boolean(row.id)]), [
-    ['Mathematics', 9, 1, '5', true],
-    ['Mathematics', 11, 1, '5', false],
-    ['Physics', 11, 2, '4', true],
+  assert.deepEqual(saved.map((row) => [row.subject, row.grade_level, row.semester, row.grade]), [
+    ['Mathematics', 9, null, '5'],
+    ['Mathematics', 11, 1, '5'],
+    ['Physics', 11, 2, '4'],
   ])
   assert.deepEqual(gradeRowsFromSubjects([{ name: '  ', cells: { '9:1': { grade: '5' } } }]), [])
 })
 
-test('gradeRowsFromSubjects keeps the semester-2 rows the table does not show', () => {
-  const rows = [{ id: 'x', subject: 'English', grade_level: 9, semester: 2, grade: '5', sort_order: 0 }]
+test('gradeRowsFromSubjects keeps the grade levels the table does not show', () => {
+  const rows = [{ id: 'x', subject: 'English', grade_level: 8, semester: 2, grade: '5', sort_order: 0 }]
   const saved = gradeRowsFromSubjects(gradeSubjectsFromRows(rows))
-  assert.deepEqual(saved.map((row) => [row.grade_level, row.semester, row.grade]), [[9, 2, '5']])
+  assert.deepEqual(saved.map((row) => [row.grade_level, row.semester, row.grade]), [[8, 2, '5']])
+})
+
+test('duplicate subjects are found case-insensitively', () => {
+  assert.equal(duplicateSubjectIndex([{ name: 'Math' }, { name: 'Physics' }]), -1)
+  assert.equal(duplicateSubjectIndex([{ name: 'Math' }, { name: 'math' }]), 1)
+  assert.equal(duplicateSubjectIndex([{ name: '' }, { name: '' }]), -1)
+})
+
+test('subjectSuggestions match what was typed and skip used names', () => {
+  assert.deepEqual(subjectSuggestions('math'), ['Mathematics'])
+  assert.ok(subjectSuggestions('ics', ['Physics']).includes('Mathematics'))
+  assert.ok(!subjectSuggestions('', ['Mathematics']).includes('Mathematics'))
+  assert.equal(subjectSuggestions('zzz').length, 0)
+})
+
+test('finalGradeAverage uses only final grades', () => {
+  const subjects = [
+    { name: 'Math', cells: { '10:final': { grade: '5' }, '10:1': { grade: '1' } } },
+    { name: 'Physics', cells: { '10:final': { grade: '4' }, '10:2': { grade: '1' } } },
+    { name: 'Art', cells: {} },
+  ]
+  assert.equal(finalGradeAverage(subjects), '4.50')
+  assert.equal(finalGradeAverage([{ name: 'Math', cells: { '10:1': { grade: '5' } } }]), '')
 })
 
 test('savedLabel: just now / seconds / minutes / hours', () => {

@@ -170,7 +170,6 @@ export function emptyTestDraft(testType = 'SAT') {
     expires_on: '',
     is_best: false,
     notes: '',
-    report_document_id: '',
     sections: [],
   }
 }
@@ -190,7 +189,6 @@ export function draftFromRow(row = {}, sections = []) {
     expires_on: row.expires_on || '',
     is_best: Boolean(row.is_best),
     notes: trim(row.notes || ''),
-    report_document_id: row.report_document_id || '',
     sections: (sections || []).map((s) => ({
       id: s.id || '',
       section: trim(s.section || ''),
@@ -220,7 +218,6 @@ export function rowFromDraft(draft = {}) {
     expires_on: draft.expires_on || null,
     is_best: Boolean(draft.is_best),
     notes: nullable(draft.notes, 500),
-    report_document_id: draft.report_document_id || null,
   }
 }
 

@@ -1,0 +1,156 @@
+/* ============================================================================
+   DocumentsPage.css — the Documents tab (same rows as the Proof blocks)
+   ========================================================================== */
+
+.documents-page {
+  background: #fff;
+  border: 1px solid #ececf3;
+  border-radius: 16px;
+  padding: 22px 24px 26px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+.documents-page__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.documents-page__head h3 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 650;
+  color: #111827;
+}
+
+.documents-page__sub {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.documents-page__count {
+  font-size: 13px;
+  color: #9ca3af;
+  white-space: nowrap;
+}
+
+.documents-page__tools {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.documents-page__search {
+  width: 100%;
+  max-width: 420px;
+  min-height: 44px;
+  padding: 12px 14px;
+  border: 1px solid #e3e3ec;
+  border-radius: 10px;
+  background: #f9fafb;
+  font: inherit;
+  font-size: 15px;
+  color: #111827;
+  min-width: 0;
+}
+
+.documents-page__search:focus-visible { outline: 2px solid #6d5bf0; outline-offset: 2px; background: #fff; }
+
+.documents-page__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.documents-page__row {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid #ececf3;
+  border-radius: 12px;
+  background: #fff;
+  min-width: 0;
+}
+
+.documents-page__row:hover { border-color: #ded9f7; }
+
+.documents-page__tile {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  background: #f1eeff;
+  color: #6d5bf0;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.documents-page__info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.documents-page__info strong {
+  font-size: 14px;
+  color: #111827;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.documents-page__info span {
+  font-size: 12px;
+  color: #9ca3af;
+  overflow-wrap: anywhere;
+}
+
+.documents-page__usage { color: #6d5bf0 !important; }
+
+.documents-page__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.documents-page__link {
+  border: 1px solid #ececf3;
+  border-radius: 8px;
+  background: #fff;
+  padding: 7px 12px;
+  font: inherit;
+  font-size: 13px;
+  color: #374151;
+  cursor: pointer;
+}
+
+.documents-page__link:hover { border-color: #ded9f7; color: #5140c4; }
+.documents-page__link:focus-visible { outline: 2px solid #6d5bf0; outline-offset: 2px; }
+
+.documents-page__empty {
+  margin: 0;
+  font-size: 13px;
+  color: #9ca3af;
+}
+
+.documents-page .empty-state { padding: 28px 16px; }
+
+@media (max-width: 720px) {
+  .documents-page { padding: 16px; }
+  .documents-page__row { grid-template-columns: 32px minmax(0, 1fr); }
+  .documents-page__actions { grid-column: 1 / -1; justify-content: flex-end; }
+}

@@ -1,4 +1,4 @@
-import { DatePicker, SegmentedControl, TagSelect } from '../section'
+import { DatePicker, ProofBlock, SegmentedControl, TagSelect } from '../section'
 /**
  * ============================================================================
  * ProjectPanel — the right-hand panel of the Projects page (spec mockup)
@@ -229,7 +229,7 @@ export default function ProjectPanel({
     await onSave(payload)
   }, [onSave])
 
-  const { saving, savedAt, error: saveError, markDirty, flush } = useAutosave(draft, persist, {
+  const { saving, savedAt, error: saveError, isDirty, markDirty, flush } = useAutosave(draft, persist, {
     delay: 800,
     enabled: mode === 'edit',
   })
@@ -294,10 +294,10 @@ export default function ProjectPanel({
       : saving
         ? 'Saving…'
         : saveError
-          ? 'Couldn\'t save · Retry'
-          : savedAt
+          ? "Couldn't save · Retry"
+          : savedAt && !isDirty
             ? `${savedLabel(savedAt, now)} ✓`
-            : 'Saved just now ✓'
+            : isDirty ? 'Unsaved changes' : 'All changes saved'
 
   const activityOptions = activities.map((activity) => ({
     value: activity.id,
@@ -456,6 +456,19 @@ export default function ProjectPanel({
             <p className="prj-hint">Public projects appear on your public profile.</p>
           </div>
         </div>
+
+        <SectionLabel>Proof</SectionLabel>
+        {mode === 'edit' ? (
+          <ProofBlock
+            section="project"
+            itemId={row?.id}
+            userId={userId}
+            title="Files"
+            hint="No files attached yet. Add a report, a screenshot or a paper."
+          />
+        ) : (
+          <p className="prj-hint">Save the project first, then attach files.</p>
+        )}
 
         {mode === 'create' && (
           <footer className="prj-panel__footer">

@@ -11,13 +11,13 @@ import { rowFromDraft } from '../utils/honors.js'
 
 export const HONOR_COLUMNS = [
   'id', 'user_id', 'title', 'category', 'subject', 'received_month', 'received_year',
-  'result', 'grade_levels', 'levels', 'issuer', 'participants_context', 'description', 'certificate_document_id',
+  'result', 'grade_levels', 'levels', 'issuer', 'participants_context', 'description',
   'verification_url', 'is_top5_commonapp', 'top5_order', 'sort_order', 'created_at', 'updated_at',
 ].join(', ')
 
 export const WRITABLE_HONOR_COLUMNS = [
   'title', 'category', 'subject', 'received_month', 'received_year', 'result', 'grade_levels', 'levels',
-  'issuer', 'participants_context', 'description', 'certificate_document_id',
+  'issuer', 'participants_context', 'description',
   'verification_url', 'is_top5_commonapp',
 ]
 
