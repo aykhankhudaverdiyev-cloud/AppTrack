@@ -15,7 +15,7 @@ export const PROJECT_COLUMNS = [
   'id', 'user_id', 'project_type', 'title', 'role_type', 'team_size',
   'my_contribution', 'start_date', 'end_date', 'status', 'problem',
   'build_summary', 'result', 'result_metrics', 'tech_tags', 'github_url',
-  'demo_url', 'video_url', 'paper_url', 'report_document_id', 'mentor_name',
+  'demo_url', 'video_url', 'paper_url', 'mentor_name',
   'related_activity_id', 'related_honor_id', 'visibility', 'short_description',
   'link', 'created_at', 'updated_at',
 ].join(', ')

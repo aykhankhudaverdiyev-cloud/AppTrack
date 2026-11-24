@@ -13,13 +13,13 @@ import { rowFromDraft, toNumberOrNull } from '../utils/tests.js'
 export const TEST_COLUMNS = [
   'id', 'user_id', 'test_type', 'national_exam_name', 'status', 'attempt_number',
   'test_date', 'overall_score', 'overall_max', 'trf_number', 'expires_on',
-  'is_best', 'notes', 'report_document_id', 'created_at', 'updated_at',
+  'is_best', 'notes', 'created_at', 'updated_at',
 ].join(', ')
 
 export const WRITABLE_TEST_COLUMNS = [
   'test_type', 'national_exam_name', 'status', 'attempt_number', 'test_date',
   'overall_score', 'overall_max', 'trf_number', 'expires_on',
-  'notes', 'report_document_id',
+  'notes',
 ]
 
 function pickWritable(row) {

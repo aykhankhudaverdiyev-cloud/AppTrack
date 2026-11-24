@@ -10,9 +10,8 @@ import { usePanelValidation } from '../../hooks/usePanelValidation'
 import { InlineError, ValidationSummary } from '../forms/PanelValidation'
 import { readCreateDraft, useCreateDraft, useAutosave } from '../../hooks/useAutosave'
 import {
-  ChipGroup, GradeChips, TagSelect, TextAreaField, DatePicker, DocumentPicker, TipBox,
+  ChipGroup, GradeChips, TagSelect, TextAreaField, DatePicker, ProofBlock, TipBox,
 } from '../section'
-import { getDocument } from '../../Services/documentApi'
 import {
   HONOR_CATEGORIES, HONOR_RESULTS, HONOR_LEVELS, HONOR_LIMITS,
   honorCategory,
@@ -47,23 +46,11 @@ export default function HonorPanel({
   const [createError, setCreateError] = useState('')
   const [now, setNow] = useState(() => Date.now())
   const [confirmDiscard, setConfirmDiscard] = useState(false)
-  const [certDoc, setCertDoc] = useState(null)
 
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 30000)
     return () => clearInterval(timer)
   }, [])
-
-  // The draft only stores certificate_document_id (the DB-shaped value); fetch
-  // the document's title/filename separately so DocumentPicker can show it.
-  useEffect(() => {
-    let cancelled = false
-    const id = draft.certificate_document_id
-    if (!id || certDoc?.id === id) return undefined
-    getDocument(userId, id).then((doc) => { if (!cancelled) setCertDoc(doc) }).catch(() => {})
-    return () => { cancelled = true }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [draft.certificate_document_id, userId])
 
   const validation = usePanelValidation(validateHonor(draft, mode, { touched: REQUIRED_TOUCHED }), HONOR_REQUIRED_FIELDS)
   const { errors } = validation
@@ -284,16 +271,18 @@ export default function HonorPanel({
         </div>
 
         <p className="honor-section-label">Proof</p>
+        {mode === 'edit' ? (
+          <ProofBlock
+            section="honor"
+            itemId={row?.id}
+            userId={userId}
+            title="Certificate"
+            hint="No certificate attached yet. Upload it or choose it from Documents."
+          />
+        ) : (
+          <p className="honor-hint">Save the award first, then attach the certificate.</p>
+        )}
         <div className="honor-grid">
-          <div className="honor-field">
-            <label className="sfield-label">Certificate</label>
-            <DocumentPicker
-              value={draft.certificate_document_id ? (certDoc || { id: draft.certificate_document_id, title: 'Certificate' }) : null}
-              category="award_certificate"
-              userId={userId}
-              onChange={(doc) => { setCertDoc(doc); set('certificate_document_id', doc?.id || '') }}
-            />
-          </div>
           <div className="honor-field">
             <label className="sfield-label" htmlFor="honor-verification_url">Verification link</label>
             <input

@@ -9,8 +9,7 @@ import { InlineError, ValidationSummary, NumericInput } from '../forms/PanelVali
 import { readCreateDraft, useCreateDraft, useAutosave } from '../../hooks/useAutosave'
 import { Field } from '../forms'
 import '../activities/ActivitiesSection.css'
-import { DatePicker, SegmentedControl, DocumentPicker, TagSelect, TipBox } from '../section'
-import { getDocument } from '../../Services/documentApi'
+import { DatePicker, SegmentedControl, ProofBlock, TagSelect, TipBox } from '../section'
 import {
   TEST_TYPES, TEST_STATUSES, testPreset, needsExamName,
   TEST_TYPE_LABEL, testEmoji, testTint,
@@ -67,23 +66,11 @@ export default function TestPanel({
   const [createError, setCreateError] = useState('')
   const [now, setNow] = useState(() => Date.now())
   const [confirmDiscard, setConfirmDiscard] = useState(false)
-  const [reportDoc, setReportDoc] = useState(null)
 
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 30000)
     return () => clearInterval(timer)
   }, [])
-
-  // The draft only stores report_document_id (the DB-shaped value); fetch the
-  // document's title/filename separately so DocumentPicker can show it.
-  useEffect(() => {
-    let cancelled = false
-    const id = draft.report_document_id
-    if (!id || reportDoc?.id === id) return undefined
-    getDocument(userId, id).then((doc) => { if (!cancelled) setReportDoc(doc) }).catch(() => {})
-    return () => { cancelled = true }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [draft.report_document_id, userId])
 
   const validation = usePanelValidation({
     ...validateTestAttempt(draft, mode, { touched: { test_type: true, status: true, national_exam_name: true, attempt_number: true } }),
@@ -165,7 +152,7 @@ export default function TestPanel({
         ? 'Saving…'
         : saveError
           ? "Couldn't save · Retry"
-          : savedAt
+          : savedAt && !isDirty
             ? `${savedLabel(savedAt, now)} ✓`
             : isDirty ? 'Unsaved changes' : 'All changes saved'
 
@@ -315,20 +302,23 @@ export default function TestPanel({
         </label>}
 
         <p className="test-section-label">Proof</p>
-        <div className="test-grid">
+        {mode === 'edit' ? (
+          <ProofBlock
+            section="test"
+            itemId={row?.id}
+            userId={userId}
+            title="Score report"
+            hint="No score report attached yet. Upload the PDF you received."
+          />
+        ) : (
+          <p className="test-hint">Save the attempt first, then attach the score report.</p>
+        )}
+        {onOpenApplications && (
           <div className="test-field">
-            <label className="sfield-label">Score report</label>
-            <DocumentPicker
-              value={draft.report_document_id ? (reportDoc || { id: draft.report_document_id, title: 'Score report' }) : null}
-              category={isEnglish ? 'english_certificate' : 'test_report'}
-              userId={userId}
-              onChange={(doc) => { setReportDoc(doc); set('report_document_id', doc?.id || '') }} />
-          </div>
-          {onOpenApplications && <div className="test-field">
             <span className="sfield-label">Official reports</span>
             <button type="button" className="test-add-section" onClick={async () => { await flush(); onOpenApplications() }}>Open Applications →</button>
-          </div>}
-        </div>
+          </div>
+        )}
 
         <label className="test-field">
           <span className="sfield-label">Notes</span>

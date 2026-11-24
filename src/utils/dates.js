@@ -49,6 +49,54 @@ export function formatMonthInput(value) {
   return `${String(p.month).padStart(2, '0')}/${p.year}`
 }
 
+const MONTH_NAMES = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec']
+
+const padded = (value) => String(value).padStart(2, '0')
+
+/**
+ * What a student types into a month field → 'YYYY-MM-DD' (the first day of the
+ * month), or '' when it is not a month.
+ *   "09/2023" · "9-2023" · "Sep 2023" · "september 2023" · "2023-09"
+ */
+export function parseTypedMonth(input) {
+  const raw = String(input || '').trim().toLowerCase().replace(/\s+/g, ' ')
+  if (!raw) return ''
+  const slashed = /^(\d{1,2})\s*[/.-]\s*(\d{4})$/.exec(raw)
+  if (slashed) {
+    const month = Number(slashed[1])
+    return month >= 1 && month <= 12 ? `${slashed[2]}-${padded(month)}-01` : ''
+  }
+  const iso = /^(\d{4})[-/](\d{1,2})$/.exec(raw)
+  if (iso) {
+    const month = Number(iso[2])
+    return month >= 1 && month <= 12 ? `${iso[1]}-${padded(month)}-01` : ''
+  }
+  const named = /^([a-z]+)\.?,?\s*(\d{4})$/.exec(raw)
+  if (!named) return ''
+  const index = MONTH_NAMES.indexOf(named[1].slice(0, 3))
+  return index === -1 ? '' : `${named[2]}-${padded(index + 1)}-01`
+}
+
+/**
+ * What a student types into a date field → 'YYYY-MM-DD', or '' when it is not
+ * a date.
+ *   "12 Sep 2023" · "12/09/2023" · "2023-09-12"
+ */
+export function parseTypedDay(input) {
+  const raw = String(input || '').trim().toLowerCase().replace(/\s+/g, ' ')
+  if (!raw) return ''
+  const iso = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(raw)
+  if (iso) return `${iso[1]}-${padded(iso[2])}-${padded(iso[3])}`
+  const slashed = /^(\d{1,2})[/.](\d{1,2})[/.](\d{4})$/.exec(raw)
+  if (slashed) return `${slashed[3]}-${padded(slashed[2])}-${padded(slashed[1])}`
+  const named = /^(\d{1,2})\.?\s+([a-z]+)\.?,?\s+(\d{4})$/.exec(raw)
+  if (named) {
+    const index = MONTH_NAMES.indexOf(named[2].slice(0, 3))
+    return index === -1 ? '' : `${named[3]}-${padded(index + 1)}-${padded(named[1])}`
+  }
+  return ''
+}
+
 /** '06/2025' → '2025-06'; '' when empty or invalid. */
 export function parseMonthInput(input) {
   const text = String(input || '').trim().replace(/\s+/g, '')

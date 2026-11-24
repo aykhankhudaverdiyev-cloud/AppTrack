@@ -110,7 +110,6 @@ export function emptyHonorDraft(category = '', top5Default = false) {
     levels: [],
     participants_context: '',
     description: '',
-    certificate_document_id: '',
     verification_url: '',
     is_top5_commonapp: Boolean(top5Default),
   }
@@ -131,7 +130,6 @@ export function draftFromRow(row = {}) {
     levels: (row.levels || []).slice(0, 1),
     participants_context: trim(row.participants_context || ''),
     description: trim(row.description || ''),
-    certificate_document_id: row.certificate_document_id || '',
     verification_url: trim(row.verification_url || ''),
     is_top5_commonapp: Boolean(row.is_top5_commonapp),
   }
@@ -160,7 +158,6 @@ export function rowFromDraft(draft = {}) {
       ['school', 'city', 'regional', 'national', 'international'].includes(level)).slice(0, 1),
     participants_context: nullable(draft.participants_context, HONOR_LIMITS.participantsContext),
     description: nullable(draft.description, HONOR_LIMITS.description),
-    certificate_document_id: draft.certificate_document_id || null,
     verification_url: nullable(draft.verification_url, 500),
     is_top5_commonapp: Boolean(draft.is_top5_commonapp),
   }

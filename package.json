@@ -9,8 +9,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "node --test src/utils/*.test.js",
-    "test:e2e": "playwright test",
-    "dev:education": "vite --config vite.preview.config.js --open /index.education-preview.html"
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

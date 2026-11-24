@@ -24,23 +24,51 @@ This project uses **React**, **Vite**, and **Supabase**. This guide will help yo
 ### Real-time Sync
 - The application uses Supabase `channels` (`postgres_changes`) to listen for database events. Whenever data in `profiles` or `applications` tables changes, the store automatically reloads the data.
 
-### Education page (rebuild)
+### Education page
 - **UI:** `src/components/academic/EducationSection.jsx` (+ `.css`) is the page
   container (`SectionPage` with `className="edu-page"`), filter chips, the entry
-  cards and the empty "add another" card. `EducationPanel.jsx`, `EducationField.jsx`,
-  `EducationInputs.jsx` (country select + month picker) and `GradeTable.jsx` make up
-  the right-hand panel: BASICS · ACADEMIC RECORD · GRADES · COUNSELOR · PROOF.
+  cards and the empty "add another" card. `EducationPanel.jsx` +
+  `GradeTable.jsx` make up the right-hand panel: BASICS · ACADEMIC RECORD ·
+  GRADES · COUNSELOR · PROOF.
 - **Data:** `src/Services/educationApi.js` (whitelisted columns, owner-scoped,
   notifies the dashboard's realtime channel) and `src/hooks/useEducation.js`
-  (optimistic updates with rollback). Grade rows are synced through the existing
-  `syncGradeRows()` in `ProfileServiceV2.js`, so clearing a cell deletes its row.
+  (optimistic updates with rollback).
+- **Grades:** one row per subject × grade level × semester in `public.grade_rows`,
+  saved through the `save_grade_rows(entry_id, jsonb)` RPC (delete + insert in one
+  transaction, 800 ms debounce). The columns come from
+  `education_entries.final_grade_level` (10–14), `Show semesters` splits them into
+  S1 · S2 · Final.
 - **Pure rules:** `src/utils/education.js` — draft ⇄ row, `entryMeta()`
-  ("Sep 2023 – Jun 2027 · Grade 11"), filter counts, validation, and the
-  subject ⇄ `grade_rows` conversion. Covered by `education.test.js`.
-- **Design review without a session:** `npm run dev:education` serves
-  `index.education-preview.html` through `vite.preview.config.js`, which aliases
-  the API and the Supabase client to the offline stubs in `src/preview/`.
-  This entry is not part of `npm run build` and is not linked from the app.
+  ("Sep 2023 – Jun 2027 · Grade 11"), filter counts, validation, grade scale
+  checks, subject suggestions and the subject ⇄ `grade_rows` conversion.
+  Covered by `education.test.js`.
+
+### Proof files (Education, Test Scores, Honors, Projects, Documents)
+- **One table:** `public.item_documents(section, item_id, document_id)` links a
+  `document_files` row to an item. Sections: `education`, `test`, `honor`,
+  `project`. RLS mirrors `document_files` (owner / admin / counselor-read).
+- **One UI:** `src/components/section/ProofBlock.jsx` is the PROOF section of every
+  panel (list, Upload, Choose from Documents, View, Remove, ⋯ → Delete file…).
+  `src/Services/documentsApi.js` is the only module that talks to the two tables
+  and the `student-documents` bucket.
+- **Delete anywhere:** `document_usage(document_id)` says where a file is used and
+  `delete_document(document_id)` removes the links, the row and returns the storage
+  path (the client removes the object). Same dialog on the Documents tab
+  (`src/components/DocumentsPage.jsx`).
+- The old single-document columns (`education_entries.transcript_document_id`,
+  `test_attempts.report_document_id`, `honors.certificate_document_id`,
+  `projects.report_document_id`) are no longer read or written; migration 012 copied
+  their values into `item_documents` and
+  `supabase/scripts/backfill_item_documents.sql` can re-run that copy safely
+  (`on conflict do nothing`).
+
+### Shared controls
+- **Dates:** `src/components/section/DatePicker.jsx` (month + day). Typing
+  "09/2023" / "Sep 2023" works, a month is stored as its first day, ✕ clears, the
+  popover flips above/below and is portalled so it is never clipped.
+- **Text inputs:** 44 px high, 12–14 px padding, 15 px text, 10 px radius, outline
+  focus ring (never clipped). `TextAreaField` grows from 3 to 12 lines and then
+  scrolls; `Field` reserves the helper/error line so panels never jump.
 
 ## 3. Contributing
 1. **Adding a Feature:** Create a page in `src/pages/`.
