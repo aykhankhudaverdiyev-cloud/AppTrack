@@ -10,6 +10,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import ConfirmDialog from './forms/ConfirmDialog'
 import FilterChips from './section/FilterChips'
+import { UploadModal } from './section/ProofBlock'
 import { InlineError } from './forms/PanelValidation'
 import { useUndoToast } from '../hooks/useUndoToast'
 import { onDataChanged } from '../store/studentsStore'
@@ -21,20 +22,20 @@ import { formatDate } from '../utils/dates'
 import './DocumentsPage.css'
 
 const SECTION_TITLES = {
-  education: (title) => title || 'Education',
-  test: (title) => title || 'Test score',
-  honor: (title) => title || 'Honor',
-  project: (title) => title || 'Project',
+  education: 'Education', test: 'Test Scores', honor: 'Honors',
+  project: 'Projects', activity: 'Activities', application: 'Applications',
 }
 
-export default function DocumentsPage({ userId }) {
+export default function DocumentsPage({ userId, onOpenItem }) {
   const [documents, setDocuments] = useState([])
   const [links, setLinks] = useState({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState('all')
+  const [sort, setSort] = useState('newest')
   const [deleting, setDeleting] = useState(null)
+  const [uploadOpen, setUploadOpen] = useState(false)
   const [deleteUsage, setDeleteUsage] = useState(null)
   const [reloadKey, setReloadKey] = useState(0)
   const { toast, showToast, hideToast } = useUndoToast()
@@ -69,15 +70,18 @@ export default function DocumentsPage({ userId }) {
   const chips = useMemo(() => {
     const counts = {}
     for (const doc of documents) counts[doc.category] = (counts[doc.category] || 0) + 1
-    return [{ key: 'all', label: 'All', count: documents.length },
-      ...Object.entries(counts).map(([key, count]) => ({ key, label: DOCUMENT_CATEGORIES[key] || key, count }))]
+    return Object.entries(counts).map(([key, count]) => ({ key, label: DOCUMENT_CATEGORIES[key] || key, count }))
   }, [documents])
 
   const visible = useMemo(() => documents.filter((doc) => {
     if (category !== 'all' && doc.category !== category) return false
     if (!query.trim()) return true
     return String(doc.title || '').toLowerCase().includes(query.trim().toLowerCase())
-  }), [documents, category, query])
+  }).sort((a, b) => {
+    if (sort === 'name') return String(a.title || '').localeCompare(String(b.title || ''))
+    if (sort === 'category') return String(DOCUMENT_CATEGORIES[a.category] || a.category || '').localeCompare(String(DOCUMENT_CATEGORIES[b.category] || b.category || ''))
+    return String(b.created_at || '').localeCompare(String(a.created_at || ''))
+  }), [documents, category, query, sort])
 
   const usageOf = (docId) => {
     const items = Object.values(links).flatMap((entry) => (entry.documents.some((doc) => doc.id === docId)
@@ -93,9 +97,7 @@ export default function DocumentsPage({ userId }) {
   const askDelete = async (doc) => {
     setDeleting(doc)
     setDeleteUsage(null)
-    const local = usageOf(doc.id)
-    setDeleteUsage(local)
-    try { setDeleteUsage(await documentUsage(doc.id)) } catch { /* keep the local count */ }
+    try { setDeleteUsage(await documentUsage(doc.id)) } catch { setDeleting(null); setError('Could not check where this file is used. Please try again.') }
   }
 
   const confirmDelete = async () => {
@@ -126,15 +128,18 @@ export default function DocumentsPage({ userId }) {
           <h3>All documents</h3>
           <p className="documents-page__sub">Every file you uploaded, and where it is used.</p>
         </div>
-        <span className="documents-page__count">{documents.length} file{documents.length === 1 ? '' : 's'}</span>
+        <button type="button" className="edu-btn edu-btn--primary" onClick={() => setUploadOpen(true)}>Upload files</button>
       </header>
 
-      <div className="documents-page__tools">
+      {documents.length > 0 && <div className="documents-page__tools">
         <input className="documents-page__search" type="search" value={query} placeholder="Search your documents"
           aria-label="Search your documents" onChange={(event) => setQuery(event.target.value)} />
+        <label>Sort <select aria-label="Sort documents" value={sort} onChange={(event) => setSort(event.target.value)}>
+          <option value="newest">Newest</option><option value="name">Name</option><option value="category">Category</option>
+        </select></label>
         <FilterChips items={chips} value={category} onChange={setCategory} total={documents.length}
           groupLabel="Filter by category" alwaysShow />
-      </div>
+      </div>}
 
       {error && <InlineError message={error} />}
 
@@ -145,7 +150,8 @@ export default function DocumentsPage({ userId }) {
             <h4>{documents.length ? 'Nothing matches this search' : 'No documents yet'}</h4>
             <p>{documents.length
               ? 'Try another word or category.'
-              : 'Upload a transcript, a score report or a certificate from any section and it appears here.'}</p>
+              : 'Upload your passport, transcripts, score reports and certificates once, then attach them anywhere.'}</p>
+            {!documents.length && <button type="button" className="edu-btn edu-btn--primary" onClick={() => setUploadOpen(true)}>Upload files</button>}
           </div>
         ) : (
           <ul className="documents-page__list">
@@ -163,7 +169,7 @@ export default function DocumentsPage({ userId }) {
                     <span className="documents-page__usage">
                       {used.length === 0
                         ? 'Not attached anywhere'
-                        : used.map((item) => (SECTION_TITLES[item.section] ? SECTION_TITLES[item.section](item.title) : item.section)).join(' · ')}
+                        : used.map((item) => <button type="button" className="documents-page__usage-chip" key={`${item.section}:${item.item_id}:${item.title}`} onClick={() => onOpenItem?.(item)}>{SECTION_TITLES[item.section] || item.section}{item.title ? ` · ${item.title}` : ''}</button>)}
                     </span>
                   </div>
                   <div className="documents-page__actions">
@@ -182,13 +188,18 @@ export default function DocumentsPage({ userId }) {
           </ul>
         )}
 
+      <UploadModal open={uploadOpen} section="library" userId={userId} existing={documents} libraryOnly
+        onClose={() => setUploadOpen(false)} onLinked={(files) => {
+          refresh()
+          showToast(`Uploaded ${files.length} file${files.length === 1 ? '' : 's'}`)
+        }} />
       <ConfirmDialog
         open={Boolean(deleting)}
         title="Delete this file?"
         message={deleteUsage
-          ? `${usageSentence(deleteUsage)} Deleting cannot be undone.`
+          ? `${usageSentence(deleteUsage, deleting?.title)} Deleting it removes it from all of them. This cannot be undone.`
           : 'Checking where this file is used…'}
-        confirmLabel="Delete file"
+        confirmLabel="Delete file" confirmDisabled={!deleteUsage}
         onCancel={() => setDeleting(null)}
         onConfirm={confirmDelete}
       />

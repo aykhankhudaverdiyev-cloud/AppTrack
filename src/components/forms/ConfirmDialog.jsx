@@ -2,7 +2,7 @@
  * ============================================================================
  * ConfirmDialog — destructive-action confirmation (principle #8)
  * ============================================================================
- * Every Delete goes through this. Focus is trapped on the confirm button,
+ * Every Delete goes through this. Focus starts on the cancel button,
  * Escape cancels, background is inert.
  * ============================================================================
  */
@@ -16,10 +16,11 @@ export default function ConfirmDialog({
   confirmLabel = 'Delete',
   cancelLabel = 'Cancel',
   danger = true,
+  confirmDisabled = false,
   onConfirm,
   onCancel,
 }) {
-  const confirmRef = useRef(null)
+  const cancelRef = useRef(null)
 
   useEffect(() => {
     if (!open) return undefined
@@ -27,7 +28,7 @@ export default function ConfirmDialog({
       if (e.key === 'Escape') onCancel?.()
     }
     document.addEventListener('keydown', onKey)
-    confirmRef.current?.focus()
+    cancelRef.current?.focus()
     return () => document.removeEventListener('keydown', onKey)
   }, [open, onCancel])
 
@@ -45,13 +46,13 @@ export default function ConfirmDialog({
         <h3 className="confirm-title">{danger ? '⚠️ ' : ''}{title}</h3>
         {message && <p className="confirm-message">{message}</p>}
         <div className="confirm-actions">
-          <button type="button" className="confirm-cancel" onClick={onCancel}>
+          <button type="button" ref={cancelRef} className="confirm-cancel" onClick={onCancel}>
             {cancelLabel}
           </button>
           <button
             type="button"
-            ref={confirmRef}
             className={danger ? 'confirm-danger' : 'confirm-primary'}
+            disabled={confirmDisabled}
             onClick={onConfirm}
           >
             {confirmLabel}

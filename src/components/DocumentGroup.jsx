@@ -17,6 +17,9 @@ export default function DocumentGroup({
   onSetDocVisibility,
   readOnly = false,
 }) {
+  const [status, setStatus] = useState('not_started')
+  const [statusBusy, setStatusBusy] = useState(true)
+  const [statusError, setStatusError] = useState('')
   const [activePdf, setActivePdf] = useState(null)
   const [resolvedDocs, setResolvedDocs] = useState([])
 
@@ -27,6 +30,35 @@ export default function DocumentGroup({
     const docs = application.documents
     if (!docs || Array.isArray(docs)) return []
     return docs[key] || []
+  }
+
+  useEffect(() => {
+    if (readOnly) return undefined
+    let active = true
+    Promise.resolve().then(async () => {
+      const { data, error } = await supabase.from('application_requirements')
+        .select('status').eq('user_id', studentId).eq('application_id', application.id)
+        .eq('req_key', category.key).maybeSingle()
+      if (!active) return
+      if (error) setStatusError('Could not load the requirement status.')
+      else setStatus(data?.status || 'not_started')
+      setStatusBusy(false)
+    }).catch(() => { if (active) { setStatusError('Could not load the requirement status.'); setStatusBusy(false) } })
+    return () => { active = false }
+  }, [studentId, application.id, category.key, readOnly])
+
+  const changeStatus = async (next) => {
+    const previous = status
+    setStatus(next); setStatusBusy(true); setStatusError('')
+    try {
+      const { error } = await supabase.from('application_requirements').upsert({
+        user_id: studentId, application_id: application.id, req_key: category.key,
+        label: category.label, status: next,
+      }, { onConflict: 'application_id,req_key' })
+      if (error) throw error
+    } catch {
+      setStatus(previous); setStatusError('Could not save the requirement status. Please try again.')
+    } finally { setStatusBusy(false) }
   }
 
   useEffect(() => {
@@ -83,9 +115,15 @@ export default function DocumentGroup({
             <p>{category.hint || ''}</p>
           </div>
         </div>
+        {!readOnly && <select aria-label={`${category.label} status`} value={status} disabled={statusBusy}
+          onChange={(event) => changeStatus(event.target.value)}>
+          <option value="not_started">Not started</option><option value="in_progress">In progress</option>
+          <option value="done">Ready</option><option value="submitted">Submitted</option><option value="waived">Waived</option>
+        </select>}
         <span className="doc-group__count">{resolvedDocs.length}</span>
       </header>
 
+      {statusError && <p role="alert">{statusError}</p>}
       <div className="doc-group__body">
         {resolvedDocs.map((doc) => (
           <div key={doc.id} className="doc-chip">

@@ -1072,7 +1072,13 @@ export default function StudentDashboard() {
 
         {/* 10. ADMISSIONS: DOCUMENTS VAULT */}
         {activeTab === 'documents' && (
-          <DocumentsPage key={user?.id} userId={user?.id} />
+          <DocumentsPage key={user?.id} userId={user?.id} onOpenItem={({ section, item_id }) => {
+            const tab = { education: 'education', test: 'test_scores', honor: 'honors', project: 'projects', activity: 'activities', application: 'applications' }[section]
+            if (!tab) return
+            setActiveTab(tab)
+            setSearchParams({ tab, ...(section === 'application' ? {} : { id: item_id }) })
+            if (section === 'application') setExpandedApplications((previous) => previous.includes(item_id) ? previous : [...previous, item_id])
+          }} />
         )}
 
         {/* 11. ADMISSIONS: RECOMMENDATIONS */}

@@ -10,7 +10,7 @@
  * ============================================================================
  */
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
-import { DatePicker, GradeChips, SegmentedControl, TagSelect } from '../section'
+import { DatePicker, GradeChips, SegmentedControl, TagSelect, ProofBlock } from '../section'
 import { usePanelValidation } from '../../hooks/usePanelValidation'
 import { InlineError, ValidationSummary, NumericInput } from '../forms/PanelValidation'
 import { readCreateDraft, useCreateDraft, useAutosave } from '../../hooks/useAutosave'
@@ -530,6 +530,8 @@ export default function ActivityPanel({
         </div>
 
         <p className="act-tip">💡 Tip: start with an action verb and include at least one number.</p>
+
+        {mode === 'edit' && <ProofBlock section="activity" itemId={row?.id} userId={userId} title="Proof" />}
 
         {mode === 'create' && (
           <footer className="act-panel__footer">

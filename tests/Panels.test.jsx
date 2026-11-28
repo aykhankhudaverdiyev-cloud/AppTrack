@@ -90,6 +90,7 @@ it('saves a new qualification instead of the old value', async () => {
 it('saves a new activity date in edit mode', async () => {
   const save = vi.fn().mockResolvedValue(undefined)
   render(<ActivityPanel mode="edit" row={{ ...activityRow({ ...activityDraft(), organization_name: 'Club', position: 'Member', grade_levels: [9], hours_per_week: '2', weeks_per_year: '20', start_month: '2020-01' }), id: 'activity' }} onSave={save} />)
+  expect(screen.getByText('Proof')).toBeInTheDocument()
   pickMonth('Start date')
   await waitFor(() => expect(save).toHaveBeenCalledWith(expect.objectContaining({ start_month: month })))
 })

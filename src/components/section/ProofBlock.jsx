@@ -27,7 +27,7 @@ import {
 } from '../../Services/documentsApi'
 import './section.css'
 
-const ACCEPT = '.pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png'
+const ACCEPT = '.pdf,.jpg,.jpeg,.png,.docx,application/pdf,image/jpeg,image/png,application/vnd.openxmlformats-officedocument.wordprocessingml.document'
 
 /** <dialog> in every modern browser; a plain open attribute as a fallback. */
 function openDialog(element) {
@@ -42,13 +42,14 @@ const initials = (name) => String(name || '').replace(/\.[^.]+$/, '').slice(0, 1
  * Upload modal
  * ------------------------------------------------------------------------- */
 
-function UploadModal({ open, section, itemId, userId, existing, onClose, onLinked }) {
+export function UploadModal({ open, section, itemId, userId, existing, onClose, onLinked, libraryOnly = false }) {
   const dialog = useRef(null)
   const input = useRef(null)
   const id = useId()
   const [items, setItems] = useState([])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [library, setLibrary] = useState(null)
 
   const categories = SECTION_CATEGORIES[section] || ['other']
 
@@ -59,10 +60,19 @@ function UploadModal({ open, section, itemId, userId, existing, onClose, onLinke
     return () => { element?.close?.() }
   }, [open])
 
+  useEffect(() => {
+    if (!open) return undefined
+    if (libraryOnly) return undefined
+    let active = true
+    listDocuments(userId).then((rows) => { if (active) setLibrary(rows) })
+      .catch(() => { if (active) setError('Could not check your document library. Please close and try again.') })
+    return () => { active = false }
+  }, [open, userId, libraryOnly])
+
   const addFiles = (fileList) => {
     const next = [...fileList].map((file) => {
       const invalid = validateDocumentFile(file)
-      const duplicate = invalid ? null : findDuplicate(existing, file)
+      const duplicate = invalid ? null : findDuplicate(libraryOnly ? existing : library || [], file)
       return {
         key: `${file.name}-${file.size}-${Math.random().toString(36).slice(2, 8)}`,
         file,
@@ -84,9 +94,13 @@ function UploadModal({ open, section, itemId, userId, existing, onClose, onLinke
 
   const applyExisting = async (item) => {
     if (!item.duplicate) return
-    await linkDocument(userId, section, itemId, item.duplicate.id).catch(() => {})
-    onLinked?.(item.duplicate)
-    setItems((previous) => previous.filter((entry) => entry.key !== item.key))
+    try {
+      if (!libraryOnly) await linkDocument(userId, section, itemId, item.duplicate.id)
+      onLinked?.([item.duplicate])
+      setItems((previous) => previous.filter((entry) => entry.key !== item.key))
+    } catch {
+      patchItem(item.key, { message: 'Could not attach this file. Try again.' })
+    }
   }
 
   const uploadAll = async () => {
@@ -98,10 +112,11 @@ function UploadModal({ open, section, itemId, userId, existing, onClose, onLinke
     for (const item of ready) {
       patchItem(item.key, { status: 'uploading', progress: 1 })
       try {
-        const doc = await uploadDocument(userId,
+        const doc = item.uploaded || await uploadDocument(userId,
           { file: item.file, title: item.title, category: item.category },
           (percent) => patchItem(item.key, { progress: Math.max(1, percent) }))
-        await linkDocument(userId, section, itemId, doc.id)
+        patchItem(item.key, { uploaded: doc })
+        if (!libraryOnly) await linkDocument(userId, section, itemId, doc.id)
         patchItem(item.key, { status: 'done', progress: 100 })
         linked.push(doc)
       } catch (cause) {
@@ -116,10 +131,10 @@ function UploadModal({ open, section, itemId, userId, existing, onClose, onLinke
     }
     setBusy(false)
     if (linked.length) onLinked?.(linked)
-    if (linked.length === ready.length) onClose?.()
+    if (linked.length === ready.length) { setItems([]); setLibrary(null); onClose?.() }
   }
 
-  const close = () => { if (!busy) onClose?.() }
+  const close = () => { if (!busy) { setItems([]); setLibrary(null); onClose?.() } }
   const pending = items.filter((item) => item.status === 'ready' || item.status === 'failed')
 
   if (!open) return null
@@ -136,11 +151,11 @@ function UploadModal({ open, section, itemId, userId, existing, onClose, onLinke
         </header>
 
         <div className="document-modal__body">
-          <button type="button" className="document-modal__drop" onClick={() => input.current?.click()}
+          <button type="button" className="document-modal__drop" disabled={!libraryOnly && library === null} onClick={() => input.current?.click()}
             onDragOver={(event) => event.preventDefault()}
-            onDrop={(event) => { event.preventDefault(); addFiles(event.dataTransfer.files || []) }}>
+            onDrop={(event) => { event.preventDefault(); if (libraryOnly || library !== null) addFiles(event.dataTransfer.files || []) }}>
             Drop files here or browse
-            <span>PDF, JPG, PNG · up to 10 MB each · you can pick several</span>
+            <span>PDF, JPG, PNG, DOCX · up to 10 MB each · you can pick several</span>
           </button>
           <input ref={input} hidden multiple type="file" accept={ACCEPT}
             onChange={(event) => addFiles(event.target.files || [])} />
@@ -166,7 +181,7 @@ function UploadModal({ open, section, itemId, userId, existing, onClose, onLinke
                         onChange={(event) => patchItem(item.key, { category: event.target.value })}>
                         {Object.entries(DOCUMENT_CATEGORIES)
                           .filter(([key]) => categories.includes(key) || item.category === key)
-                          .map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+                          .map(([key, label]) => <option key={key} value={key}>{section === 'activity' ? ({ award_certificate: 'Certificate', portfolio: 'Photos / portfolio', other: 'Other (letter, article, link screenshot)' }[key] || label) : label}</option>)}
                       </select>
                       {item.status === 'done' && <span className="upload-row__status">Uploaded ✓</span>}
                       {item.status === 'uploading' && <span className="upload-row__status">Uploading… {item.progress}%</span>}
@@ -202,7 +217,7 @@ function UploadModal({ open, section, itemId, userId, existing, onClose, onLinke
         <footer className="document-modal__foot">
           <button type="button" className="edu-btn edu-btn--ghost" onClick={close} disabled={busy}>Cancel</button>
           <button type="button" className="edu-btn edu-btn--primary" disabled={busy || !pending.length} onClick={uploadAll}>
-            {busy ? 'Uploading…' : `Upload ${pending.length || ''}`.trim()}
+            {busy ? 'Uploading…' : `Upload ${pending.length} file${pending.length === 1 ? '' : 's'}`}
           </button>
         </footer>
       </div>
@@ -214,7 +229,7 @@ function UploadModal({ open, section, itemId, userId, existing, onClose, onLinke
  * "Choose from Documents" modal
  * ------------------------------------------------------------------------- */
 
-function ChooseModal({ open, userId, linked = [], onClose, onChoose }) {
+function ChooseModal({ open, userId, linked = [], onClose, onChoose, onUploadNew }) {
   const dialog = useRef(null)
   const id = useId()
   const [documents, setDocuments] = useState(null)
@@ -310,6 +325,7 @@ function ChooseModal({ open, userId, linked = [], onClose, onChoose }) {
             )}
         </div>
         <footer className="document-modal__foot">
+          <button type="button" className="edu-link" onClick={() => { close(); onUploadNew?.() }}>Upload new</button>
           <button type="button" className="edu-btn edu-btn--ghost" onClick={close}>Cancel</button>
           <button type="button" className="edu-btn edu-btn--primary" disabled={!selected.length} onClick={confirm}>
             {selected.length ? `Link ${selected.length} file${selected.length === 1 ? '' : 's'}` : 'Link'}
@@ -396,7 +412,8 @@ export default function ProofBlock({
     try {
       setUsage(await documentUsage(doc.id))
     } catch {
-      setUsage({ total: 0, items: [] })
+      setActionError('Could not check where this file is used. Please try again.')
+      setDeleting(null)
     }
   }
 
@@ -468,13 +485,13 @@ export default function ProofBlock({
       />
       <ChooseModal
         open={chooseOpen} userId={userId} linked={files.map((file) => file.id)} onClose={() => setChooseOpen(false)}
-        onChoose={(docs) => linkMany(docs)}
+        onChoose={(docs) => linkMany(docs)} onUploadNew={() => setUploadOpen(true)}
       />
       <ConfirmDialog
         open={Boolean(deleting)}
         title="Delete this file?"
-        message={usage ? `${usageSentence(usage)} Deleting cannot be undone.` : 'Checking where this file is used…'}
-        confirmLabel="Delete file"
+        message={usage ? `${usageSentence(usage, deleting?.title)} Deleting it removes it from all of them. This cannot be undone.` : 'Checking where this file is used…'}
+        confirmLabel="Delete file" confirmDisabled={!usage}
         onCancel={() => setDeleting(null)}
         onConfirm={confirmDelete}
       />

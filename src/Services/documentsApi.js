@@ -21,10 +21,10 @@ import { notifyDataChanged } from '../store/studentsStore'
 
 const BUCKET = 'student-documents'
 const MAX_SIZE = 10 * 1024 * 1024
-const ACCEPTED = { 'application/pdf': true, 'image/jpeg': true, 'image/png': true }
+const ACCEPTED = { 'application/pdf': true, 'image/jpeg': true, 'image/png': true, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document': true }
 
 /** Sections that can hold proof files. Must match the DB check constraint. */
-export const DOCUMENT_SECTIONS = ['education', 'test', 'honor', 'project']
+export const DOCUMENT_SECTIONS = ['education', 'test', 'honor', 'project', 'activity']
 
 export const DOCUMENT_CATEGORIES = {
   transcript: 'Transcript',
@@ -52,6 +52,8 @@ export const SECTION_CATEGORIES = {
   test: ['test_report', 'english_certificate', 'other'],
   honor: ['award_certificate', 'course_certificate', 'other'],
   project: ['portfolio', 'research_proposal', 'writing_sample', 'other'],
+  activity: ['award_certificate', 'course_certificate', 'portfolio', 'other'],
+  library: Object.keys(DOCUMENT_CATEGORIES),
 }
 
 function safeFileName(name) {
@@ -73,7 +75,7 @@ export function formatSize(bytes) {
 }
 
 export function validateDocumentFile(file) {
-  if (!Object.hasOwn(ACCEPTED, file.type)) return 'Choose a PDF, JPG or PNG file.'
+  if (!Object.hasOwn(ACCEPTED, file.type)) return 'Choose a PDF, JPG, PNG or DOCX file.'
   if (file.size > MAX_SIZE) return 'Choose a file that is 10 MB or smaller.'
   return ''
 }
@@ -115,9 +117,10 @@ export function findDuplicate(documents = [], file) {
   if (!file) return null
   const name = baseName(file.name)
   if (!name) return null
-  const size = Number(file.size || 0)
+  if (file.size == null) return null
+  const size = Number(file.size)
   return documents.find((doc) => baseName(doc.title) === name
-    && (!size || !doc.size_bytes || Number(doc.size_bytes) === size)) || null
+    && doc.size_bytes != null && Number(doc.size_bytes) === size) || null
 }
 
 /**
@@ -240,6 +243,8 @@ const ITEM_TITLE_COLUMNS = {
   test: ['test_attempts', 'test_type'],
   honor: ['honors', 'title'],
   project: ['projects', 'title'],
+  activity: ['activities', 'position'],
+  application: ['applications', 'university'],
 }
 
 async function itemTitles(idsBySection) {
@@ -265,23 +270,28 @@ export async function listAllLinks(userId) {
     .from('item_documents')
     .select('section, item_id, document_id, created_at')
     .eq('user_id', userId)) || []
-  const fileIds = [...new Set(links.map((link) => link.document_id))]
+  const applicationLinks = unwrap(await supabase
+    .from('document_links')
+    .select('application_id, document_id, label, created_at')
+    .eq('user_id', userId)) || []
+  const allLinks = [...links, ...applicationLinks.map((link) => ({ ...link, section: 'application', item_id: link.application_id }))]
+  const fileIds = [...new Set(allLinks.map((link) => link.document_id))]
   const files = fileIds.length
     ? unwrap(await supabase.from('document_files').select('id, title, created_at').in('id', fileIds)) || []
     : []
   const fileById = new Map(files.map((file) => [file.id, file]))
   const idsBySection = {}
-  for (const link of links) (idsBySection[link.section] ||= []).push(link.item_id)
+  for (const link of allLinks) (idsBySection[link.section] ||= []).push(link.item_id)
   const titles = await itemTitles(Object.fromEntries(
     Object.entries(idsBySection).map(([section, ids]) => [section, [...new Set(ids)]]),
   ))
   const grouped = {}
-  for (const link of links) {
-    const key = `${link.section}:${link.item_id}`
+  for (const link of allLinks) {
+    const key = `${link.section}:${link.item_id}${link.section === 'application' ? `:${link.label || ''}` : ''}`
     grouped[key] ||= {
       key,
       section: link.section,
-      itemTitle: titles[key] || '',
+      itemTitle: [titles[`${link.section}:${link.item_id}`], link.section === 'application' ? link.label : ''].filter(Boolean).join(' · '),
       documents: [],
     }
     grouped[key].documents.push(fileById.get(link.document_id) || { id: link.document_id, title: 'Document' })
@@ -294,33 +304,20 @@ export async function listAllLinks(userId) {
  * ------------------------------------------------------------------------- */
 
 const SECTION_LABELS = {
-  education: ['education entry', 'education entries'],
-  test: ['test score', 'test scores'],
-  honor: ['honor', 'honors'],
-  project: ['project', 'projects'],
+  education: 'Education', test: 'Test Scores', honor: 'Honors',
+  project: 'Projects', activity: 'Activities', application: 'Applications',
 }
 
-/**
- * Where is this file used? Returns
- *   { total, items: [{ section, item_id, title }] }
- * so the delete dialog can say "Used in 2 places" and the confirmation can
- * offer to detach it from all of them.
- */
+/** Locations returned by the database, used before a permanent delete. */
 export async function documentUsage(documentId) {
   const rows = unwrap(await supabase.rpc('document_usage', { p_document_id: documentId })) || []
   return { total: rows.length, items: rows }
 }
 
-/** "Used in 1 education entry and 1 test score." */
-export function usageSentence(usage) {
-  if (!usage?.total) return 'This file is not attached anywhere.'
-  const counts = {}
-  for (const item of usage.items) counts[item.section] = (counts[item.section] || 0) + 1
-  const parts = Object.entries(counts).map(([section, count]) => {
-    const [one, many] = SECTION_LABELS[section] || [section, `${section}s`]
-    return `${count} ${count === 1 ? one : many}`
-  })
-  return `Used in ${parts.join(' and ')}.`
+export function usageSentence(usage, title = 'This file') {
+  if (!usage?.total) return `${title} is not attached anywhere.`
+  const places = usage.items.map((item) => `${SECTION_LABELS[item.section] || item.section} · ${item.title || 'Untitled'}`)
+  return `${title} is attached in ${usage.total} ${usage.total === 1 ? 'place' : 'places'}: ${places.join(', ')}.`
 }
 
 /**
