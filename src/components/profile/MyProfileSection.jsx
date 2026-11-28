@@ -20,6 +20,7 @@ import {
 import { useAutosave, useUnsavedGuard } from '../../hooks/useAutosave'
 import { ValidatedInput, ValidatedSelect } from '../forms/ValidatedInput'
 import ConfirmDialog from '../forms/ConfirmDialog'
+import DatePicker from '../section/DatePicker'
 import './MyProfileSection.css'
 
 const LEVEL_OPTIONS = [
@@ -196,7 +197,7 @@ function PersonalCard({ profile, privateRow }) {
       }
     >
       <div className="mps-grid">
-        <ValidatedInput label="Date of birth" type="date" value={priv.dateOfBirth} onChange={(v) => setPriv({ dateOfBirth: v })} />
+        <DatePicker mode="day" allowFuture={false} label="Date of birth" value={priv.dateOfBirth} onChange={(v) => setPriv({ dateOfBirth: v })} />
         <ValidatedInput label="Country of birth" value={priv.countryOfBirth} onChange={(v) => setPriv({ countryOfBirth: v })} />
         <ValidatedInput
           label="Citizenship(s)"
@@ -206,7 +207,7 @@ function PersonalCard({ profile, privateRow }) {
         />
         <ValidatedSelect label="Dual citizenship" options={YES_NO} value={priv.dualCitizenship} onChange={(v) => setPriv({ dualCitizenship: v ?? '' })} />
         <ValidatedInput label="Passport number" value={priv.passportNumber} onChange={(v) => setPriv({ passportNumber: v })} />
-        <ValidatedInput label="Passport expiry date" type="date" value={priv.passportExpiry} onChange={(v) => setPriv({ passportExpiry: v })} />
+        <DatePicker mode="day" label="Passport expiry date" value={priv.passportExpiry} onChange={(v) => setPriv({ passportExpiry: v })} />
       </div>
       {passportWarning && <p className="mps-warning" role="alert">{passportWarning}</p>}
       <div className="mps-grid">

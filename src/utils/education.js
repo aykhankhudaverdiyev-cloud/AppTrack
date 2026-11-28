@@ -178,7 +178,7 @@ export const filterCounts = (entries = []) => EDUCATION_FILTERS.map((chip) => ({
 export const monthValue = (date) => dateToMonth(date)
 
 /** 'YYYY-MM' → 'YYYY-MM-DD' for the date column (`null` when empty). */
-export const dateValue = (month) => (/^\d{4}-\d{2}$/.test(String(month || '')) ? `${month}-01` : null)
+export const dateValue = (month) => (/^\d{4}-(0[1-9]|1[0-2])(?:-01)?$/.test(String(month || '')) ? `${String(month).slice(0, 7)}-01` : null)
 
 /** "Sep 2023" */
 export const monthLabel = (value) => (value ? formatDate(monthValue(value), 'month') : '')
@@ -266,7 +266,7 @@ export function validateEducation(draft = {}) {
     if ((key === 'qualification' || key === 'grading_scale') && isUniversity(draft)) continue
     if (!text(draft[key])) errors[key] = REQUIRED_MESSAGES[key]
   }
-  if (draft.start_date && draft.end_date && draft.end_date < draft.start_date) {
+  if (draft.start_date && draft.end_date && draft.end_date.slice(0, 7) < draft.start_date.slice(0, 7)) {
     errors.end_date = 'Expected graduation is before the start date'
   }
   const email = text(draft.school_counselor_email)

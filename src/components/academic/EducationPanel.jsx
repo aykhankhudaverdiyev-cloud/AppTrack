@@ -262,12 +262,12 @@ export default function EducationPanel({
         <div className="edu-row">
           <DatePicker label="Start date" mode="month" required fieldKey="start_date"
             value={draft.start_date} error={errors.start_date}
-            onChange={(value) => { set('start_date', value); blur() }} />
+            onChange={(value) => set('start_date', value)} onBlur={blur} />
           <DatePicker label="Expected graduation" mode="month" required fieldKey="end_date"
             value={draft.end_date} error={errors.end_date}
             min={draft.start_date || undefined}
             hint="The month you finish this school."
-            onChange={(value) => { set('end_date', value); blur() }} />
+            onChange={(value) => set('end_date', value)} onBlur={blur} />
         </div>
 
         <Switch checked={draft.is_current} label="Currently attending"

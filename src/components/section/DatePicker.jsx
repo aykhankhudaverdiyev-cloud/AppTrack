@@ -17,7 +17,7 @@
  * ============================================================================ */
 
 import { useEffect, useId, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
+import { createPortal, flushSync } from 'react-dom'
 import { formatDate, parseTypedDay, parseTypedMonth } from '../../utils/dates'
 import { InlineError } from '../forms/PanelValidation'
 import './section.css'
@@ -45,13 +45,14 @@ function placePopover(trigger, height) {
 
 export default function DatePicker({
   label, mode = 'month', value = '', onChange, required, error, fieldKey,
-  allowFuture = true, disabled = false, hint,
+  allowFuture = true, disabled = false, hint, min, max, onBlur,
 }) {
   const id = useId()
   const trigger = useRef(null)
   const popup = useRef(null)
   const [position, setPosition] = useState(null)
-  const [draft, setDraft] = useState(null) // non-null while the field is focused
+  const [draft, setDraft] = useState(null)
+  const [draftError, setDraftError] = useState('')
   const [year, setYear] = useState(() => Number(String(value || new Date().toISOString()).slice(0, 4)))
   const [month, setMonth] = useState(() => Number(String(value || new Date().toISOString()).slice(5, 7)) || 1)
   const now = new Date()
@@ -88,8 +89,20 @@ export default function DatePicker({
     setMonth(Number(source.slice(5, 7)) || 1)
     setPosition(placePopover(trigger.current, dayMode ? 372 : 300))
   }
-  const close = () => { setPosition(null); setDraft(null) }
-  const select = (next) => { onChange(next); close(); trigger.current?.focus({ preventScroll: true }) }
+  const close = () => { setPosition(null) }
+  const inRange = (next) => {
+    const precision = dayMode ? 10 : 7
+    const candidate = next.slice(0, precision)
+    return (!min || candidate >= min.slice(0, precision)) && (!max || candidate <= max.slice(0, precision)) && (allowFuture || candidate <= today.slice(0, precision))
+  }
+  const select = (next) => {
+    if (next && !inRange(next)) return
+    setDraft(null); setDraftError(''); trigger.current?.setCustomValidity('')
+    flushSync(() => onChange(next))
+    close()
+    onBlur?.(next)
+    trigger.current?.focus({ preventScroll: true })
+  }
   const moveMonth = (delta) => {
     const next = new Date(year, month - 1 + delta, 1)
     setYear(next.getFullYear())
@@ -111,12 +124,20 @@ export default function DatePicker({
   }
 
   const commitDraft = () => {
-    const raw = String(draft ?? '').trim()
-    setDraft(null)
-    if (!raw) { if (value) onChange(''); return }
-    const parsed = dayMode ? parseTypedDay(raw) : parseTypedMonth(raw)
-    if (!parsed) return // unparseable text snaps back to the stored value
-    if (parsed !== value) onChange(parsed)
+    if (draft === null) return
+    const raw = draft.trim()
+    const parsed = raw ? (dayMode ? parseTypedDay(raw) : parseTypedMonth(raw)) : ''
+    const validDay = !dayMode || !parsed || (() => {
+      const [y, m, d] = parsed.split('-').map(Number)
+      const date = new Date(y, m - 1, d)
+      return date.getFullYear() === y && date.getMonth() === m - 1 && date.getDate() === d
+    })()
+    const message = raw && (!parsed || !validDay) ? 'Enter a valid date.' : parsed && !inRange(parsed) ? 'Date must be within the allowed range.' : ''
+    trigger.current?.setCustomValidity(message)
+    if (message) { setDraftError(message); return }
+    setDraft(null); setDraftError('')
+    if (parsed !== value) flushSync(() => onChange(parsed))
+    onBlur?.(parsed)
   }
 
   const count = dayMode ? new Date(year, month, 0).getDate() : 12
@@ -129,16 +150,15 @@ export default function DatePicker({
       <label htmlFor={id} className="sfield-label">
         {label}{required && <span className="sfield-req" aria-hidden="true"> *</span>}
       </label>
-      <div className={`date-picker__control${disabled ? ' date-picker__control--disabled' : ''}${error ? ' date-picker__control--invalid' : ''}`}>
+      <div className={`date-picker__control${disabled ? ' date-picker__control--disabled' : ''}${error || draftError ? ' date-picker__control--invalid' : ''}`}>
         <input
           id={id} ref={trigger} className="date-picker__input" type="text" autoComplete="off"
           value={shown} placeholder={dayMode ? 'Select date' : 'Select month'}
           disabled={disabled}
-          aria-invalid={error ? true : undefined}
+          aria-invalid={error || draftError ? true : undefined}
           aria-haspopup="dialog" aria-expanded={open}
-          aria-describedby={[hint ? `${id}-hint` : null, error ? `${id}-error` : null].filter(Boolean).join(' ') || undefined}
-          onChange={(event) => setDraft(event.target.value)}
-          onFocus={() => { if (draft == null) setDraft(value ? labelFor(value, dayMode) : '') }}
+          aria-describedby={[hint ? `${id}-hint` : null, error || draftError ? `${id}-error` : null].filter(Boolean).join(' ') || undefined}
+          onChange={(event) => { setDraft(event.target.value); setDraftError(''); event.target.setCustomValidity('') }}
           onBlur={commitDraft}
           onKeyDown={(event) => {
             if (event.key === 'ArrowDown' && !open) { event.preventDefault(); toggle() }
@@ -149,7 +169,7 @@ export default function DatePicker({
           <button type="button" className="date-picker__clear" aria-label={`Clear ${String(label).toLowerCase()}`}
             title="Clear"
             onMouseDown={(event) => event.preventDefault()}
-            onClick={() => { setDraft(null); onChange('') }}>×</button>
+            onClick={() => select('')}>×</button>
         )}
         <button type="button" className="date-picker__icon" aria-label={`Choose ${String(label).toLowerCase()}`}
           aria-haspopup="dialog" aria-expanded={open} disabled={disabled} onClick={toggle}>
@@ -159,7 +179,7 @@ export default function DatePicker({
         </button>
       </div>
       {hint && <p className="sfield-hint" id={`${id}-hint`}>{hint}</p>}
-      <InlineError id={`${id}-error`} message={error} />
+      <InlineError id={`${id}-error`} message={draftError || error} />
 
       {open && createPortal(
         <div ref={popup} data-form-field={fieldKey} className="date-picker__popover" style={position}
@@ -185,10 +205,10 @@ export default function DatePicker({
             {dayMode && ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'].map((day) => <span key={day}>{day}</span>)}
             {Array.from({ length: offset }, (_, index) => <span key={`blank-${index}`} aria-hidden="true" />)}
             {Array.from({ length: count }, (_, index) => {
-              const choice = dayMode ? isoDay(year, month, index + 1) : isoMonth(year, index + 1)
-              const inactive = !allowFuture && choice > today.slice(0, choice.length)
+              const choice = dayMode ? isoDay(year, month, index + 1) : `${isoMonth(year, index + 1)}-01`
+              const inactive = !inRange(choice)
               return (
-                <button key={choice} type="button" className="date-picker__cell" aria-pressed={value === choice}
+                <button key={choice} type="button" className="date-picker__cell" aria-pressed={dayMode ? value === choice : String(value || '').slice(0, 7) === choice.slice(0, 7)}
                   aria-label={formatDate(choice, dayMode ? 'day' : 'month')} disabled={inactive}
                   onClick={() => select(choice)}>
                   {dayMode ? index + 1 : MONTHS[index]}
@@ -197,8 +217,8 @@ export default function DatePicker({
             })}
           </div>
           <footer className="date-picker__footer">
-            {!dayMode && <button type="button" onClick={() => select(`${isoMonth(now.getFullYear(), now.getMonth() + 1)}-01`)}>This month</button>}
-            {dayMode && <button type="button" onClick={() => select(today)}>Today</button>}
+            {!dayMode && <button type="button" disabled={!inRange(`${isoMonth(now.getFullYear(), now.getMonth() + 1)}-01`)} onClick={() => select(`${isoMonth(now.getFullYear(), now.getMonth() + 1)}-01`)}>This month</button>}
+            {dayMode && <button type="button" disabled={!inRange(today)} onClick={() => select(today)}>Today</button>}
             <button type="button" onClick={() => select('')}>Clear</button>
           </footer>
         </div>,

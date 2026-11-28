@@ -20,6 +20,7 @@
  */
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import DatePicker from './section/DatePicker'
 import {
   saveApplication, mapApplicationRow, APPLICATION_COLUMNS, notifyDataChanged,
 } from '../store/studentsStore'
@@ -546,7 +547,7 @@ export default function ApplicationModal({
           <ValidatedSelect label="Recommendation" value={form.recommendation} onChange={(v) => setField('recommendation', v || 'Pending')} options={RECOMMENDATION_OPTIONS} />
           <ValidatedSelect label="Visibility" value={form.visibility} onChange={(v) => setField('visibility', v || 'private')}
             options={[{ key: 'private', label: 'Private' }, { key: 'public', label: 'Public (admin approval)' }]} />
-          <ValidatedInput label="Legacy deadline (date)" type="date" value={form.deadline}
+          <DatePicker mode="day" label="Legacy deadline (date)" value={form.deadline}
             onChange={(v) => setField('deadline', v)}
             hint="Kept automatically from the main deadline in the Deadlines tab." />
         </div>
@@ -579,7 +580,7 @@ export default function ApplicationModal({
             onChange={(v) => setField('feeAmount', v)} validate={moneyError} placeholder="75" inputMode="decimal" />
           <ValidatedSelect label="Currency" value={form.feeCurrency}
             onChange={(v) => setField('feeCurrency', v || '')} options={CURRENCY_OPTIONS} />
-          <ValidatedInput label="Fee paid on" type="date" value={form.feePaidOn}
+          <DatePicker mode="day" label="Fee paid on" value={form.feePaidOn}
             onChange={(v) => setField('feePaidOn', v)} />
           <div className="am-check-stack">
             <Check label="Fee waiver requested" checked={form.feeWaiverRequested} onChange={(v) => setField('feeWaiverRequested', v)} />
@@ -663,9 +664,8 @@ export default function ApplicationModal({
               <input aria-label="Label" value={row.label} placeholder="Label (optional)"
                 onChange={(e) => editRow('deadlines', i, { label: e.target.value })}
                 onBlur={() => persist('deadlines', deadlines)} />
-              <input type="date" aria-label="Original date" value={row.date}
-                onChange={(e) => editRow('deadlines', i, { date: e.target.value })}
-                onBlur={() => persist('deadlines', deadlines)} />
+              <DatePicker mode="day" label="Original date" value={row.date}
+                onChange={(v) => editRow('deadlines', i, { date: v }, true)} />
               <input type="time" aria-label="Original time" value={row.time}
                 onChange={(e) => editRow('deadlines', i, { time: e.target.value })}
                 onBlur={() => persist('deadlines', deadlines)} />
@@ -800,9 +800,8 @@ export default function ApplicationModal({
         {interviews.map((row, i) => (
           <div key={row.id} className="am-row-card">
             <div className="am-row-grid am-row-grid--deadline">
-              <input type="date" aria-label="Interview date" value={row.date}
-                onChange={(e) => editRow('interviews', i, { date: e.target.value })}
-                onBlur={() => persist('interviews', interviews)} />
+              <DatePicker mode="day" label="Interview date" value={row.date}
+                onChange={(v) => editRow('interviews', i, { date: v }, true)} />
               <input type="time" aria-label="Interview time" value={row.time}
                 onChange={(e) => editRow('interviews', i, { time: e.target.value })}
                 onBlur={() => persist('interviews', interviews)} />
@@ -824,7 +823,7 @@ export default function ApplicationModal({
             <div className="mps-grid">
               <Area label="Prep notes" value={row.prepNotes} rows={2} counter
                 onChange={(v) => { editRow('interviews', i, { prepNotes: v }) }} />
-              <ValidatedInput label="Thank-you sent on" type="date" value={row.thankYouSentOn}
+              <DatePicker mode="day" label="Thank-you sent on" value={row.thankYouSentOn}
                 onChange={(v) => editRow('interviews', i, { thankYouSentOn: v }, true)} />
             </div>
           </div>
@@ -848,9 +847,9 @@ export default function ApplicationModal({
         <Card title="Decision" sub="Offer conditions, reply deadline and commitment.">
           <div className="mps-grid">
             <ValidatedSelect label="Decision" value={form.decision} onChange={(v) => setField('decision', v || 'Pending')} options={DECISION_OPTIONS} />
-            <ValidatedInput label="Decision received on" type="date" value={form.decisionAtDate}
+            <DatePicker mode="day" label="Decision received on" value={form.decisionAtDate}
               onChange={(v) => setField('decisionAtDate', v)} />
-            <ValidatedInput label="Committed on" type="date" value={form.committedAtDate}
+            <DatePicker mode="day" label="Committed on" value={form.committedAtDate}
               onChange={(v) => setField('committedAtDate', v)} />
             <ValidatedSelect label="Aid policy" value={form.aidPolicy}
               onChange={(v) => setField('aidPolicy', v || '')} options={AID_POLICIES} />
@@ -859,7 +858,7 @@ export default function ApplicationModal({
             onChange={(v) => setField('decisionConditions', v)}
             placeholder="e.g. IELTS 7.0 overall, A*AA, final transcript by 31 July" />
           <div className="mps-grid">
-            <ValidatedInput label="Reply deadline (original date)" type="date"
+            <DatePicker mode="day" label="Reply deadline (original date)"
               value={form.replyDeadlineDate} onChange={(v) => setField('replyDeadlineDate', v)} />
             <ValidatedInput label="Reply deadline (original time)" type="time"
               value={form.replyDeadlineTime} onChange={(v) => setField('replyDeadlineTime', v)} />

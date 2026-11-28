@@ -395,7 +395,7 @@ export default function ActivityPanel({
             />
           ) : (
             <DatePicker
-              label="End date"
+              label="End date" min={draft.start_month || undefined}
               required
               value={draft.end_month}
               onChange={(value) => set('end_month', value)}

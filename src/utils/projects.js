@@ -180,10 +180,10 @@ export function validateProject(draft = {}, mode = 'edit') {
   if (!isValidUrl(draft.github_url)) errors.github_url = 'Enter a valid URL'
   if (!isValidUrl(draft.demo_url)) errors.demo_url = 'Enter a valid URL'
 
-  const start = trim(draft.start_month)
+  const start = trim(draft.start_month).replace(/-01$/, '')
   if (start && !/^\d{4}-(0[1-9]|1[0-2])$/.test(start)) errors.start_month = 'Use MM/YYYY'
 
-  const end = trim(draft.end_month)
+  const end = trim(draft.end_month).replace(/-01$/, '')
   if (start && end && end < start) errors.end_month = 'Choose an end date on or after the start date'
 
   const given = (value) => value !== undefined && value !== null && value !== ''
