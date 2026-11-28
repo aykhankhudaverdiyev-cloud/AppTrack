@@ -26,7 +26,7 @@ import ConfirmDialog from '../forms/ConfirmDialog'
 import {
   DOCUMENT_CATEGORIES, SECTION_CATEGORIES, deleteDocumentEverywhere, documentUsage,
   findDuplicate, formatSize, linkDocument, listDocuments, listItemDocuments, cachedDocuments, cachedDocumentUsage, primeDocumentUsage,
-  openDocument, unlinkDocument, uploadDocument, usageSentence, validateDocumentFile,
+  openDocument, unlinkDocument, uploadDocument, usageSentence, validateDocumentFile, setDocumentLinkVisibility,
 } from '../../Services/documentsApi'
 import './section.css'
 
@@ -44,7 +44,7 @@ function openDialog(element) {
  * Upload modal
  * ------------------------------------------------------------------------- */
 
-export function UploadModal({ open, section, itemId, userId, existing, onClose, onLinked, onUploading, onUploadFinished, libraryOnly = false, deferLink = false }) {
+export function UploadModal({ open, section, itemId, userId, existing, onClose, onLinked, onUploading, onUploadFinished, libraryOnly = false, deferLink = false, label }) {
   const dialog = useRef(null)
   const input = useRef(null)
   const id = useId()
@@ -101,11 +101,11 @@ export function UploadModal({ open, section, itemId, userId, existing, onClose, 
   const applyExisting = async (item) => {
     if (!item.duplicate) return
     try {
-      if (!libraryOnly && !deferLink) await linkDocument(userId, section, itemId, item.duplicate.id)
+      if (!libraryOnly && !deferLink) await linkDocument(userId, section, itemId, item.duplicate.id, { label })
       onLinked?.([item.duplicate], { uploaded: false })
       setItems((previous) => previous.filter((entry) => entry.key !== item.key))
-    } catch {
-      patchItem(item.key, { message: 'Could not attach this file. Try again.' })
+    } catch (error) {
+      patchItem(item.key, { message: error?.message || 'Could not attach this file. Try again.' })
     }
   }
 
@@ -128,12 +128,12 @@ export function UploadModal({ open, section, itemId, userId, existing, onClose, 
             (percent) => patchItem(item.key, { progress: Math.max(1, percent) }), { notify: false })
           changed = true
           patchItem(item.key, { uploaded: doc })
-          if (!libraryOnly && !deferLink) await linkDocument(userId, section, itemId, doc.id, { notify: false })
+          if (!libraryOnly && !deferLink) await linkDocument(userId, section, itemId, doc.id, { notify: false, ...(label ? { label } : {}) })
           patchItem(item.key, { status: 'done', progress: 100 })
           linked.push(doc)
         } catch (cause) {
           patchItem(item.key, { status: 'failed', progress: 0,
-            message: cause?.message?.includes('10 MB') ? cause.message : 'Upload failed. Please try again.' })
+            message: cause?.message?.includes('10 MB') || cause?.message?.includes('another requirement') ? cause.message : 'Upload failed. Please try again.' })
         }
       }
     }
@@ -349,7 +349,7 @@ function ChooseModal({ open, userId, linked = [], onClose, onChoose, onUploadNew
  * ------------------------------------------------------------------------- */
 
 export default function ProofBlock({
-  section, itemId, userId, title = 'Proof', hint, onChange, disabled = false,
+  section, itemId, userId, title = 'Proof', hint, onChange, disabled = false, label, allowVisibility = false,
   pendingFiles = null, onPendingChange, onUploaded, onDeleted, failedFiles = [], onRetryFile,
 }) {
   const [files, setFiles] = useState([])
@@ -379,13 +379,13 @@ export default function ProofBlock({
       if (!active) return
       setLoading(true)
       setLoadError('')
-      return listItemDocuments(section, itemId)
+      return listItemDocuments(section, itemId, label)
         .then((rows) => { if (active) setFiles(rows) })
         .catch((cause) => { if (active) setLoadError(cause?.message || 'Could not load the attached files.') })
         .finally(() => { if (active) setLoading(false) })
     })
     return () => { active = false }
-  }, [section, itemId, reloadKey, pendingMode])
+  }, [section, itemId, label, reloadKey, pendingMode])
 
   // Warm the usage snapshot while the panel is open; absence remains unknown.
   useEffect(() => { if (userId && shownFiles.length) primeDocumentUsage(userId).catch(() => {}) }, [userId, shownFiles.length])
@@ -399,9 +399,10 @@ export default function ProofBlock({
 
   const linkMany = async (docs) => {
     if (pendingMode) { onPendingChange?.([...pendingFiles, ...docs.filter((doc) => !pendingFiles.some((file) => file.id === doc.id))]); setChooseOpen(false); return }
-    const results = await Promise.allSettled(docs.map((doc) => linkDocument(userId, section, itemId, doc.id, { notify: false })))
+    const results = await Promise.allSettled(docs.map((doc) => linkDocument(userId, section, itemId, doc.id, { notify: false, ...(label ? { label } : {}) })))
     if (results.some((result) => result.status === 'fulfilled')) notifyDocumentsChanged()
-    if (results.some((result) => result.status === 'rejected')) setActionError('Could not link a file. Try again.')
+    const failure = results.find((result) => result.status === 'rejected')
+    if (failure) setActionError(failure.reason?.message || 'Could not link a file. Try again.')
     setChooseOpen(false)
   }
 
@@ -410,7 +411,7 @@ export default function ProofBlock({
     if (pendingMode) { onPendingChange?.(pendingFiles.filter((file) => file.id !== doc.id)); return }
     setHiddenIds((prev) => [...prev, doc.id])
     try {
-      await Promise.all([unlinkDocument(section, itemId, doc.id), new Promise((resolve) => setTimeout(resolve, 150))])
+      await Promise.all([unlinkDocument(section, itemId, doc.id, label), new Promise((resolve) => setTimeout(resolve, 150))])
       setFiles((previous) => previous.filter((file) => file.id !== doc.id))
       setHiddenIds((prev) => prev.filter((id) => id !== doc.id))
     } catch {
@@ -493,6 +494,10 @@ export default function ProofBlock({
                   </span>
                   <span className="proof__actions">
                     <button type="button" className="proof__link" onClick={() => view(doc)}>View</button>
+                    {allowVisibility && !disabled && <button type="button" className="proof__link" aria-label={`${doc.visibility === 'public' ? 'Make private' : 'Make public'} ${doc.title}`} onClick={async () => {
+                      try { await setDocumentLinkVisibility(userId, doc.link_id, doc.visibility === 'public' ? 'private' : 'public') }
+                      catch { setActionError('Could not update file visibility. Please try again.') }
+                    }}>{doc.visibility === 'public' ? '🌐 Public' : '🔒 Private'}</button>}
                     {!disabled && <button type="button" className="proof__link" onClick={() => removeLink(doc)}>Remove</button>}
                     {!disabled && (
                       <details className="proof__more">
@@ -517,7 +522,7 @@ export default function ProofBlock({
       {actionError && <div className="toast" role="status">{actionError} {retryAction && <button type="button" onClick={retryAction}>Retry</button>}</div>}
 
       <UploadModal
-        open={uploadOpen} section={section} itemId={itemId} userId={userId}
+        open={uploadOpen} section={section} itemId={itemId} userId={userId} label={label}
         existing={shownFiles} deferLink={pendingMode}
         onUploading={setUploadingRows} onUploadFinished={() => setUploadingRows([])}
         onClose={() => setUploadOpen(false)}

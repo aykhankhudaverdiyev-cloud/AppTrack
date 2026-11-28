@@ -257,19 +257,15 @@ function mergeStudentsWithApplicationsAndLicenses(profiles = [], applications = 
 }
 
 async function groupDocumentsByApplication(documents = []) {
-  const normalized = await normalizeDocuments(documents)
-
   const grouped = {}
-
-  for (const doc of normalized) {
-    const appId = doc.application_id
-    if (!appId) continue
-    if (!grouped[appId]) grouped[appId] = {}
-    const cat = doc.category || "other"
-    if (!grouped[appId][cat]) grouped[appId][cat] = []
-    grouped[appId][cat].push(doc)
+  for (const link of documents) {
+    const file = link.document_files
+    if (!link.application_id || !file) continue
+    const category = link.label || 'other'
+    grouped[link.application_id] ||= {}
+    grouped[link.application_id][category] ||= []
+    grouped[link.application_id][category].push({ ...file, link_id: link.id, application_id: link.application_id, visibility: link.visibility })
   }
-
   return grouped
 }
 
@@ -318,7 +314,7 @@ export function useStudents() {
       .channel("profiles-store-changes")
       .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, load)
       .on("postgres_changes", { event: "*", schema: "public", table: "applications" }, load)
-      .on("postgres_changes", { event: "*", schema: "public", table: "application_documents" }, load)
+      .on("postgres_changes", { event: "*", schema: "public", table: "document_links" }, load)
       .on("postgres_changes", { event: "*", schema: "public", table: "licenses" }, load)
       .on("postgres_changes", { event: "*", schema: "public", table: "license_media" }, load)
       .subscribe()
@@ -351,8 +347,8 @@ export async function getStudents() {
       .order("created_at", { ascending: false }),
 
     supabase
-      .from("application_documents")
-      .select("*")
+      .from("document_links")
+      .select("id,user_id,application_id,document_id,label,visibility,created_at,document_files(*)")
       .order("created_at", { ascending: false }),
 
     supabase
@@ -409,8 +405,8 @@ export async function getPublicStudents() {
       .order("created_at", { ascending: false }),
 
     supabase
-      .from("application_documents")
-      .select("*")
+      .from("document_links")
+      .select("id,user_id,application_id,document_id,label,visibility,created_at,document_files(*)")
       .eq("visibility", "public")
       .order("created_at", { ascending: false }),
 
@@ -722,84 +718,6 @@ export async function setApplicationVisibility(studentId, applicationId, visibil
   return mapApplicationRow(data)
 }
 
-export async function uploadApplicationFile(studentId, applicationId, category, file) {
-  const uploaded = await uploadStorageFile(studentId, applicationId, category, file)
-  const signedUrl = await createSignedFileUrl(uploaded.filePath).catch(() => "")
-
-  const { data, error } = await supabase
-    .from("application_documents")
-    .insert({
-      user_id: studentId,
-      application_id: applicationId,
-      category: category,
-      name: uploaded.fileName,
-      file_path: uploaded.filePath,
-      file_url: signedUrl,
-      size: file.size || 0,
-      visibility: "private",
-    })
-    .select()
-    .single()
-
-  if (error) {
-    await removeStorageFile(uploaded.filePath).catch(() => {})
-    throw error
-  }
-
-  const [normalized] = await normalizeDocuments([data])
-  notifyDataChanged()
-  return normalized
-}
-
-export async function removeApplicationFile(studentId, applicationId, category, docId) {
-  const { data: existingDoc, error: fetchError } = await supabase
-    .from("application_documents")
-    .select("id, application_id, user_id, file_path")
-    .eq("id", docId)
-    .eq("user_id", studentId)
-    .single()
-
-  if (fetchError) throw fetchError
-
-  if (existingDoc?.file_path) {
-    await removeStorageFile(existingDoc.file_path)
-  }
-
-  const { error: deleteError } = await supabase
-    .from("application_documents")
-    .delete()
-    .eq("id", docId)
-
-  if (deleteError) throw deleteError
-  notifyDataChanged()
-  return true
-}
-
-export async function setApplicationDocumentVisibility(userId, documentId, visibility) {
-  const { data, error } = await supabase
-    .from("application_documents")
-    .update({ visibility })
-    .eq("id", documentId)
-    .eq("user_id", userId)
-    .select()
-    .single()
-
-  if (error) throw error
-
-  const [normalized] = await normalizeDocuments([data])
-  notifyDataChanged()
-  return {
-    id: normalized.id,
-    application_id: normalized.application_id,
-    category: normalized.category,
-    name: normalized.name,
-    file_path: normalized.file_path,
-    file_url: normalized.file_url,
-    size: normalized.size,
-    visibility: normalized.visibility,
-    created_at: normalized.created_at,
-  }
-}
 
 export async function saveLicense(studentId, payload) {
   const dataToSave = {

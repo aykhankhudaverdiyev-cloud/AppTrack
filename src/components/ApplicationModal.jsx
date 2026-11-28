@@ -21,6 +21,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import DatePicker from './section/DatePicker'
+import ProofBlock from './section/ProofBlock'
 import {
   saveApplication, mapApplicationRow, APPLICATION_COLUMNS, notifyDataChanged,
 } from '../store/studentsStore'
@@ -345,7 +346,7 @@ export default function ApplicationModal({
   const setListStatus = (kind, patch) =>
     setListState((s) => ({ ...s, [kind]: { ...(s[kind] || {}), ...patch } }))
 
-  const persist = useCallback(async (kind, rows) => {
+  const persist = useCallback(async (kind, rows, options) => {
     if (!appId || !ownerId) return
     setListStatus(kind, { saving: true, error: '' })
     try {
@@ -355,7 +356,7 @@ export default function ApplicationModal({
         const { legacyDeadline } = await saveApplicationDeadlines(ownerId, appId, rows)
         setForm((f) => ({ ...f, deadline: legacyDeadline || '' }))
       } else if (kind === 'requirements') {
-        const { progress: pct } = await saveApplicationRequirements(ownerId, appId, rows)
+        const { progress: pct } = await saveApplicationRequirements(ownerId, appId, rows, options)
         setForm((f) => ({ ...f, progressPercent: pct }))
       } else if (kind === 'interviews') {
         await saveApplicationInterviews(ownerId, appId, rows)
@@ -392,6 +393,33 @@ export default function ApplicationModal({
     if (commit) persist(kind, next)
   }
 
+  const changeRequirementStatus = async (index, status) => {
+    const row = requirements[index]
+    const previous = row.status
+    const next = nextRow(requirements, index, { status })
+    setRequirements(next)
+    setListStatus('requirements', { saving: true, error: '' })
+    try {
+      const { error } = await supabase.from('application_requirements').upsert({
+        user_id: ownerId, application_id: appId, req_key: row.reqKey, label: row.label, status,
+      }, { onConflict: 'application_id,req_key' })
+      if (error) throw error
+      const progressPercent = computeRequirementProgress(next)
+      const progressSave = await supabase.from('applications').update({ progress_percent: progressPercent })
+        .eq('id', appId).eq('student_id', ownerId)
+      if (progressSave.error) {
+        setListStatus('requirements', { saving: false, error: 'Status saved, but progress could not be updated.' })
+      } else {
+        setForm((current) => ({ ...current, progressPercent }))
+        setListStatus('requirements', { saving: false, savedAt: Date.now(), error: '' })
+      }
+      notifyDataChanged()
+    } catch (error) {
+      setRequirements((rows) => rows.map((item) => item.reqKey === row.reqKey ? { ...item, status: previous } : item))
+      setListStatus('requirements', { saving: false, error: error.message || 'Could not save the requirement status.' })
+    }
+  }
+
   const removeRow = (kind, index, name) => {
     setConfirm({
       title: 'Delete this row?',
@@ -404,7 +432,7 @@ export default function ApplicationModal({
         }
         const next = without(lists[kind], index)
         setters[kind](next)
-        persist(kind, next)
+        persist(kind, next, kind === 'requirements' ? { removedKeys: [lists[kind][index].reqKey] } : undefined)
       },
     })
   }
@@ -465,8 +493,10 @@ export default function ApplicationModal({
       ...r, sortOrder: merged.length + i,
     }))
     const next = [...merged, ...custom]
+    const nextKeys = new Set(next.map((row) => row.reqKey))
+    const removedKeys = requirements.filter((row) => row.meta?.generated && !nextKeys.has(row.reqKey)).map((row) => row.reqKey)
     setRequirements(next)
-    persist('requirements', next)
+    persist('requirements', next, { removedKeys })
   }
 
   const syncEssayStatuses = () => {
@@ -725,13 +755,14 @@ export default function ApplicationModal({
                   <input aria-label="Requirement label" value={r.label}
                     onChange={(e) => editRow('requirements', i, { label: e.target.value })}
                     onBlur={() => persist('requirements', requirements)} />
-                  <select aria-label="Requirement status" value={r.status}
-                    onChange={(e) => editRow('requirements', i, { status: e.target.value }, true)}>
+                  <select aria-label="Requirement status" value={r.status} disabled={listState.requirements?.saving}
+                    onChange={(e) => changeRequirementStatus(i, e.target.value)}>
                     {REQUIREMENT_STATUSES.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
                   </select>
                   <button type="button" className="mps-icon-btn mps-icon-btn--danger" aria-label="Delete requirement"
                     onClick={() => removeRow('requirements', i, r.label)}>🗑</button>
                 </div>
+                <ProofBlock section="application" itemId={appId} userId={ownerId} label={r.reqKey} title="Files" allowVisibility />
                 <div className="am-req-meta">
                   <span className={`am-status am-status--${r.status}`}>{statusLabel(r.status)}</span>
                   {r.meta?.note && <span>📎 {r.meta.note}</span>}

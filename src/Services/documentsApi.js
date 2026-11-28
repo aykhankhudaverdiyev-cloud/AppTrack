@@ -53,6 +53,7 @@ export const SECTION_CATEGORIES = {
   honor: ['award_certificate', 'course_certificate', 'other'],
   project: ['portfolio', 'research_proposal', 'writing_sample', 'other'],
   activity: ['award_certificate', 'course_certificate', 'portfolio', 'other'],
+  application: Object.keys(DOCUMENT_CATEGORIES),
   library: Object.keys(DOCUMENT_CATEGORIES),
 }
 
@@ -211,8 +212,18 @@ export async function openDocument(doc) {
  * ------------------------------------------------------------------------- */
 
 /** Attach a file to one item. Re-linking the same file is a no-op. */
-export async function linkDocument(userId, section, itemId, documentId, { notify = true } = {}) {
+export async function linkDocument(userId, section, itemId, documentId, { notify = true, label } = {}) {
   if (!userId || !itemId || !documentId) throw new Error('Missing ids')
+  if (section === 'application') {
+    if (!label) throw new Error('A requirement is required.')
+    const { error } = await supabase.from('document_links').insert({ user_id: userId, application_id: itemId, document_id: documentId, label, visibility: 'private' })
+    if (error?.code === '23505') {
+      const existing = unwrap(await supabase.from('document_links').select('label').eq('application_id', itemId).eq('document_id', documentId).maybeSingle())
+      if (existing?.label !== label) throw new Error('This file is already attached to another requirement in this application.')
+    } else if (error) throw error
+    if (notify) notifyDocumentsChanged()
+    return
+  }
   if (!DOCUMENT_SECTIONS.includes(section)) throw new Error('Unknown section')
   const { error } = await supabase
     .from('item_documents')
@@ -221,7 +232,12 @@ export async function linkDocument(userId, section, itemId, documentId, { notify
   if (notify) notifyDocumentsChanged()
 }
 
-export async function unlinkDocument(section, itemId, documentId) {
+export async function unlinkDocument(section, itemId, documentId, label) {
+  if (section === 'application') {
+    unwrap(await supabase.from('document_links').delete().eq('application_id', itemId).eq('document_id', documentId).eq('label', label))
+    notifyDocumentsChanged()
+    return
+  }
   unwrap(await supabase
     .from('item_documents')
     .delete()
@@ -237,8 +253,15 @@ export async function unlinkDocument(section, itemId, documentId) {
  * PostgREST's relationship cache, and a file deleted elsewhere simply
  * disappears from the list.
  */
-export async function listItemDocuments(section, itemId) {
+export async function listItemDocuments(section, itemId, label) {
   if (!section || !itemId) return []
+  if (section === 'application') {
+    const links = unwrap(await supabase.from('document_links').select('id, document_id, visibility, created_at').eq('application_id', itemId).eq('label', label).order('created_at', { ascending: false })) || []
+    if (!links.length) return []
+    const rows = unwrap(await supabase.from('document_files').select('*').in('id', links.map((link) => link.document_id))) || []
+    const files = new Map(rows.map((row) => [row.id, row]))
+    return links.map((link) => files.has(link.document_id) ? { ...files.get(link.document_id), link_id: link.id, visibility: link.visibility } : null).filter(Boolean)
+  }
   const links = unwrap(await supabase
     .from('item_documents')
     .select('document_id, created_at')
@@ -253,6 +276,12 @@ export async function listItemDocuments(section, itemId) {
     .in('id', ids)) || []
   const byId = new Map(files.map((file) => [file.id, file]))
   return ids.map((id) => byId.get(id)).filter(Boolean)
+}
+
+export async function setDocumentLinkVisibility(userId, linkId, visibility) {
+  if (!['public', 'private'].includes(visibility)) throw new Error('Invalid visibility')
+  unwrap(await supabase.from('document_links').update({ visibility }).eq('id', linkId).eq('user_id', userId))
+  notifyDocumentsChanged()
 }
 
 /** The title of every item that can hold files, per section. */
@@ -317,6 +346,9 @@ export async function listAllLinks(userId) {
   const fileById = new Map(files.map((file) => [file.id, file]))
   const idsBySection = {}
   for (const link of allLinks) (idsBySection[link.section] ||= []).push(link.item_id)
+  const applicationIds = [...new Set(applicationLinks.map((link) => link.application_id))]
+  const requirementRows = applicationIds.length ? unwrap(await supabase.from('application_requirements').select('application_id, req_key, label').in('application_id', applicationIds)) || [] : []
+  const requirementLabels = new Map(requirementRows.map((row) => [`${row.application_id}:${row.req_key}`, row.label]))
   const titles = await itemTitles(Object.fromEntries(
     Object.entries(idsBySection).map(([section, ids]) => [section, [...new Set(ids)]]),
   ))
@@ -326,7 +358,7 @@ export async function listAllLinks(userId) {
     grouped[key] ||= {
       key,
       section: link.section,
-      itemTitle: [titles[`${link.section}:${link.item_id}`], link.section === 'application' ? link.label : ''].filter(Boolean).join(' · '),
+      itemTitle: [titles[`${link.section}:${link.item_id}`], link.section === 'application' ? (requirementLabels.get(`${link.item_id}:${link.label}`) || link.label) : ''].filter(Boolean).join(' · '),
       documents: [],
     }
     grouped[key].documents.push(fileById.get(link.document_id) || { id: link.document_id, title: 'Document' })
@@ -347,7 +379,17 @@ const SECTION_LABELS = {
 /** Locations returned by the database, used before a permanent delete. */
 export async function documentUsage(documentId) {
   const rows = unwrap(await supabase.rpc('document_usage', { p_document_id: documentId })) || []
-  return { total: rows.length, items: rows }
+  const ids = [...new Set(rows.filter((row) => row.section === 'application').map((row) => row.item_id))]
+  if (!ids.length) return { total: rows.length, items: rows }
+  const [appsResult, requirementsResult] = await Promise.all([
+    supabase.from('applications').select('id, university').in('id', ids),
+    supabase.from('application_requirements').select('application_id, req_key, label').in('application_id', ids),
+  ])
+  const apps = new Map((unwrap(appsResult) || []).map((row) => [row.id, row.university]))
+  const requirements = new Map((unwrap(requirementsResult) || []).map((row) => [`${row.application_id}:${row.req_key}`, row.label]))
+  const items = rows.map((row) => row.section !== 'application' ? row : { ...row,
+    title: [apps.get(row.item_id) || 'Application', requirements.get(`${row.item_id}:${row.title}`) || row.title].filter(Boolean).join(' · ') })
+  return { total: items.length, items }
 }
 
 export function usageSentence(usage, title = 'This file') {

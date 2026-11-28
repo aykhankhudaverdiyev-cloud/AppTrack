@@ -374,7 +374,7 @@ export async function saveApplicationDeadlines(userId, applicationId, deadlines 
   return { legacyDeadline }
 }
 
-export async function saveApplicationRequirements(userId, applicationId, requirements = []) {
+export async function saveApplicationRequirements(userId, applicationId, requirements = [], { removedKeys = [] } = {}) {
   const seen = new Set()
   const clean = requirements.map((r, index) => {
     let key = String(r.reqKey || "").trim()
@@ -383,13 +383,25 @@ export async function saveApplicationRequirements(userId, applicationId, require
     seen.add(key)
     return { ...r, reqKey: key, sortOrder: index, label: String(r.label || "Requirement").trim() }
   })
-  await syncRows("application_requirements", userId, applicationId, clean, (row, index) => ({
-    req_key: row.reqKey,
-    label: row.label,
-    status: row.status || "not_started",
-    meta: row.meta || {},
-    sort_order: index,
-  }))
+  // Requirement identity is (application_id, req_key), not a client-generated
+  // row id. Status may already have created the row from another view.
+  // Delete only rows explicitly removed by this editor. Other views may have
+  // created a requirement after this list was loaded.
+  const removed = [...new Set(removedKeys)].filter((key) => key && !seen.has(key))
+  if (removed.length) {
+    const { error } = await supabase.from("application_requirements").delete()
+      .eq("user_id", userId).eq("application_id", applicationId).in("req_key", removed)
+    if (error) throw error
+  }
+  if (clean.length) {
+    const payload = clean.map((row, index) => ({
+      user_id: userId, application_id: applicationId, req_key: row.reqKey,
+      label: row.label, status: row.status || "not_started", meta: row.meta || {}, sort_order: index,
+    }))
+    const { error } = await supabase.from("application_requirements")
+      .upsert(payload, { onConflict: "application_id,req_key" })
+    if (error) throw error
+  }
 
   // Cache the checklist result on the application — feeds the Overview card.
   const progress = computeRequirementProgress(clean)

@@ -100,7 +100,7 @@ export async function getStudentWithApplicationsAndLicenses(studentId) {
       *,
       applications(
         *,
-        application_documents(*)
+        document_links(*,document_files(*))
       ),
       licenses(*)
     `)

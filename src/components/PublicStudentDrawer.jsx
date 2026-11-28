@@ -27,10 +27,10 @@ function statusVariant(status) {
 }
 
 const DOC_CATEGORIES = [
-  { key: 'application', label: 'Applications', hint: 'Submitted application forms', emoji: '🗂️', color: '#6d28d9', tint: 'rgba(124,58,237,0.12)' },
-  { key: 'transcript', label: 'Transcripts', hint: 'Official & unofficial transcripts', emoji: '📊', color: '#0e7490', tint: 'rgba(6,182,212,0.14)' },
-  { key: 'recommendation', label: 'Recommendation Letters', hint: 'Letters from recommenders', emoji: '✉️', color: '#b45309', tint: 'rgba(249,115,22,0.14)' },
-  { key: 'other', label: 'Other Required PDFs', hint: 'Essays, CV, financials, etc.', emoji: '📁', color: '#15803d', tint: 'rgba(34,197,94,0.14)' },
+  { key: 'application', label: 'Applications' }, { key: 'transcript', label: 'Transcript' },
+  { key: 'recommendation', label: 'Recommendation' }, { key: 'resume', label: 'Resume / CV' },
+  { key: 'statement', label: 'Statement of Purpose' }, { key: 'test_score', label: 'Test Score' },
+  { key: 'other', label: 'Other' },
 ]
 
 export default function PublicStudentDrawer({
@@ -239,7 +239,7 @@ export default function PublicStudentDrawer({
                           </div>
 
                           <div className="docs-grid">
-                            {DOC_CATEGORIES.map((category) => (
+                            {[...DOC_CATEGORIES, ...Object.keys(application.documents || {}).filter((key) => !DOC_CATEGORIES.some((category) => category.key === key)).map((key) => ({ key, label: key.replaceAll('_', ' ') }))].map((category) => (
                               <DocumentGroup
                                 key={category.key}
                                 studentId={student.id}

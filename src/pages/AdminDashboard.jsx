@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import './AdminDashboard.css'
 import Avatar from '../components/Avatar'
+import DocumentGroup from '../components/DocumentGroup'
 import '../components/Avatar.css'
 import { useAuth } from '../context/AuthContext'
 import {
@@ -14,8 +15,6 @@ import {
   saveApplication,
   deleteApplication,
   setApplicationVisibility,
-  uploadApplicationFile,
-  removeApplicationFile,
   saveLicense,
   deleteLicense,
   setLicenseVisibility,
@@ -43,10 +42,9 @@ function savePersisted(key, value) {
 const PIE_COLORS = ['#7c3aed', '#06b6d4', '#22c55e', '#f97316', '#ef4444', '#8b5cf6', '#14b8a6']
 
 const DOC_CATEGORIES = [
-  { key: 'application', label: 'Applications', hint: 'Submitted application forms', emoji: '🗂️', color: '#6d28d9', tint: 'rgba(124,58,237,0.12)' },
-  { key: 'transcript', label: 'Transcripts', hint: 'Official & unofficial transcripts', emoji: '📊', color: '#0e7490', tint: 'rgba(6,182,212,0.14)' },
-  { key: 'recommendation', label: 'Recommendation Letters', hint: 'Letters from recommenders', emoji: '✉️', color: '#b45309', tint: 'rgba(249,115,22,0.14)' },
-  { key: 'other', label: 'Other Required PDFs', hint: 'Essays, CV, financials, etc.', emoji: '📁', color: '#15803d', tint: 'rgba(34,197,94,0.14)' },
+  { key: 'application', label: 'Application' }, { key: 'transcript', label: 'Transcript' }, { key: 'recommendation', label: 'Recommendation' },
+  { key: 'resume', label: 'Resume / CV' }, { key: 'statement', label: 'Statement of Purpose' },
+  { key: 'test_score', label: 'Test Score' }, { key: 'other', label: 'Other' },
 ]
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
@@ -83,19 +81,6 @@ function emptyApplication() {
     status: 'Not Started', decision: 'Pending', recommendation: 'Pending',
     notes: '', visibility: 'private', documents: {},
   }
-}
-
-function getDocs(application, key) {
-  const docs = application.documents
-  if (!docs || Array.isArray(docs)) return []
-  return docs[key] || []
-}
-
-function formatSize(bytes) {
-  if (!bytes) return 'PDF file'
-  const kb = bytes / 1024
-  if (kb < 1024) return `${Math.max(1, Math.round(kb))} KB`
-  return `${(kb / 1024).toFixed(1)} MB`
 }
 
 function statusVariant(status) {
@@ -399,50 +384,6 @@ function Pagination({ currentPage, totalPages, setCurrentPage }) {
 }
 
 /* ─── All modals (unchanged logic, kept intact) ─── */
-function DocumentGroup({ student, application, category, onUpload, onRemove, onOpenInline }) {
-  const docs = getDocs(application, category.key)
-  const inputId = `doc-${student.id}-${application.id}-${category.key}`
-  return (
-    <section className="doc-group">
-      <header className="doc-group__head">
-        <div className="doc-group__title">
-          <span className="doc-group__icon" style={{ background: category.tint, color: category.color }}>{category.emoji}</span>
-          <div className="doc-group__label">
-            <h5>{category.label}</h5>
-            <p>{category.hint}</p>
-          </div>
-        </div>
-        <span className="doc-group__count">{docs.length}</span>
-      </header>
-      <div className="doc-group__body">
-        {docs.map(doc => (
-          <div key={doc.id} className="doc-chip">
-            <span className="doc-chip__file">📄</span>
-            <div className="doc-chip__info">
-              <strong title={doc.name}>{doc.name}</strong>
-              <span>{formatSize(doc.size)}</span>
-            </div>
-            <div className="doc-chip__actions">
-              {doc.url && (
-                <>
-                  <button type="button" className="mini-btn" onClick={() => onOpenInline(doc)}>View</button>
-                  <a className="mini-btn" href={doc.url} target="_blank" rel="noreferrer">Open tab</a>
-                </>
-              )}
-              <button type="button" className="mini-btn mini-btn--danger" onClick={() => onRemove(student.id, application.id, category.key, doc.id)}>Remove</button>
-            </div>
-          </div>
-        ))}
-        <label htmlFor={inputId} className="doc-drop">
-          <span className="doc-drop__plus">+</span>
-          <span className="doc-drop__text">Upload PDF<small>Click to browse — PDF only</small></span>
-        </label>
-        <input id={inputId} type="file" accept="application/pdf" className="file-input-hidden"
-          onChange={e => { onUpload(student.id, application.id, category.key, e.target.files?.[0] || null); e.target.value = '' }} />
-      </div>
-    </section>
-  )
-}
 
 function ProfileModal({ open, student, onClose, onSave }) {
   const [form, setForm] = useState({ fullName: '', email: '', phone: '', gender: '' })
@@ -809,34 +750,6 @@ export default function AdminDashboard() {
     } catch (error) { console.error(error); alert(error?.message || 'Something went wrong.') }
   }
 
-  async function handleUploadApplicationFile(studentId, applicationId, category, file) {
-    if (!file) return
-    try {
-      const doc = await uploadApplicationFile(studentId, applicationId, category, file)
-      setStudents(p => p.map(s => {
-        if (s.id !== studentId) return s
-        return { ...s, applications: (s.applications || []).map(a => {
-          if (a.id !== applicationId) return a
-          const docs = a.documents || {}
-          return { ...a, documents: { ...docs, [category]: [...(docs[category] || []), doc] } }
-        })}
-      }))
-    } catch (error) { console.error(error); alert(error?.message || 'Something went wrong.') }
-  }
-
-  async function handleRemoveApplicationFile(studentId, applicationId, category, docId) {
-    try {
-      await removeApplicationFile(studentId, applicationId, category, docId)
-      setStudents(p => p.map(s => {
-        if (s.id !== studentId) return s
-        return { ...s, applications: (s.applications || []).map(a => {
-          if (a.id !== applicationId) return a
-          const docs = a.documents || {}
-          return { ...a, documents: { ...docs, [category]: (docs[category] || []).filter(d => d.id !== docId) } }
-        })}
-      }))
-    } catch (error) { console.error(error); alert(error?.message || 'Something went wrong.') }
-  }
 
   async function handleSaveLicense(studentId, form) {
     try {
@@ -1151,7 +1064,7 @@ export default function AdminDashboard() {
                               {app.notes && <div className="application-notes"><span>Notes</span><p>{app.notes}</p></div>}
                               <div className="doc-groups">
                                 {DOC_CATEGORIES.map(cat => (
-                                  <DocumentGroup key={cat.key} student={selectedStudent} application={app} category={cat} onUpload={handleUploadApplicationFile} onRemove={handleRemoveApplicationFile} onOpenInline={doc => window.open(doc.url, '_blank')} />
+                                  <DocumentGroup key={cat.key} studentId={selectedStudent.id} application={app} category={cat} allowVisibility={false} />
                                 ))}
                               </div>
                             </div>

@@ -14,9 +14,6 @@ import {
   saveApplication,
   deleteApplication,
   setApplicationVisibility,
-  uploadApplicationFile,
-  removeApplicationFile,
-  setApplicationDocumentVisibility,
   saveLicense,
   deleteLicense,
   setLicenseVisibility,
@@ -52,6 +49,7 @@ import { DEADLINE_KINDS, DEGREE_LEVELS, PLATFORMS, ROUNDS, FIT_OPTIONS, labelOf 
 import './StudentDashboard.css'
 
 const DOC_CATEGORIES = [
+  { key: 'application', label: 'Application' },
   { key: 'transcript', label: 'Transcript' },
   { key: 'recommendation', label: 'Recommendation' },
   { key: 'resume', label: 'Resume / CV' },
@@ -292,7 +290,7 @@ export default function StudentDashboard() {
         supabase
           .from('applications')
           .select(
-            `${APPLICATION_COLUMNS},application_documents(id,application_id,user_id,category,name,file_path,file_url,size,visibility,created_at)`
+            APPLICATION_COLUMNS
           )
           .eq('student_id', user.id)
           .order('created_at', { ascending: false }),
@@ -325,15 +323,7 @@ export default function StudentDashboard() {
         notes: data.notes_visibility || 'private',
       }
 
-      const applications = (data.applications || []).map(app => {
-        const docsByCategory = (app.application_documents || []).reduce((acc, doc) => {
-          const cat = doc.category || 'other'
-          if (!acc[cat]) acc[cat] = []
-          acc[cat].push({ id: doc.id, name: doc.name || 'Document.pdf', path: doc.file_path || '', url: doc.file_url || '', size: doc.size || 0, visibility: doc.visibility || 'private', created_at: doc.created_at || '', application_id: doc.application_id || '', category: cat })
-          return acc
-        }, {})
-        return { ...mapApplicationRow(app), documents: docsByCategory }
-      })
+      const applications = (data.applications || []).map(mapApplicationRow)
 
       const licenses = (data.licenses || []).map(lic => {
         const media = (lic.license_media || []).map(m => ({ id: m.id, license_id: m.license_id, name: m.name || 'Document', filePath: m.file_path || '', url: m.file_url || '', size: m.size || 0, created_at: m.created_at }))
@@ -373,7 +363,6 @@ export default function StudentDashboard() {
     const channel = supabase.channel('student-dashboard-changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles', filter: `id=eq.${user?.id}` }, loadMyProfile)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'applications', filter: `student_id=eq.${user?.id}` }, loadMyProfile)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'application_documents', filter: `user_id=eq.${user?.id}` }, loadMyProfile)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'application_deadlines', filter: `user_id=eq.${user?.id}` }, loadMyProfile)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'application_requirements', filter: `user_id=eq.${user?.id}` }, loadMyProfile)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'licenses', filter: `user_id=eq.${user?.id}` }, loadMyProfile)
@@ -405,11 +394,6 @@ export default function StudentDashboard() {
     try { await setLicenseVisibility(user.id, id, value) } catch (e) { console.error(e); loadMyProfile() }
   }, [user?.id, loadMyProfile])
 
-  const handleDocumentVisibility = useCallback(async (docId, value) => {
-    if (!user?.id) return
-    setMe(p => ({ ...p, applications: (p.applications || []).map(a => ({ ...a, documents: Object.fromEntries(Object.entries(a.documents || {}).map(([c, ds]) => [c, (ds || []).map(d => d.id === docId ? { ...d, visibility: value } : d)])) })) }))
-    try { await setApplicationDocumentVisibility(user.id, docId, value) } catch (e) { console.error(e); loadMyProfile() }
-  }, [user?.id, loadMyProfile])
 
   const handlePhotoUpload = useCallback(async (file) => {
     if (!user?.id || !file) return
@@ -498,19 +482,6 @@ export default function StudentDashboard() {
     try { await deleteApplication(user.id, id); await loadMyProfile() } catch (e) { console.error(e) }
   }, [user?.id, loadMyProfile])
 
-  const handleApplicationDocumentUpload = useCallback(async (sid, aid, cat, file) => {
-    if (!user?.id) return
-    try { await uploadApplicationFile(user.id, aid, cat, file); await loadMyProfile() } catch (e) { console.error(e); throw e }
-  }, [user?.id, loadMyProfile])
-
-  const handleApplicationDocumentRemove = useCallback(async (sid, aid, cat, docId) => {
-    if (!user?.id) return
-    try {
-      await removeApplicationFile(user.id, aid, cat, docId)
-      setMe(p => ({ ...p, applications: (p.applications || []).map(a => { if (a.id !== aid) return a; const d = a.documents || {}; return { ...a, documents: { ...d, [cat]: (d[cat] || []).filter(x => x.id !== docId) } } }) }))
-      await loadMyProfile()
-    } catch (e) { console.error(e) }
-  }, [user?.id, loadMyProfile])
 
   const handleSaveLicense = useCallback(async payload => {
     if (!user?.id) return
@@ -1050,7 +1021,7 @@ export default function StudentDashboard() {
                         {application.notes && <div className="application-notes"><span>Notes</span><p>{application.notes}</p></div>}
                         <div className="doc-groups">
                           {DOC_CATEGORIES.map(category => (
-                            <DocumentGroup key={category.key} studentId={me.id} application={application} category={category} onUpload={handleApplicationDocumentUpload} onRemove={handleApplicationDocumentRemove} onSetDocVisibility={handleDocumentVisibility} />
+                            <DocumentGroup key={category.key} studentId={me.id} application={application} category={category} />
                           ))}
                         </div>
                       </div>

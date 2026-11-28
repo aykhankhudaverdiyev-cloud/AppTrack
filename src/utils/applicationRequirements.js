@@ -82,7 +82,7 @@ export const INTERVIEW_TYPES = [
 export const REQUIREMENT_STATUSES = [
   { key: 'not_started', label: 'Not started' },
   { key: 'in_progress', label: 'In progress' },
-  { key: 'done', label: 'Done' },
+  { key: 'done', label: 'Ready' },
   { key: 'submitted', label: 'Submitted' },
   { key: 'waived', label: 'Waived' },
 ]
