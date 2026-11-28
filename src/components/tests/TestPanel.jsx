@@ -239,8 +239,8 @@ export default function TestPanel({
             onChange={(value) => {
               set('test_date', value)
               if (mode === 'create' && !expiryEdited) set('expires_on', defaultExpiry(draft.test_type, value) || '')
-            }} />
-          <DatePicker mode="day" label="Expires on" fieldKey="expires_on" value={draft.expires_on} error={errors.expires_on}
+            }} onBlur={blur} />
+          <DatePicker mode="day" label="Expires on" min={draft.test_date || undefined} onBlur={blur} fieldKey="expires_on" value={draft.expires_on} error={errors.expires_on}
             onChange={(value) => { setExpiryEdited(true); set('expires_on', value) }} />
           <Field label={trfLabel} fieldKey="trf_number" className="test-field" error={errors.trf_number}>
             {({ id }) => <input id={id} className="test-input" aria-invalid={Boolean(errors.trf_number)} value={draft.trf_number}

@@ -82,7 +82,7 @@ const MONTH_PATTERN = /^(\d{4})-(0[1-9]|1[0-2])$/
 
 /** '2026-06' → '2026-06-01' */
 export function monthToDate(month) {
-  const text = trim(month)
+  const text = trim(month).replace(/-01$/, '')
   if (!MONTH_PATTERN.test(text)) return null
   return `${text}-01`
 }
@@ -340,11 +340,11 @@ export function validateActivity(draft = {}, mode = 'edit') {
     errors.weeks_per_year = `Weeks per year must be between ${ACTIVITY_LIMITS.weeksPerYear.min} and ${ACTIVITY_LIMITS.weeksPerYear.max}`
   }
 
-  const start = trim(draft.start_month)
+  const start = trim(draft.start_month).replace(/-01$/, '')
   if (mode === 'create' && !start) errors.start_month = 'Add the start date'
   else if (start && !MONTH_PATTERN.test(start)) errors.start_month = 'Use MM/YYYY'
 
-  const end = trim(draft.end_month)
+  const end = trim(draft.end_month).replace(/-01$/, '')
   if (!draft.ongoing) {
     if (!end) errors.end_month = 'Add the end date'
     else if (!MONTH_PATTERN.test(end)) errors.end_month = 'Use MM/YYYY'

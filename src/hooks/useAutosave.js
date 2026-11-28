@@ -20,6 +20,7 @@ export function useAutosave(payload, saveFn, { delay = 1200, enabled = true } = 
   const latestRef = useRef(payload)
   const dirtyRef = useRef(false)
   const savingRef = useRef(false)
+  const flushOnCommitRef = useRef(false)
   const revisionRef = useRef(0)
   const saveFnRef = useRef(saveFn)
   useEffect(() => { saveFnRef.current = saveFn }, [saveFn])
@@ -55,6 +56,14 @@ export function useAutosave(payload, saveFn, { delay = 1200, enabled = true } = 
     }
   }, [delay])
 
+  // Request an immediate save only after the next payload has committed.
+  const flushAfterCommit = useCallback(() => { flushOnCommitRef.current = true }, [])
+  useEffect(() => {
+    if (!flushOnCommitRef.current) return
+    flushOnCommitRef.current = false
+    flush()
+  }, [payload, flush])
+
   const markDirty = useCallback(() => {
     dirtyRef.current = true
     setIsDirty(true)
@@ -75,7 +84,7 @@ export function useAutosave(payload, saveFn, { delay = 1200, enabled = true } = 
     }
   }, [payload, delay, enabled, flush])
 
-  return { saving, savedAt, error, isDirty, markDirty, flush }
+  return { saving, savedAt, error, isDirty, markDirty, flush, flushAfterCommit }
 }
 
 /**

@@ -16,6 +16,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Field, CharWordCounter, ConfirmDialog } from '../forms'
+import DatePicker from '../section/DatePicker'
 import { useAutosave, useUnsavedGuard } from '../../hooks/useAutosave'
 import * as rules from '../../utils/academicRules'
 import {
@@ -169,7 +170,7 @@ function SendingRow({ userId, attempt, application, existing }) {
   return <div className="academic-send"><strong>{application.university}</strong> <Status save={save} />
     <label>Requirement <select value={value.requirement} onChange={e => set('requirement', e.target.value)}>{rules.SCORE_REQUIREMENTS.map(v => <option key={v} value={v}>{label(v)}</option>)}</select></label>
     {[['self_reported', 'Self-reported'], ['official_sent', 'Official sent'], ['delivery_confirmed', 'Delivery confirmed']].map(([k, t]) => <label key={k}><input type="checkbox" checked={!!value[k]} onChange={e => set(k, e.target.checked)} /> {t}</label>)}
-    <label>Sent on <input type="date" value={value.sent_on || ''} onChange={e => set('sent_on', e.target.value || null)} /></label>
+    <DatePicker mode="day" label="Sent on" value={value.sent_on || ''} onChange={v => set('sent_on', v || null)} />
     {save.error && <p className="academic-error" role="alert">{save.error.message} <button type="button" onClick={save.flush}>Retry</button></p>}
   </div>
 }

@@ -368,7 +368,7 @@ export default function ProjectPanel({
             onChange={(value) => set('status', value)}
             options={STATUS_OPTIONS}
           />
-          <DatePicker label="End date" fieldKey="end_month" value={draft.end_month || ''}
+          <DatePicker label="End date" min={draft.start_month || undefined} fieldKey="end_month" value={draft.end_month || ''}
             error={errors.end_month} onChange={(value) => set('end_month', value)} />
         </div>
 
