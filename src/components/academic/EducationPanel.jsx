@@ -103,16 +103,16 @@ export default function EducationPanel({
     for (const key of keys) if (latest.current[key] === value[key]) dirtyFields.current.delete(key)
   }, [entryId, onUpdate])
 
-  const { saving, savedAt, error: saveError, isDirty, markDirty, flush } = useAutosave(draft, persist, {
+  const { saving, savedAt, error: saveError, isDirty, markDirty, flush, flushAfterCommit } = useAutosave(draft, persist, {
     delay: 800,
     enabled: mode === 'edit',
   })
 
-  const set = (key, value) => {
+  const set = (key, value, { save = false } = {}) => {
     dirtyFields.current.add(key)
     if (key === 'grading_scale') dirtyFields.current.add('scale_maximum')
     if (key === 'school_does_not_rank') dirtyFields.current.add('class_rank')
-    if (mode === 'edit') markDirty()
+    if (mode === 'edit') { markDirty(); if (save) flushAfterCommit() }
     setDraft((previous) => {
       const next = { ...previous, [key]: value }
       if (key === 'grading_scale') {
@@ -205,7 +205,7 @@ export default function EducationPanel({
                 key={option.key} type="button" role="radio"
                 aria-checked={draft.entry_type === option.key}
                 className={`edu-segmented__item${draft.entry_type === option.key ? ' edu-segmented__item--on' : ''}`}
-                onClick={() => { set('entry_type', option.key); blur() }}
+                onClick={() => set('entry_type', option.key, { save: true })}
               >{option.label}</button>
             ))}
           </div>
@@ -222,7 +222,7 @@ export default function EducationPanel({
           <EducationField label="Country" required error={errors.country}>
             {({ id, invalid }) => (
               <CountrySelect id={id} value={draft.country} invalid={invalid} options={COUNTRIES}
-                onChange={(value) => { set('country', value); blur() }} onBlur={blur} />
+                onChange={(value) => set('country', value, { save: true })} onBlur={blur} />
             )}
           </EducationField>
         </div>
@@ -248,7 +248,7 @@ export default function EducationPanel({
               <div className="edu-select">
                 <select id={id} className={`edu-input${draft.language_of_instruction ? '' : ' edu-input--placeholder'}`}
                   value={draft.language_of_instruction}
-                  onChange={(event) => { set('language_of_instruction', event.target.value); blur() }}>
+                  onChange={(event) => set('language_of_instruction', event.target.value, { save: true })}>
                   <option value="">Select language</option>
                   {LANGUAGE_OPTIONS.map((language) => <option key={language} value={language}>{language}</option>)}
                 </select>
@@ -271,7 +271,7 @@ export default function EducationPanel({
         </div>
 
         <Switch checked={draft.is_current} label="Currently attending"
-          onChange={(value) => { set('is_current', value); blur() }} />
+          onChange={(value) => set('is_current', value, { save: true })} />
 
         {school && (
           <>
@@ -283,7 +283,7 @@ export default function EducationPanel({
                     <select id={id} aria-invalid={invalid || undefined}
                       className={`edu-input${draft.qualification ? '' : ' edu-input--placeholder'}${invalid ? ' edu-input--invalid' : ''}`}
                       value={draft.qualification}
-                      onChange={(event) => { set('qualification', event.target.value); blur() }}>
+                      onChange={(event) => set('qualification', event.target.value, { save: true })}>
                       <option value="">Select qualification</option>
                       {QUALIFICATION_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}
                     </select>
@@ -297,7 +297,7 @@ export default function EducationPanel({
                     <select id={id} aria-invalid={invalid || undefined}
                       className={`edu-input${draft.grading_scale ? '' : ' edu-input--placeholder'}${invalid ? ' edu-input--invalid' : ''}`}
                       value={draft.grading_scale}
-                      onChange={(event) => { set('grading_scale', event.target.value); blur() }}>
+                      onChange={(event) => set('grading_scale', event.target.value, { save: true })}>
                       <option value="">Select scale</option>
                       {GRADING_SCALES.map((option) => <option key={option.value} value={option.value}>{option.value}</option>)}
                     </select>
@@ -335,7 +335,7 @@ export default function EducationPanel({
               </EducationField>
               <label className="edu-checkbox">
                 <input type="checkbox" checked={Boolean(draft.school_does_not_rank)}
-                  onChange={(event) => { set('school_does_not_rank', event.target.checked); blur() }} />
+                  onChange={(event) => set('school_does_not_rank', event.target.checked, { save: true })} />
                 <span>School does not rank</span>
               </label>
             </div>
@@ -346,14 +346,14 @@ export default function EducationPanel({
                 <span>Final grade</span>
                 <span className="edu-select">
                   <select className="edu-input" value={draft.final_grade_level || DEFAULT_FINAL_GRADE}
-                    onChange={(event) => { set('final_grade_level', Number(event.target.value)); blur() }}>
+                    onChange={(event) => set('final_grade_level', Number(event.target.value), { save: true })}>
                     {FINAL_GRADE_OPTIONS.map((grade) => <option key={grade} value={grade}>{grade}</option>)}
                   </select>
                   <span className="edu-select__caret" aria-hidden="true">▾</span>
                 </span>
               </label>
               <Switch checked={showSemesters} label="Show semesters"
-                onChange={(value) => { setShowSemesters(value); blur() }} />
+                onChange={setShowSemesters} />
             </div>
             <GradeTable
               subjects={subjects}
@@ -362,7 +362,7 @@ export default function EducationPanel({
               showSemesters={showSemesters}
               onChange={setSubjects}
               onSave={gradesSaved}
-              onUseAverage={(value) => { set('overall_average', value); blur() }}
+              onUseAverage={(value) => set('overall_average', value, { save: true })}
               enabled={mode === 'edit'}
             />
             {!showSemesters && subjects.some((subject) => Object.keys(subject.cells || {}).some((key) => key.endsWith(':1') || key.endsWith(':2'))) && (

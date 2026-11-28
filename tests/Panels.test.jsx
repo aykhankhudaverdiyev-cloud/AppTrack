@@ -68,3 +68,51 @@ it('creates an education entry with the selected start date', async () => {
   await waitFor(() => expect(create).toHaveBeenCalledOnce())
   expect(create.mock.calls[0][0].start_date).toBe(month)
 })
+
+it('saves the new education country immediately on change', async () => {
+  const update = vi.fn().mockResolvedValue(undefined)
+  render(<EducationPanel mode="edit" row={{ id: 'test-entry', entry_type: 'secondary_school', institution_name: 'School', country: 'Azerbaijan', start_date: '2020-01-01', end_date: '2025-01-01', qualification: 'Other', grading_scale: '1–5' }} onUpdate={update} />)
+  fireEvent.change(screen.getByLabelText(/Country/), { target: { value: 'Canada' } })
+  await waitFor(() => expect(update).toHaveBeenCalledWith('test-entry', expect.objectContaining({ country: 'Canada' })))
+  expect(update.mock.calls[0][1].country).toBe('Canada')
+})
+
+it('saves a new qualification instead of the old value', async () => {
+  const update = vi.fn().mockResolvedValue(undefined)
+  render(<EducationPanel mode="edit" row={{ id: 'test-entry', entry_type: 'secondary_school', institution_name: 'School', country: 'Azerbaijan', start_date: '2020-01-01', end_date: '2025-01-01', grading_scale: '1–5' }} onUpdate={update} />)
+  const select = screen.getByLabelText(/Qualification/)
+  const choice = [...select.options].find(option => option.value)
+  fireEvent.change(select, { target: { value: choice.value } })
+  await waitFor(() => expect(update).toHaveBeenCalledWith('test-entry', expect.objectContaining({ qualification: choice.value })))
+  expect(update.mock.calls[0][1].qualification).toBe(choice.value)
+})
+
+it('saves a new activity date in edit mode', async () => {
+  const save = vi.fn().mockResolvedValue(undefined)
+  render(<ActivityPanel mode="edit" row={{ ...activityRow({ ...activityDraft(), organization_name: 'Club', position: 'Member', grade_levels: [9], hours_per_week: '2', weeks_per_year: '20', start_month: '2020-01' }), id: 'activity' }} onSave={save} />)
+  pickMonth('Start date')
+  await waitFor(() => expect(save).toHaveBeenCalledWith(expect.objectContaining({ start_month: month })))
+})
+
+it('saves a new project date in edit mode', async () => {
+  const save = vi.fn().mockResolvedValue(undefined)
+  render(<ProjectPanel mode="edit" row={{ ...projectRow({ ...emptyProjectDraft(), title: 'Project', start_month: '2020-01' }), id: 'project' }} onSave={save} />)
+  pickMonth('Start date')
+  await waitFor(() => expect(save).toHaveBeenCalledWith(expect.objectContaining({ start_month: month })))
+})
+
+it('saves a new honor date in edit mode', async () => {
+  const save = vi.fn().mockResolvedValue(undefined)
+  render(<HonorPanel mode="edit" row={{ ...honorRow({ ...emptyHonorDraft('other'), title: 'Award', grade_levels: [9], levels: ['school'], received_month: '2020-01' }), id: 'honor' }} onSave={save} />)
+  pickMonth('Date received')
+  await waitFor(() => expect(save).toHaveBeenCalledWith(expect.objectContaining({ received_month: month })))
+})
+
+it('saves a new test date in edit mode', async () => {
+  const save = vi.fn().mockResolvedValue(undefined)
+  render(<TestPanel mode="edit" row={{ ...testRow({ ...emptyTestDraft('SAT'), status: 'planned', test_date: '2020-01-01' }), id: 'test', sections: [] }} onSave={save} />)
+  fireEvent.click(screen.getByRole('button', { name: 'Choose test date' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Today' }))
+  const today = `${month.slice(0, 8)}${String(now.getDate()).padStart(2, '0')}`
+  await waitFor(() => expect(save).toHaveBeenCalledWith(expect.objectContaining({ test_date: today }), expect.any(Array)))
+})
