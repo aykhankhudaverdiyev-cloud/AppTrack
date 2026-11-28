@@ -47,7 +47,7 @@ export async function listTests(userId) {
 }
 
 export async function createTest(userId, draft) {
-  const row = { ...pickWritable(rowFromDraft(draft)), user_id: userId }
+  const row = { ...pickWritable(rowFromDraft(draft)), ...(draft.id ? { id: draft.id } : {}), user_id: userId }
   return unwrap(await supabase.from('test_attempts').insert(row).select(TEST_COLUMNS).single())
 }
 

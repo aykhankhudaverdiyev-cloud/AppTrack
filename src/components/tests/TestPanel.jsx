@@ -52,7 +52,7 @@ function savedLabel(savedAt, now) {
 
 export default function TestPanel({
   mode = 'edit', row, userId, defaultTestType = 'SAT',
-  onSave, onCreate, onClose, onOpenApplications,
+  onSave, onCreate, onClose, onOpenApplications, attachments,
 }) {
   const draftKey = mode === 'create' && userId ? `tests:${userId}` : null
   const [recovered] = useState(() => readCreateDraft(draftKey))
@@ -105,11 +105,12 @@ export default function TestPanel({
   const blur = () => { if (mode === 'edit') flush() }
 
   const cancelCreate = useCallback(() => {
+    if (attachments) { attachments.requestDiscard(() => { clearDraft(); onClose?.() }); return }
     const untouched = JSON.stringify(draft) === JSON.stringify(emptyTestDraft(defaultTestType))
       && !sectionEdited
     if (untouched) { clearDraft(); onClose?.() }
     else setConfirmDiscard(true)
-  }, [draft, sectionEdited, onClose, defaultTestType, clearDraft])
+  }, [draft, sectionEdited, onClose, defaultTestType, clearDraft, attachments])
 
   const requestClose = useCallback(async () => {
     if (mode === 'create') { cancelCreate(); return }
@@ -129,7 +130,7 @@ export default function TestPanel({
     setCreating(true)
     setCreateError('')
     try {
-      await onCreate?.({ ...draft, sections: sections.map((s) => ({ ...s, id: s.id || crypto.randomUUID() })) })
+      await onCreate?.({ ...draft, id: attachments?.id, sections: sections.map((s) => ({ ...s, id: s.id || crypto.randomUUID() })) })
       clearDraft()
     } catch (error) {
       setCreateError(error?.message || 'Could not create the test. Please try again.')
@@ -302,21 +303,14 @@ export default function TestPanel({
         </label>}
 
         <p className="test-section-label">Proof</p>
-        {mode === 'edit' ? (
-          <ProofBlock
-            section="test"
-            itemId={row?.id}
-            userId={userId}
-            title="Score report"
-            hint="No score report attached yet. Upload the PDF you received."
-          />
-        ) : (
-          <p className="test-hint">Save the attempt first, then attach the score report.</p>
-        )}
+        <ProofBlock section="test" itemId={mode === 'edit' ? row?.id : attachments?.id} userId={userId} title="Score report"
+          hint="No score report attached yet. Upload the PDF you received." pendingFiles={mode === 'create' && attachments ? attachments.files : null}
+          onPendingChange={attachments?.setFiles} onUploaded={attachments?.uploaded} onDeleted={attachments?.deleted}
+          failedFiles={attachments?.failed[row?.id] || []} onRetryFile={(file) => attachments?.retry(row.id, file)} />
         {onOpenApplications && (
           <div className="test-field">
             <span className="sfield-label">Official reports</span>
-            <button type="button" className="test-add-section" onClick={async () => { await flush(); onOpenApplications() }}>Open Applications →</button>
+            <button type="button" className="test-add-section" onClick={async () => { if (mode === 'create' && attachments) { attachments.requestDiscard(() => { clearDraft(); onOpenApplications() }); return } await flush(); onOpenApplications() }}>Open Applications →</button>
           </div>
         )}
 

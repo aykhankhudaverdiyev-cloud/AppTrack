@@ -1,3 +1,5 @@
+import { usePendingAttachments } from '../../hooks/usePendingAttachments'
+import DiscardAttachmentsDialog from '../section/DiscardAttachmentsDialog'
 import { readCreateDraft } from '../../hooks/useAutosave'
 /** ============================================================================
  * TestScoresSection — Test Scores page (spec §4)
@@ -109,6 +111,8 @@ function TestCard({ attempt, selected, isNew, onOpen, onEdit, onDuplicate, onDel
 /* ── section ────────────────────────────────────────────────────────────── */
 
 export default function TestScoresSection({ userId, onOpenApplications }) {
+  const attachments = usePendingAttachments(userId, 'test')
+  const { attach, requestDiscard } = attachments
   const actions = useTests(userId)
   const { items, loading, error } = actions
   const { toast, showToast, hideToast } = useUndoToast()
@@ -146,35 +150,36 @@ export default function TestScoresSection({ userId, onOpenApplications }) {
     }, { replace: true })
   }, [setSearchParams])
 
-  const openRow = useCallback((row) => { setAdding(false); setParams({ id: row.id }) }, [setParams])
+  const openRow = useCallback((row) => { const open = () => { setAdding(false); setParams({ id: row.id }) }; if (adding) requestDiscard(open); else open() }, [adding, requestDiscard, setParams])
 
   const closePanel = useCallback(() => { setAdding(false); setParams({ id: null }) }, [setParams])
 
   const startAdd = useCallback(() => {
+    if (adding) return
     // Keep the URL's group filter untouched — it only ever holds a group key
     // (admission/english/other), never a single test type, and the new
     // draft's default type is derived locally from `filter` below.
     setAdding(true)
     setParams({ id: null })
-  }, [setParams])
+  }, [setParams, adding])
 
 
   const handleCreate = useCallback(async (draft) => {
-    const row = await actions.create(scoreDraft(draft, draft.sections))
+    const row = await actions.create({ ...scoreDraft(draft, draft.sections), id: draft.id })
+    let scoreSaveFailed = false
     try {
       if (draft.status === 'released' && draft.sections.length) await actions.saveSections(row.id, draft.sections)
       if (draft.is_best && draft.status === 'released') await actions.setBest(row.id, true)
-    } catch (cause) {
-      // Don't leave an orphaned, section-less attempt behind on a partial
-      // failure — roll back the row we just created and surface the error.
-      await actions.remove(row.id).catch((rollbackCause) => {
-        console.error('Failed to roll back a partially saved test attempt:', rollbackCause)
-      })
-      throw cause
+    } catch {
+      // The attempt already exists; do not create it a second time on retry.
+      scoreSaveFailed = true
     }
+    await attach(row.id)
+    await new Promise((resolve) => requestAnimationFrame(resolve))
     setAdding(false)
     setParams({ id: row.id })
-    showToast(`${TEST_TYPE_LABEL(row.test_type)} added`, {
+    if (scoreSaveFailed) showToast('Test created, but its scores or best status could not be saved. Please check the entry.')
+    else showToast(`${TEST_TYPE_LABEL(row.test_type)} added`, {
       label: 'Undo',
       run: async () => {
         try {
@@ -186,7 +191,7 @@ export default function TestScoresSection({ userId, onOpenApplications }) {
         }
       },
     })
-  }, [actions, setParams, showToast, hideToast])
+  }, [actions, attach, setParams, showToast, hideToast])
 
   const handleSave = useCallback(async (draft, sections) => {
     if (!selected) return
@@ -303,6 +308,7 @@ export default function TestScoresSection({ userId, onOpenApplications }) {
             userId={userId}
             defaultTestType={GROUP_DEFAULT_TYPE[filter] || 'SAT'}
             onSave={adding ? undefined : handleSave}
+            attachments={attachments}
             onCreate={adding ? handleCreate : undefined}
             onClose={closePanel}
             onOpenApplications={onOpenApplications}
@@ -312,6 +318,7 @@ export default function TestScoresSection({ userId, onOpenApplications }) {
     </SectionPage>
 
     <>
+      <DiscardAttachmentsDialog attachments={attachments} />
       {deleting && (
         <ConfirmDialog
           open={Boolean(deleting)}

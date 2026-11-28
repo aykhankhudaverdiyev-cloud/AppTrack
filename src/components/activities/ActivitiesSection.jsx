@@ -1,3 +1,5 @@
+import { usePendingAttachments } from '../../hooks/usePendingAttachments'
+import DiscardAttachmentsDialog from '../section/DiscardAttachmentsDialog'
 import { readCreateDraft } from '../../hooks/useAutosave'
 /**
  * ============================================================================
@@ -191,6 +193,8 @@ function ActivityCard({ row, selected, isNew, onOpen, onEdit, onDuplicate, onMov
 /* ── section ─────────────────────────────────────────────────────────────── */
 
 export default function ActivitiesSection({ userId }) {
+  const attachments = usePendingAttachments(userId, 'activity')
+  const { attach, requestDiscard } = attachments
   const actions = useActivities(userId)
   const { items, loading, error } = actions
   const [searchParams, setSearchParams] = useSearchParams()
@@ -230,9 +234,9 @@ export default function ActivitiesSection({ userId }) {
   }, [])
 
   const openRow = useCallback((row) => {
-    setAdding(false)
-    setParams({ type: row.activity_type, id: row.id })
-  }, [setParams])
+    const open = () => { setAdding(false); setParams({ type: row.activity_type, id: row.id }) }
+    if (adding) requestDiscard(open); else open()
+  }, [adding, requestDiscard, setParams])
 
   // The panel itself confirms before throwing away an unsaved new activity.
   const closePanel = useCallback(() => {
@@ -241,14 +245,17 @@ export default function ActivitiesSection({ userId }) {
   }, [setParams])
 
   const startAdd = useCallback((category) => {
+    if (adding) return
     if (reachedLimit) return
     setAdding(true)
     setFocusId(null)
     setParams({ type: category && category !== 'all' ? category : null, id: null })
-  }, [reachedLimit, setParams])
+  }, [reachedLimit, setParams, adding])
 
   const handleCreate = useCallback(async (draft) => {
     const row = await actions.create(draft)
+    await attach(row.id)
+    await new Promise((resolve) => requestAnimationFrame(resolve))
     setAdding(false)
     setFocusId(row.id)
     setParams({ type: row.activity_type, id: row.id })
@@ -264,7 +271,7 @@ export default function ActivitiesSection({ userId }) {
         }
       },
     })
-  }, [actions, setParams, showToast])
+  }, [actions, attach, setParams, showToast])
 
   const handleSave = useCallback(async (draft) => {
     if (!selected) return
@@ -490,6 +497,7 @@ export default function ActivitiesSection({ userId }) {
             userId={userId}
             defaultType={filter === 'all' ? 'other' : filter}
             onSave={adding ? undefined : handleSave}
+            attachments={attachments}
             onCreate={adding ? handleCreate : undefined}
             onClose={closePanel}
           instantFocus={focusId === selected?.id}
@@ -497,6 +505,7 @@ export default function ActivitiesSection({ userId }) {
       )}
     </div>
 
+      <DiscardAttachmentsDialog attachments={attachments} />
       <ConfirmDialog
         open={Boolean(deleting)}
         title={`Delete ${deleting?.organization_name || 'this activity'}?`}

@@ -36,7 +36,7 @@ function savedLabel(savedAt, now) {
 
 export default function HonorPanel({
   mode = 'edit', row, userId, defaultCategory = 'other', defaultTop5 = false,
-  onSave, onCreate, onClose,
+  onSave, onCreate, onClose, attachments,
 }) {
   const draftKey = mode === 'create' && userId ? `honors:${userId}` : null
   const [initial] = useState(() => (mode === 'edit' && row ? draftFromRow(row) : emptyHonorDraft(defaultCategory, defaultTop5)))
@@ -79,10 +79,11 @@ export default function HonorPanel({
   }
 
   const cancelCreate = useCallback(() => {
+    if (attachments) { attachments.requestDiscard(() => { clearDraft(); onClose?.() }); return }
     const untouched = JSON.stringify(draft) === JSON.stringify(emptyHonorDraft(defaultCategory, defaultTop5))
     if (untouched) { clearDraft(); onClose?.() }
     else setConfirmDiscard(true)
-  }, [draft, onClose, defaultCategory, defaultTop5, clearDraft])
+  }, [draft, onClose, defaultCategory, defaultTop5, clearDraft, attachments])
 
   const requestClose = useCallback(async () => {
     if (mode === 'create') { cancelCreate(); return }
@@ -102,7 +103,7 @@ export default function HonorPanel({
     setCreating(true)
     setCreateError('')
     try {
-      await onCreate?.(draft)
+      await onCreate?.(attachments ? { ...draft, id: attachments.id } : draft)
       clearDraft()
     } catch (error) {
       setCreateError(mapDbError(error).message)
@@ -271,17 +272,10 @@ export default function HonorPanel({
         </div>
 
         <p className="honor-section-label">Proof</p>
-        {mode === 'edit' ? (
-          <ProofBlock
-            section="honor"
-            itemId={row?.id}
-            userId={userId}
-            title="Certificate"
-            hint="No certificate attached yet. Upload it or choose it from Documents."
-          />
-        ) : (
-          <p className="honor-hint">Save the award first, then attach the certificate.</p>
-        )}
+        <ProofBlock section="honor" itemId={mode === 'edit' ? row?.id : attachments?.id} userId={userId} title="Certificate"
+          hint="No certificate attached yet. Upload it or choose it from Documents." pendingFiles={mode === 'create' && attachments ? attachments.files : null}
+          onPendingChange={attachments?.setFiles} onUploaded={attachments?.uploaded} onDeleted={attachments?.deleted}
+          failedFiles={attachments?.failed[row?.id] || []} onRetryFile={(file) => attachments?.retry(row.id, file)} />
         <div className="honor-grid">
           <div className="honor-field">
             <label className="sfield-label" htmlFor="honor-verification_url">Verification link</label>

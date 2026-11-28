@@ -30,14 +30,16 @@ const SECTION_TITLES = {
 export default function DocumentsPage({ userId, onOpenItem }) {
   const [documents, setDocuments] = useState([])
   const [links, setLinks] = useState({})
+  const [linksLoaded, setLinksLoaded] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState('all')
-  const [sort, setSort] = useState('newest')
   const [deleting, setDeleting] = useState(null)
   const [uploadOpen, setUploadOpen] = useState(false)
   const [deleteUsage, setDeleteUsage] = useState(null)
+  const [usageChecked, setUsageChecked] = useState(false)
+  const usageRequest = useRef(0)
   const [hiddenIds, setHiddenIds] = useState([])
   const [uploadingRows, setUploadingRows] = useState([])
   const [reloadKey, setReloadKey] = useState(0)
@@ -57,6 +59,7 @@ export default function DocumentsPage({ userId, onOpenItem }) {
         if (!active) return
         setDocuments(files)
         setLinks(allLinks)
+        setLinksLoaded(true)
       } catch (cause) {
         if (active) setError(cause?.message || 'Could not load your documents.')
       } finally {
@@ -79,11 +82,7 @@ export default function DocumentsPage({ userId, onOpenItem }) {
     if (category !== 'all' && doc.category !== category) return false
     if (!query.trim()) return true
     return String(doc.title || '').toLowerCase().includes(query.trim().toLowerCase())
-  }).sort((a, b) => {
-    if (sort === 'name') return String(a.title || '').localeCompare(String(b.title || ''))
-    if (sort === 'category') return String(DOCUMENT_CATEGORIES[a.category] || a.category || '').localeCompare(String(DOCUMENT_CATEGORIES[b.category] || b.category || ''))
-    return String(b.created_at || '').localeCompare(String(a.created_at || ''))
-  }), [documents, category, query, sort])
+  }).sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || ''))), [documents, category, query])
 
   const usageOf = (docId) => {
     const items = Object.values(links).flatMap((entry) => (entry.documents.some((doc) => doc.id === docId)
@@ -97,9 +96,16 @@ export default function DocumentsPage({ userId, onOpenItem }) {
   }
 
   const askDelete = async (doc) => {
+    const request = ++usageRequest.current
     setDeleting(doc)
-    setDeleteUsage(null)
-    try { setDeleteUsage(await documentUsage(doc.id)) } catch { setDeleting(null); setError('Could not check where this file is used. Please try again.') }
+    setDeleteUsage(linksLoaded ? usageOf(doc.id) : null)
+    setUsageChecked(false)
+    try {
+      const fresh = await documentUsage(doc.id)
+      if (request !== usageRequest.current) return
+      setDeleteUsage((previous) => JSON.stringify(previous) === JSON.stringify(fresh) ? previous : fresh)
+      setUsageChecked(true)
+    } catch { if (request === usageRequest.current) { setDeleting(null); setError('Could not check where this file is used. Please try again.') } }
   }
 
   const deleteFile = async (doc) => {
@@ -133,9 +139,6 @@ export default function DocumentsPage({ userId, onOpenItem }) {
       {documents.length > 0 && <div className="documents-page__tools">
         <input className="documents-page__search" type="search" value={query} placeholder="Search your documents"
           aria-label="Search your documents" onChange={(event) => setQuery(event.target.value)} />
-        <label>Sort <select aria-label="Sort documents" value={sort} onChange={(event) => setSort(event.target.value)}>
-          <option value="newest">Newest</option><option value="name">Name</option><option value="category">Category</option>
-        </select></label>
         <FilterChips items={chips} value={category} onChange={setCategory} total={documents.length}
           groupLabel="Filter by category" alwaysShow />
       </div>}
@@ -199,8 +202,8 @@ export default function DocumentsPage({ userId, onOpenItem }) {
         message={deleteUsage
           ? `${usageSentence(deleteUsage, deleting?.title)} Deleting it removes it from all of them. This cannot be undone.`
           : 'Checking where this file is used…'}
-        confirmLabel="Delete file" confirmDisabled={!deleteUsage}
-        onCancel={() => setDeleting(null)}
+        confirmLabel="Delete file" confirmDisabled={!usageChecked}
+        onCancel={() => { usageRequest.current++; setDeleting(null) }}
         onConfirm={confirmDelete}
       />
 

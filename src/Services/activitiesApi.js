@@ -61,7 +61,7 @@ export async function listActivities(userId) {
 
 /** Insert a new activity at the end of the list. */
 export async function createActivity(userId, draft, sortOrder = 0) {
-  const row = { ...pickWritable(rowFromDraft(draft)), user_id: userId, sort_order: sortOrder }
+  const row = { ...pickWritable(rowFromDraft(draft)), ...(draft.id ? { id: draft.id } : {}), user_id: userId, sort_order: sortOrder }
   return unwrap(await supabase.from('activities').insert(row).select(ACTIVITY_COLUMNS).single())
 }
 

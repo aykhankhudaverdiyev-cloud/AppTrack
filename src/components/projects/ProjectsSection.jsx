@@ -1,3 +1,5 @@
+import { usePendingAttachments } from '../../hooks/usePendingAttachments'
+import DiscardAttachmentsDialog from '../section/DiscardAttachmentsDialog'
 import { readCreateDraft } from '../../hooks/useAutosave'
 /**
  * ============================================================================
@@ -119,6 +121,8 @@ function ProjectCard({ project, selected, isNew, onOpen, onEdit, onDuplicate, on
 /* ── section ─────────────────────────────────────────────────────────────── */
 
 export default function ProjectsSection({ userId, activities = [], level, library }) {
+  const attachments = usePendingAttachments(userId, 'project')
+  const { attach, requestDiscard } = attachments
   const actions = useProjects(userId)
   const { items, loading, error } = actions
   const [searchParams, setSearchParams] = useSearchParams()
@@ -155,9 +159,9 @@ export default function ProjectsSection({ userId, activities = [], level, librar
   }, [])
 
   const openProject = useCallback((row) => {
-    setAdding(false)
-    setParams({ type: row.project_type, id: row.id })
-  }, [setParams])
+    const open = () => { setAdding(false); setParams({ type: row.project_type, id: row.id }) }
+    if (adding) requestDiscard(open); else open()
+  }, [adding, requestDiscard, setParams])
 
   // The panel itself confirms before throwing away an unsaved new project.
   const closePanel = useCallback(() => {
@@ -166,13 +170,16 @@ export default function ProjectsSection({ userId, activities = [], level, librar
   }, [setParams])
 
   const startAdd = useCallback((type) => {
+    if (adding) return
     setAdding(true)
     setFocusId(null)
     setParams({ type: type && type !== 'all' ? type : null, id: null })
-  }, [setParams])
+  }, [setParams, adding])
 
   const handleCreate = useCallback(async (draft) => {
     const row = await actions.create(draft)
+    await attach(row.id)
+    await new Promise((resolve) => requestAnimationFrame(resolve))
     setAdding(false)
     setFocusId(row.id)
     setParams({ type: row.project_type, id: row.id })
@@ -188,7 +195,7 @@ export default function ProjectsSection({ userId, activities = [], level, librar
         }
       },
     })
-  }, [actions, setParams, showToast])
+  }, [actions, attach, setParams, showToast])
 
   const handleSave = useCallback(async (draft) => {
     if (!selected) return
@@ -340,6 +347,7 @@ export default function ProjectsSection({ userId, activities = [], level, librar
             defaultType={filter === 'all' ? 'software_app' : filter}
             activities={activities}
             onSave={adding ? undefined : handleSave}
+            attachments={attachments}
             onCreate={adding ? handleCreate : undefined}
             onClose={closePanel}
             instantFocus={adding || focusId === selected?.id}
@@ -347,6 +355,7 @@ export default function ProjectsSection({ userId, activities = [], level, librar
         )}
       </div>
 
+      <DiscardAttachmentsDialog attachments={attachments} />
       <ConfirmDialog
         open={Boolean(deleting)}
         title={`Delete ${deleting?.title || 'this project'}?`}

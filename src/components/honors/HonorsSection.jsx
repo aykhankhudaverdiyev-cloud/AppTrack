@@ -1,3 +1,5 @@
+import { usePendingAttachments } from '../../hooks/usePendingAttachments'
+import DiscardAttachmentsDialog from '../section/DiscardAttachmentsDialog'
 import { readCreateDraft } from '../../hooks/useAutosave'
 /** ============================================================================
  * HonorsSection — Honors & Awards page (spec §3)
@@ -119,6 +121,8 @@ function HonorCard({ honor, selected, isNew, onOpen, onEdit, onDuplicate, onMove
 /* ── section ────────────────────────────────────────────────────────────── */
 
 export default function HonorsSection({ userId }) {
+  const attachments = usePendingAttachments(userId, 'honor')
+  const { attach, requestDiscard } = attachments
   const actions = useHonors(userId)
   const { items, loading, error } = actions
   const { toast, showToast, hideToast } = useUndoToast()
@@ -150,20 +154,23 @@ export default function HonorsSection({ userId }) {
     }, { replace: true })
   }, [setSearchParams])
 
-  const openRow = useCallback((row) => { setAdding(false); setParams({ id: row.id }) }, [setParams])
+  const openRow = useCallback((row) => { const open = () => { setAdding(false); setParams({ id: row.id }) }; if (adding) requestDiscard(open); else open() }, [adding, requestDiscard, setParams])
 
   const closePanel = useCallback(() => { setAdding(false); setParams({ id: null }) }, [setParams])
 
   const startAdd = useCallback(() => {
+    if (adding) return
     // Don't force the URL's category filter to the new draft's default
     // category — that would select a filter chip showing "0" (the draft
     // isn't saved yet) while the real "All" count also reads 0.
     setAdding(true)
     setParams({ id: null })
-  }, [setParams])
+  }, [setParams, adding])
 
   const handleCreate = useCallback(async (draft) => {
     const row = await actions.create(draft)
+    await attach(row.id)
+    await new Promise((resolve) => requestAnimationFrame(resolve))
     setAdding(false)
     setParams({ category: filter === 'all' ? null : row.category, id: row.id })
     showToast(`${honorTitle(row)} added`, {
@@ -178,7 +185,7 @@ export default function HonorsSection({ userId }) {
         }
       },
     })
-  }, [actions, setParams, showToast, hideToast, filter])
+  }, [actions, attach, setParams, showToast, hideToast, filter])
 
   const handleSave = useCallback(async (draft) => {
     if (!selected) return
@@ -354,6 +361,7 @@ export default function HonorsSection({ userId }) {
             defaultCategory={filter === 'all' ? 'other' : filter}
             defaultTop5={top5Count < 5}
             onSave={adding ? undefined : handleSave}
+            attachments={attachments}
             onCreate={adding ? handleCreate : undefined}
             onClose={closePanel}
           />
@@ -362,6 +370,7 @@ export default function HonorsSection({ userId }) {
     </SectionPage>
 
     <>
+      <DiscardAttachmentsDialog attachments={attachments} />
       <ConfirmDialog
         open={Boolean(deleting)}
         title={`Delete ${deleting?.title || 'this honor'}?`}

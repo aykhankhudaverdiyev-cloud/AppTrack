@@ -25,7 +25,7 @@ import { InlineError } from '../forms/PanelValidation'
 import ConfirmDialog from '../forms/ConfirmDialog'
 import {
   DOCUMENT_CATEGORIES, SECTION_CATEGORIES, deleteDocumentEverywhere, documentUsage,
-  findDuplicate, formatSize, linkDocument, listDocuments, listItemDocuments, cachedDocuments,
+  findDuplicate, formatSize, linkDocument, listDocuments, listItemDocuments, cachedDocuments, cachedDocumentUsage, primeDocumentUsage,
   openDocument, unlinkDocument, uploadDocument, usageSentence, validateDocumentFile,
 } from '../../Services/documentsApi'
 import './section.css'
@@ -359,6 +359,8 @@ export default function ProofBlock({
   const [chooseOpen, setChooseOpen] = useState(false)
   const [deleting, setDeleting] = useState(null)
   const [usage, setUsage] = useState(null)
+  const [usageChecked, setUsageChecked] = useState(false)
+  const usageRequest = useRef(0)
   const [actionError, setActionError] = useState('')
   const [retryAction, setRetryAction] = useState(null)
   const [hiddenIds, setHiddenIds] = useState([])
@@ -384,6 +386,9 @@ export default function ProofBlock({
     })
     return () => { active = false }
   }, [section, itemId, reloadKey, pendingMode])
+
+  // Warm the usage snapshot while the panel is open; absence remains unknown.
+  useEffect(() => { if (userId && shownFiles.length) primeDocumentUsage(userId).catch(() => {}) }, [userId, shownFiles.length])
 
   // Another section deleted a file → drop it here too, without a reload.
   useEffect(() => onDocumentsChanged(refresh), [])
@@ -415,6 +420,11 @@ export default function ProofBlock({
     }
   }
 
+  const retryFailedLink = async (doc) => {
+    try { await onRetryFile?.(doc); setActionError(''); setRetryAction(null) }
+    catch { setActionError('Could not attach this file.'); setRetryAction(() => () => retryFailedLink(doc)) }
+  }
+
   const view = async (doc) => {
     setActionError('')
     try { await openDocument(doc) } catch { setActionError('Could not open the file. Allow pop-ups and try again.') }
@@ -422,11 +432,17 @@ export default function ProofBlock({
 
   const askDelete = async (doc) => {
     setActionError('')
+    const request = ++usageRequest.current
     setDeleting(doc)
-    setUsage(null)
+    setUsage(cachedDocumentUsage(userId, doc.id))
+    setUsageChecked(false)
     try {
-      setUsage(await documentUsage(doc.id))
+      const fresh = await documentUsage(doc.id)
+      if (request !== usageRequest.current) return
+      setUsage((previous) => JSON.stringify(previous) === JSON.stringify(fresh) ? previous : fresh)
+      setUsageChecked(true)
     } catch {
+      if (request !== usageRequest.current) return
       setActionError('Could not check where this file is used. Please try again.')
       setDeleting(null)
     }
@@ -492,7 +508,7 @@ export default function ProofBlock({
               ))}
               {failedFiles.map((doc) => <li key={doc.id} className="proof__row">
                 <span className="proof__title">{doc.title}</span><span>Not attached</span>
-                <button type="button" className="proof__link" onClick={() => onRetryFile?.(doc)}>Retry</button>
+                <button type="button" className="proof__link" onClick={() => retryFailedLink(doc)}>Retry</button>
               </li>)}
             </ul>
           )}
@@ -519,8 +535,8 @@ export default function ProofBlock({
         open={Boolean(deleting)}
         title="Delete this file?"
         message={usage ? `${usageSentence(usage, deleting?.title)} Deleting it removes it from all of them. This cannot be undone.` : 'Checking where this file is used…'}
-        confirmLabel="Delete file" confirmDisabled={!usage}
-        onCancel={() => setDeleting(null)}
+        confirmLabel="Delete file" confirmDisabled={!usageChecked}
+        onCancel={() => { usageRequest.current++; setDeleting(null) }}
         onConfirm={confirmDelete}
       />
     </div>

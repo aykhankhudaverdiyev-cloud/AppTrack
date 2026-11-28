@@ -282,6 +282,23 @@ async function itemTitles(idsBySection) {
  *   { 'education:<id>': [{ key, section, itemTitle, documents: [...] }] }
  * plus `documentsByItem` for the Documents page ("where is this file used").
  */
+const usageCache = new Map()
+const pendingUsageLoads = new Map()
+export function primeDocumentUsage(userId) {
+  if (!userId || usageCache.has(userId)) return Promise.resolve()
+  if (pendingUsageLoads.has(userId)) return pendingUsageLoads.get(userId)
+  const request = listAllLinks(userId).finally(() => pendingUsageLoads.delete(userId))
+  pendingUsageLoads.set(userId, request)
+  return request
+}
+export function cachedDocumentUsage(userId, documentId) {
+  const grouped = usageCache.get(userId)
+  if (!grouped) return null
+  const items = Object.values(grouped).flatMap((entry) => entry.documents.some((doc) => doc.id === documentId)
+    ? [{ section: entry.section, item_id: entry.key.split(':')[1], title: entry.itemTitle }] : [])
+  return { total: items.length, items }
+}
+
 export async function listAllLinks(userId) {
   if (!userId) return {}
   const links = unwrap(await supabase
@@ -314,6 +331,7 @@ export async function listAllLinks(userId) {
     }
     grouped[key].documents.push(fileById.get(link.document_id) || { id: link.document_id, title: 'Document' })
   }
+  usageCache.set(userId, grouped)
   return grouped
 }
 

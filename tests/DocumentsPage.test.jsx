@@ -41,15 +41,15 @@ it('uploads a file from the library using the shared modal', async () => {
   await waitFor(() => expect(uploadDocument).toHaveBeenCalledWith('test', expect.objectContaining({ title: 'report', file }), expect.any(Function), { notify: false }))
 })
 
-it('sorts documents by name', async () => {
+it('shows newest first without a sort control', async () => {
   listDocuments.mockResolvedValueOnce([
-    { id: '1', title: 'Zebra', category: 'transcript', created_at: '2026-01-01' },
-    { id: '2', title: 'Alpha', category: 'transcript', created_at: '2025-01-01' },
+    { id: '1', title: 'Older', category: 'transcript', created_at: '2025-01-01' },
+    { id: '2', title: 'Newer', category: 'transcript', created_at: '2026-01-01' },
   ])
   render(<DocumentsPage userId="test" />)
-  await screen.findByText('Zebra')
-  fireEvent.change(screen.getByRole('combobox', { name: 'Sort documents' }), { target: { value: 'name' } })
-  expect(screen.getAllByRole('listitem').map((row) => row.querySelector('strong').textContent)).toEqual(['Alpha', 'Zebra'])
+  await screen.findByText('Older')
+  expect(screen.queryByRole('combobox', { name: 'Sort documents' })).not.toBeInTheDocument()
+  expect(screen.getAllByRole('listitem').map((row) => row.querySelector('strong').textContent)).toEqual(['Newer', 'Older'])
 })
 
 it('checks usage before deletion and focuses Cancel', async () => {
@@ -60,6 +60,7 @@ it('checks usage before deletion and focuses Cancel', async () => {
   fireEvent.click(screen.getByLabelText('More actions for Transcript'))
   fireEvent.click(screen.getByRole('button', { name: 'Delete file…' }))
   expect(screen.getByRole('button', { name: 'Cancel' })).toHaveFocus()
+  expect(screen.queryByText('Checking where this file is used…')).not.toBeInTheDocument()
   expect(screen.getByRole('button', { name: 'Delete file' })).toBeDisabled()
   resolveUsage({ total: 1, items: [{ section: 'education', title: 'School' }] })
   await waitFor(() => expect(screen.getByRole('button', { name: 'Delete file' })).toBeEnabled())

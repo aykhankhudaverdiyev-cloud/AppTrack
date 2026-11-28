@@ -52,7 +52,7 @@ export async function listProjects(userId) {
 }
 
 export async function createProject(userId, draft) {
-  const row = { ...pickWritable(rowFromDraft(draft)), user_id: userId }
+  const row = { ...pickWritable(rowFromDraft(draft)), ...(draft.id ? { id: draft.id } : {}), user_id: userId }
   return unwrap(await supabase.from('projects').insert(row).select(PROJECT_COLUMNS).single())
 }
 

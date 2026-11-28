@@ -158,6 +158,7 @@ export default function ActivityPanel({
   onSave,
   onCreate,
   onClose,
+  attachments,
   instantFocus = false,
 }) {
   // The baseline is captured once: the parent remounts the panel (key) when a
@@ -204,6 +205,7 @@ export default function ActivityPanel({
   const blur = () => { if (mode === 'edit') flush() }
 
   const cancelCreate = () => {
+    if (attachments) { attachments.requestDiscard(() => { clearDraft(); onClose?.() }); return }
     const untouched = JSON.stringify(draft) === JSON.stringify(emptyDraft(defaultType))
     if (untouched) { clearDraft(); onClose?.() }
     else setConfirmDiscard(true)
@@ -235,7 +237,7 @@ export default function ActivityPanel({
     setCreating(true)
     setCreateError('')
     try {
-      await onCreate?.(draft)
+      await onCreate?.(attachments ? { ...draft, id: attachments.id } : draft)
       clearDraft()
     } catch (error) {
       setCreateError(error?.message || 'Could not create the activity. Please try again.')
@@ -531,7 +533,10 @@ export default function ActivityPanel({
 
         <p className="act-tip">💡 Tip: start with an action verb and include at least one number.</p>
 
-        {mode === 'edit' && <ProofBlock section="activity" itemId={row?.id} userId={userId} title="Proof" />}
+        <ProofBlock section="activity" itemId={mode === 'edit' ? row?.id : attachments?.id} userId={userId} title="Proof"
+          pendingFiles={mode === 'create' && attachments ? attachments.files : null} onPendingChange={attachments?.setFiles}
+          onUploaded={attachments?.uploaded} onDeleted={attachments?.deleted} failedFiles={attachments?.failed[row?.id] || []}
+          onRetryFile={(file) => attachments?.retry(row.id, file)} />
 
         {mode === 'create' && (
           <footer className="act-panel__footer">

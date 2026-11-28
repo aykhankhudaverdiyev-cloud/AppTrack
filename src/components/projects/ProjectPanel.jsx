@@ -195,6 +195,7 @@ export default function ProjectPanel({
   onSave,
   onCreate,
   onClose,
+  attachments,
   instantFocus = false,
 }) {
   // The baseline is captured once: the parent remounts the panel (key) when a
@@ -242,6 +243,7 @@ export default function ProjectPanel({
   const blur = () => { if (mode === 'edit') flush() }
 
   const cancelCreate = () => {
+    if (attachments) { attachments.requestDiscard(() => { clearDraft(); onClose?.() }); return }
     const untouched = JSON.stringify(draft) === JSON.stringify(emptyProjectDraft(defaultType))
     if (untouched) { clearDraft(); onClose?.() }
     else setConfirmDiscard(true)
@@ -273,7 +275,7 @@ export default function ProjectPanel({
     setCreating(true)
     setCreateError('')
     try {
-      await onCreate?.(draft)
+      await onCreate?.(attachments ? { ...draft, id: attachments.id } : draft)
       clearDraft()
     } catch (error) {
       setCreateError(error?.message || 'Could not create the project. Please try again.')
@@ -458,17 +460,10 @@ export default function ProjectPanel({
         </div>
 
         <SectionLabel>Proof</SectionLabel>
-        {mode === 'edit' ? (
-          <ProofBlock
-            section="project"
-            itemId={row?.id}
-            userId={userId}
-            title="Files"
-            hint="No files attached yet. Add a report, a screenshot or a paper."
-          />
-        ) : (
-          <p className="prj-hint">Save the project first, then attach files.</p>
-        )}
+        <ProofBlock section="project" itemId={mode === 'edit' ? row?.id : attachments?.id} userId={userId} title="Files"
+          hint="No files attached yet. Add a report, a screenshot or a paper." pendingFiles={mode === 'create' && attachments ? attachments.files : null}
+          onPendingChange={attachments?.setFiles} onUploaded={attachments?.uploaded} onDeleted={attachments?.deleted}
+          failedFiles={attachments?.failed[row?.id] || []} onRetryFile={(file) => attachments?.retry(row.id, file)} />
 
         {mode === 'create' && (
           <footer className="prj-panel__footer">

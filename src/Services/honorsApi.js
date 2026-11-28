@@ -48,7 +48,7 @@ export async function listHonors(userId) {
 }
 
 export async function createHonor(userId, draft, sortOrder = 0) {
-  const row = { ...pickWritable(rowFromDraft(draft)), user_id: userId, sort_order: sortOrder }
+  const row = { ...pickWritable(rowFromDraft(draft)), ...(draft.id ? { id: draft.id } : {}), user_id: userId, sort_order: sortOrder }
   return unwrap(await supabase.from('honors').insert(row).select(HONOR_COLUMNS).single())
 }
 
