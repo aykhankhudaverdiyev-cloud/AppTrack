@@ -42,7 +42,7 @@ const initials = (name) => String(name || '').replace(/\.[^.]+$/, '').slice(0, 1
  * Upload modal
  * ------------------------------------------------------------------------- */
 
-export function UploadModal({ open, section, itemId, userId, existing, onClose, onLinked, libraryOnly = false }) {
+export function UploadModal({ open, section, itemId, userId, existing, onClose, onLinked, libraryOnly = false, deferLink = false }) {
   const dialog = useRef(null)
   const input = useRef(null)
   const id = useId()
@@ -95,8 +95,8 @@ export function UploadModal({ open, section, itemId, userId, existing, onClose, 
   const applyExisting = async (item) => {
     if (!item.duplicate) return
     try {
-      if (!libraryOnly) await linkDocument(userId, section, itemId, item.duplicate.id)
-      onLinked?.([item.duplicate])
+      if (!libraryOnly && !deferLink) await linkDocument(userId, section, itemId, item.duplicate.id)
+      onLinked?.([item.duplicate], { uploaded: false })
       setItems((previous) => previous.filter((entry) => entry.key !== item.key))
     } catch {
       patchItem(item.key, { message: 'Could not attach this file. Try again.' })
@@ -116,7 +116,7 @@ export function UploadModal({ open, section, itemId, userId, existing, onClose, 
           { file: item.file, title: item.title, category: item.category },
           (percent) => patchItem(item.key, { progress: Math.max(1, percent) }))
         patchItem(item.key, { uploaded: doc })
-        if (!libraryOnly) await linkDocument(userId, section, itemId, doc.id)
+        if (!libraryOnly && !deferLink) await linkDocument(userId, section, itemId, doc.id)
         patchItem(item.key, { status: 'done', progress: 100 })
         linked.push(doc)
       } catch (cause) {
@@ -130,7 +130,7 @@ export function UploadModal({ open, section, itemId, userId, existing, onClose, 
       }
     }
     setBusy(false)
-    if (linked.length) onLinked?.(linked)
+    if (linked.length) onLinked?.(linked, { uploaded: true })
     if (linked.length === ready.length) { setItems([]); setLibrary(null); onClose?.() }
   }
 
@@ -342,6 +342,7 @@ function ChooseModal({ open, userId, linked = [], onClose, onChoose, onUploadNew
 
 export default function ProofBlock({
   section, itemId, userId, title = 'Proof', hint, onChange, disabled = false,
+  pendingFiles = null, onPendingChange, onUploaded, failedFiles = [], onRetryFile,
 }) {
   const [files, setFiles] = useState([])
   const [loading, setLoading] = useState(false)
@@ -354,10 +355,12 @@ export default function ProofBlock({
   const [reloadKey, setReloadKey] = useState(0)
 
   const refresh = () => setReloadKey((value) => value + 1)
-  const initialLoading = Boolean(itemId) && loading && files.length === 0
+  const pendingMode = pendingFiles !== null
+  const shownFiles = pendingMode ? pendingFiles : files
+  const initialLoading = !pendingMode && Boolean(itemId) && loading && files.length === 0
 
   useEffect(() => {
-    if (!itemId) return undefined
+    if (!itemId || pendingMode) return undefined
     let active = true
     Promise.resolve().then(() => {
       if (!active) return
@@ -369,7 +372,7 @@ export default function ProofBlock({
         .finally(() => { if (active) setLoading(false) })
     })
     return () => { active = false }
-  }, [section, itemId, reloadKey])
+  }, [section, itemId, reloadKey, pendingMode])
 
   // Another section deleted a file → drop it here too, without a reload.
   useEffect(() => onDataChanged(refresh), [])
@@ -379,6 +382,7 @@ export default function ProofBlock({
   const openChoose = () => { setActionError(''); setChooseOpen(true) }
 
   const linkMany = async (docs) => {
+    if (pendingMode) { onPendingChange?.([...pendingFiles, ...docs.filter((doc) => !pendingFiles.some((file) => file.id === doc.id))]); setChooseOpen(false); return }
     for (const doc of docs) {
       try {
         await linkDocument(userId, section, itemId, doc.id)
@@ -392,6 +396,7 @@ export default function ProofBlock({
 
   const removeLink = async (doc) => {
     setActionError('')
+    if (pendingMode) { onPendingChange?.(pendingFiles.filter((file) => file.id !== doc.id)); return }
     try {
       await unlinkDocument(section, itemId, doc.id)
       setFiles((previous) => previous.filter((file) => file.id !== doc.id))
@@ -444,13 +449,13 @@ export default function ProofBlock({
 
       {initialLoading ? <p className="proof__empty">Loading files…</p>
         : loadError ? <InlineError message={loadError} />
-          : files.length === 0 ? (
+          : shownFiles.length === 0 && failedFiles.length === 0 ? (
             <p className="proof__empty">
               {hint || 'No files attached yet.'}
             </p>
           ) : (
             <ul className="proof__list">
-              {files.map((doc) => (
+              {shownFiles.map((doc) => (
                 <li key={doc.id} className="proof__row">
                   <span className="proof__icon" aria-hidden="true">{initials(doc.title)}</span>
                   <span className="proof__title" title={doc.title}>{doc.title}</span>
@@ -472,19 +477,28 @@ export default function ProofBlock({
                   </span>
                 </li>
               ))}
+              {failedFiles.map((doc) => <li key={doc.id} className="proof__row">
+                <span className="proof__title">{doc.title}</span><span>Not attached</span>
+                <button type="button" className="proof__link" onClick={() => onRetryFile?.(doc)}>Retry</button>
+              </li>)}
             </ul>
           )}
+      {pendingMode && shownFiles.length > 0 && <p className="proof__empty">These files will be attached when you create this entry.</p>}
 
       <InlineError message={actionError} />
 
       <UploadModal
         open={uploadOpen} section={section} itemId={itemId} userId={userId}
-        existing={files}
-        onClose={() => { setUploadOpen(false); refresh() }}
-        onLinked={() => refresh()}
+        existing={shownFiles} deferLink={pendingMode}
+        onClose={() => { setUploadOpen(false); if (!pendingMode) refresh() }}
+        onLinked={(docs, { uploaded } = {}) => {
+          if (!pendingMode) { refresh(); return }
+          onPendingChange?.([...pendingFiles, ...docs.filter((doc) => !pendingFiles.some((file) => file.id === doc.id))])
+          if (uploaded) onUploaded?.(docs)
+        }}
       />
       <ChooseModal
-        open={chooseOpen} userId={userId} linked={files.map((file) => file.id)} onClose={() => setChooseOpen(false)}
+        open={chooseOpen} userId={userId} linked={shownFiles.map((file) => file.id)} onClose={() => setChooseOpen(false)}
         onChoose={(docs) => linkMany(docs)} onUploadNew={() => setUploadOpen(true)}
       />
       <ConfirmDialog

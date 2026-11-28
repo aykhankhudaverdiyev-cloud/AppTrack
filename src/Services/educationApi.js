@@ -69,7 +69,7 @@ export async function listEducation(userId) {
 }
 
 export async function createEntry(userId, fields) {
-  const row = { ...pickEntryFields(fields), user_id: userId }
+  const row = { ...pickEntryFields(fields), ...(fields.id ? { id: fields.id } : {}), user_id: userId }
   const created = unwrap(await supabase
     .from('education_entries')
     .insert(row)

@@ -38,3 +38,10 @@ it('does not upload a file twice when attaching it failed', async () => {
   await waitFor(() => expect(linkDocument).toHaveBeenCalledTimes(2))
   expect(uploadDocument).toHaveBeenCalledTimes(1)
 })
+it('defers linking a newly uploaded education file in create mode', async () => {
+  const linked = vi.fn(); render(<UploadModal open userId="test" section="education" itemId="draft" existing={[]} deferLink onClose={() => {}} onLinked={linked} />)
+  await waitFor(() => expect(screen.getByRole('button', { name: /Drop files here/ })).toBeEnabled())
+  add(pdf('draft.pdf')); fireEvent.click(screen.getByRole('button', { name: 'Upload 1 file' }))
+  await waitFor(() => expect(linked).toHaveBeenCalledWith([{ id: 'draft', title: 'draft' }], { uploaded: true }))
+  expect(linkDocument).not.toHaveBeenCalled()
+})

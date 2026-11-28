@@ -66,7 +66,10 @@ function AverageInput({ id, value, maximum, invalid, onChange, onBlur }) {
 
 export default function EducationPanel({
   mode = 'edit', row, userId, onCreate, onUpdate, onGradesSaved, onClose,
+  pendingFiles, onPendingChange, onUploaded, onRequestDiscard, failedFiles, onRetryFile,
 }) {
+  const [createId] = useState(() => crypto.randomUUID())
+  const [localPending, setLocalPending] = useState([])
   const [draft, setDraft] = useState(() => (mode === 'edit' && row ? draftFromEntry(row) : emptyEntryDraft()))
   const [subjects, setSubjects] = useState(() => (mode === 'edit' && row ? gradeSubjectsFromRows(row.grades || []) : []))
   const [now, setNow] = useState(() => Date.now())
@@ -126,10 +129,10 @@ export default function EducationPanel({
   const blur = () => { if (mode === 'edit') flush() }
 
   const requestClose = useCallback(async () => {
-    if (mode === 'create') { setConfirmDiscard(true); return }
+    if (mode === 'create') { if (onRequestDiscard) onRequestDiscard(); else setConfirmDiscard(true); return }
     await flush()
     onClose?.()
-  }, [mode, flush, onClose])
+  }, [mode, flush, onClose, onRequestDiscard])
 
   useEffect(() => {
     const onKey = (event) => { if (event.key === 'Escape') { event.stopPropagation(); requestClose() } }
@@ -146,7 +149,7 @@ export default function EducationPanel({
     try {
       // Keep the panel on screen until the page closes it from the new entry's
       // URL — closing here would let the panel's own autosave flush on unmount.
-      await onCreate?.(entryPayload(draft), subjects)
+      await onCreate?.({ ...entryPayload(draft), id: createId }, subjects, pendingFiles ?? localPending)
     } catch (error) {
       setCreateError(error?.message || 'Could not create this entry. Please try again.')
     } finally {
@@ -420,17 +423,10 @@ export default function EducationPanel({
         </div>
 
         <SectionLabel>Proof</SectionLabel>
-        {mode === 'edit' ? (
-          <ProofBlock
-            section="education"
-            itemId={entryId}
-            userId={userId}
-            title="Transcript and certificates"
-            hint="No transcript linked yet. Upload one or choose it from Documents."
-          />
-        ) : (
-          <p className="edu-helper">Save the entry first, then attach your transcript.</p>
-        )}
+        <ProofBlock section="education" itemId={mode === 'edit' ? entryId : createId} userId={userId}
+          title="Transcript and certificates" pendingFiles={mode === 'create' ? (pendingFiles ?? localPending) : null}
+          onPendingChange={onPendingChange || setLocalPending} onUploaded={onUploaded}
+          failedFiles={failedFiles} onRetryFile={onRetryFile} />
 
         <TipBox>Tip: many applications ask you to type your grades by year, so keep this table complete.</TipBox>
 
@@ -439,7 +435,7 @@ export default function EducationPanel({
             <ValidationSummary validation={validation} className="edu-required" completeClassName="edu-required--done" />
             {createError && <p className="sfield-error" role="alert">{createError}</p>}
             <div className="edu-panel__footer-actions">
-              <button type="button" className="edu-btn edu-btn--ghost" onClick={() => setConfirmDiscard(true)}>Cancel</button>
+              <button type="button" className="edu-btn edu-btn--ghost" onClick={requestClose}>Cancel</button>
               <button type="submit" className="edu-btn edu-btn--primary" disabled={creating}>
                 {creating ? 'Creating…' : 'Create entry'}
               </button>

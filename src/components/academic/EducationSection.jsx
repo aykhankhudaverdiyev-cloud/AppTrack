@@ -18,6 +18,7 @@ import FilterChips from '../section/FilterChips'
 import EducationPanel from './EducationPanel'
 import { ConfirmDialog } from '../forms'
 import { saveGrades } from '../../Services/educationApi'
+import { linkDocument, documentUsage, deleteDocumentEverywhere } from '../../Services/documentsApi'
 import {
   EDUCATION_TYPES, educationType, entryChips, entryMeta, entryTitle, filterCounts, filterEntries,
 } from '../../utils/education.js'
@@ -110,6 +111,12 @@ export default function EducationSection({ userId }) {
   const [searchParams, setSearchParams] = useSearchParams()
   const [adding, setAdding] = useState(false)
   const [deleting, setDeleting] = useState(null)
+  const [pendingFiles, setPendingFiles] = useState([])
+  const [uploadedFiles, setUploadedFiles] = useState([])
+  const [discardAction, setDiscardAction] = useState(null)
+  const [discardBusy, setDiscardBusy] = useState(false)
+  const [discardError, setDiscardError] = useState('')
+  const [failedLinks, setFailedLinks] = useState({})
   const toastTimer = useRef(null)
 
   const typeParam = searchParams.get('type') || 'all'
@@ -132,29 +139,40 @@ export default function EducationSection({ userId }) {
     }, { replace: true })
   }, [setSearchParams])
 
-  const openRow = useCallback((entry) => { setAdding(false); setParams({ id: entry.id }) }, [setParams])
+  const openRow = useCallback((entry) => { if (adding) { setDiscardAction(() => () => { setAdding(false); setParams({ id: entry.id }) }); return } setParams({ id: entry.id }) }, [adding, setParams])
   const closePanel = useCallback(() => { setAdding(false); setParams({ id: null }) }, [setParams])
 
+  const requestDiscard = useCallback(() => setDiscardAction(() => closePanel), [closePanel])
+
   const startAdd = useCallback(() => {
+    if (adding) return
     // The create panel asks for the type itself (Type segmented control).
     setAdding(true)
     setParams({ id: null })
-  }, [setParams])
+  }, [setParams, adding])
 
-  const handleCreate = useCallback(async (fields, subjects) => {
+  const handleCreate = useCallback(async (fields, subjects, files) => {
     const row = await actions.create(fields)
     if (subjects?.length) {
       // The grade table is a child list; reload so the new entry's rows are
       // the synced ones returned by the database.
-      await saveGrades(userId, row.id, subjects)
-      actions.reload()
+      try { await saveGrades(userId, row.id, subjects); actions.reload() }
+      catch { showToast('Entry created, but grades could not be saved. Please add them again.') }
     }
+    const failed = []
+    for (const file of files) {
+      try { await linkDocument(userId, 'education', row.id, file.id) }
+      catch { failed.push(file) }
+    }
+    if (failed.length) setFailedLinks((prev) => ({ ...prev, [row.id]: failed }))
+    setPendingFiles([])
+    setUploadedFiles([])
     // Let React commit the list BEFORE closing the create panel, so the panel
     // is replaced by the new entry's edit view instead of reopening.
     await new Promise((resolve) => { requestAnimationFrame(() => resolve()) })
     setAdding(false)
     setParams({ id: row.id })
-    showToast(`${educationType(row.entry_type).label} added`, {
+    if (!subjects?.length && !failed.length) showToast(`${educationType(row.entry_type).label} added`, {
       label: 'Undo',
       run: async () => {
         try {
@@ -218,13 +236,13 @@ export default function EducationSection({ userId }) {
         className="edu-page"
         title="Education"
         subtitle="Your schools, grades and transcripts in one place."
-        action={{ label: adding ? 'Close' : 'Add education', onClick: adding ? closePanel : startAdd, disabled: loading || Boolean(error) }}
+        action={{ label: adding ? 'Close' : 'Add education', onClick: adding ? requestDiscard : startAdd, disabled: loading || Boolean(error) }}
         chips={(
           <FilterChips
             items={counts.filter((chip) => chip.key !== 'all')}
             total={items.length}
             value={filter}
-            onChange={(value) => setParams({ type: value, id: null })}
+            onChange={(value) => { if (adding) setDiscardAction(() => () => { setAdding(false); setParams({ type: value, id: null }) }); else setParams({ type: value, id: null }) }}
             groupLabel="Filter education entries"
           />
         )}
@@ -286,11 +304,46 @@ export default function EducationSection({ userId }) {
               onUpdate={adding ? undefined : actions.update}
               onGradesSaved={handleGradesSaved}
               onClose={closePanel}
+              pendingFiles={pendingFiles} onPendingChange={setPendingFiles}
+              onUploaded={(docs) => setUploadedFiles((prev) => [...prev, ...docs])}
+              onRequestDiscard={requestDiscard}
+              failedFiles={failedLinks[selected?.id] || []}
+              onRetryFile={async (file) => {
+                try {
+                  await linkDocument(userId, 'education', selected.id, file.id)
+                  setFailedLinks((prev) => ({ ...prev, [selected.id]: (prev[selected.id] || []).filter((doc) => doc.id !== file.id) }))
+                  actions.reload()
+                } catch { showToast('Could not attach this file. Please try again.') }
+              }}
             />
           )}
         </div>
       </SectionPage>
 
+      {discardAction && <div className="confirm-overlay" role="presentation">
+        <div className="confirm-box" role="alertdialog" aria-modal="true" aria-label="Discard this entry?">
+          <h3>Discard this entry?</h3>
+          <p>{uploadedFiles.length ? 'Newly uploaded files can be kept in Documents or deleted if they are not used elsewhere. Existing files will be kept.' : 'Your draft changes will be lost. Existing files will be kept.'}</p>
+          {discardError && <p role="alert">{discardError}</p>}
+          <div className="confirm-actions">
+            <button type="button" autoFocus disabled={discardBusy} onClick={() => { setDiscardError(''); setDiscardAction(null) }}>Keep editing</button>
+            <button type="button" disabled={discardBusy} onClick={() => { setPendingFiles([]); setUploadedFiles([]); setDiscardError(''); const action = discardAction; setDiscardAction(null); action() }}>Discard and keep files</button>
+            {uploadedFiles.length > 0 && <button type="button" disabled={discardBusy} onClick={async () => {
+              setDiscardBusy(true); setDiscardError('')
+              try {
+                for (const file of uploadedFiles) {
+                  const usage = await documentUsage(file.id)
+                  if (!usage.total) await deleteDocumentEverywhere(file.id)
+                  setUploadedFiles((prev) => prev.filter((doc) => doc.id !== file.id))
+                  if (!usage.total) setPendingFiles((prev) => prev.filter((doc) => doc.id !== file.id))
+                }
+                setPendingFiles([]); const action = discardAction; setDiscardAction(null); action()
+              } catch { setDiscardError('Could not delete all uploaded files. Try again or keep the remaining files.') }
+              finally { setDiscardBusy(false) }
+            }}>Discard and delete unused uploads</button>}
+          </div>
+        </div>
+      </div>}
       <ConfirmDialog
         open={Boolean(deleting)}
         title={`Delete ${entryTitle(deleting || {})}?`}
