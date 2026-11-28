@@ -17,12 +17,15 @@
 
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { onDataChanged } from '../../store/studentsStore'
+import { onDocumentsChanged, notifyDocumentsChanged } from '../../Services/documentEvents'
+import FilterChips from './FilterChips'
+import FileIcon from './FileIcon'
+import { formatDate } from '../../utils/dates'
 import { InlineError } from '../forms/PanelValidation'
 import ConfirmDialog from '../forms/ConfirmDialog'
 import {
   DOCUMENT_CATEGORIES, SECTION_CATEGORIES, deleteDocumentEverywhere, documentUsage,
-  findDuplicate, formatSize, linkDocument, listDocuments, listItemDocuments,
+  findDuplicate, formatSize, linkDocument, listDocuments, listItemDocuments, cachedDocuments,
   openDocument, unlinkDocument, uploadDocument, usageSentence, validateDocumentFile,
 } from '../../Services/documentsApi'
 import './section.css'
@@ -36,28 +39,31 @@ function openDialog(element) {
   else element.setAttribute('open', '')
 }
 
-const initials = (name) => String(name || '').replace(/\.[^.]+$/, '').slice(0, 1).toUpperCase() || '📄'
 
 /* ---------------------------------------------------------------------------
  * Upload modal
  * ------------------------------------------------------------------------- */
 
-export function UploadModal({ open, section, itemId, userId, existing, onClose, onLinked, libraryOnly = false, deferLink = false }) {
+export function UploadModal({ open, section, itemId, userId, existing, onClose, onLinked, onUploading, onUploadFinished, libraryOnly = false, deferLink = false }) {
   const dialog = useRef(null)
   const input = useRef(null)
   const id = useId()
   const [items, setItems] = useState([])
   const [busy, setBusy] = useState(false)
+  const [closing, setClosing] = useState(false)
+  const closeTimer = useRef(null)
   const [error, setError] = useState('')
   const [library, setLibrary] = useState(null)
 
   const categories = SECTION_CATEGORIES[section] || ['other']
+  useEffect(() => () => clearTimeout(closeTimer.current), [])
 
   useEffect(() => {
     if (!open) return undefined
     const element = dialog.current
+    const opener = document.activeElement
     openDialog(element)
-    return () => { element?.close?.() }
+    return () => { element?.close?.(); opener?.focus?.() }
   }, [open])
 
   useEffect(() => {
@@ -109,45 +115,51 @@ export function UploadModal({ open, section, itemId, userId, existing, onClose, 
     setBusy(true)
     setError('')
     const linked = []
-    for (const item of ready) {
-      patchItem(item.key, { status: 'uploading', progress: 1 })
-      try {
-        const doc = item.uploaded || await uploadDocument(userId,
-          { file: item.file, title: item.title, category: item.category },
-          (percent) => patchItem(item.key, { progress: Math.max(1, percent) }))
-        patchItem(item.key, { uploaded: doc })
-        if (!libraryOnly && !deferLink) await linkDocument(userId, section, itemId, doc.id)
-        patchItem(item.key, { status: 'done', progress: 100 })
-        linked.push(doc)
-      } catch (cause) {
-        patchItem(item.key, {
-          status: 'failed',
-          progress: 0,
-          message: cause?.message?.includes('10 MB')
-            ? cause.message
-            : 'Upload failed. Please try again.',
-        })
+    onUploading?.(ready.map((item) => ({ id: item.key, title: item.title, mime_type: item.file.type, size_bytes: item.file.size, category: item.category })))
+    let changed = false
+    let next = 0
+    const worker = async () => {
+      while (next < ready.length) {
+        const item = ready[next++]
+        patchItem(item.key, { status: 'uploading', progress: 1 })
+        try {
+          const doc = item.uploaded || await uploadDocument(userId,
+            { file: item.file, title: item.title, category: item.category },
+            (percent) => patchItem(item.key, { progress: Math.max(1, percent) }), { notify: false })
+          changed = true
+          patchItem(item.key, { uploaded: doc })
+          if (!libraryOnly && !deferLink) await linkDocument(userId, section, itemId, doc.id, { notify: false })
+          patchItem(item.key, { status: 'done', progress: 100 })
+          linked.push(doc)
+        } catch (cause) {
+          patchItem(item.key, { status: 'failed', progress: 0,
+            message: cause?.message?.includes('10 MB') ? cause.message : 'Upload failed. Please try again.' })
+        }
       }
     }
+    await Promise.all(Array.from({ length: Math.min(3, ready.length) }, () => worker()))
+    if (changed) notifyDocumentsChanged()
+    onUploadFinished?.(ready.map((item) => item.key))
     setBusy(false)
     if (linked.length) onLinked?.(linked, { uploaded: true })
-    if (linked.length === ready.length) { setItems([]); setLibrary(null); onClose?.() }
+    if (linked.length === ready.length) finishClose()
   }
 
-  const close = () => { if (!busy) { setItems([]); setLibrary(null); onClose?.() } }
+  const finishClose = () => { setClosing(true); closeTimer.current = setTimeout(() => { setItems([]); setLibrary(null); setClosing(false); onClose?.() }, 150) }
+  const close = () => { if (!busy && !closing) finishClose() }
   const pending = items.filter((item) => item.status === 'ready' || item.status === 'failed')
 
   if (!open) return null
 
   return createPortal(
-    <dialog ref={dialog} className="document-modal" aria-labelledby={`${id}-title`}
+    <dialog ref={dialog} className={`document-modal${closing ? ' document-modal--closing' : ''}`} aria-labelledby={`${id}-title`}
       onCancel={(event) => { event.preventDefault(); close() }}
       onKeyDown={(event) => { if (event.key === 'Escape') { event.stopPropagation(); event.preventDefault(); close() } }}
       onClick={(event) => { if (event.target === event.currentTarget) close() }}>
       <div className="document-modal__box">
         <header className="document-modal__head">
           <h3 id={`${id}-title`}>Upload files</h3>
-          <button type="button" className="document-modal__close" aria-label="Close upload" disabled={busy} onClick={close}>×</button>
+          <button type="button" className="document-modal__close" aria-label="Close upload" disabled={busy} onClick={() => close()}>×</button>
         </header>
 
         <div className="document-modal__body">
@@ -164,7 +176,7 @@ export function UploadModal({ open, section, itemId, userId, existing, onClose, 
             <ul className="upload-list">
               {items.map((item) => (
                 <li key={item.key} className={`upload-row upload-row--${item.status}`}>
-                  <span className="upload-row__icon" aria-hidden="true">{initials(item.file.name)}</span>
+                  <FileIcon doc={item.file} />
                   <div className="upload-row__main">
                     <input
                       className="upload-row__title" value={item.title} maxLength={200}
@@ -184,7 +196,7 @@ export function UploadModal({ open, section, itemId, userId, existing, onClose, 
                           .map(([key, label]) => <option key={key} value={key}>{section === 'activity' ? ({ award_certificate: 'Certificate', portfolio: 'Photos / portfolio', other: 'Other (letter, article, link screenshot)' }[key] || label) : label}</option>)}
                       </select>
                       {item.status === 'done' && <span className="upload-row__status">Uploaded ✓</span>}
-                      {item.status === 'uploading' && <span className="upload-row__status">Uploading… {item.progress}%</span>}
+                      {item.status === 'uploading' && <span className="upload-row__status"><span className="file-spinner" aria-hidden="true" /> Uploading… {item.progress}%</span>}
                     </div>
                     {item.message && <p className="upload-row__message" role="status">{item.message}</p>}
                     {(item.status === 'uploading' || item.status === 'done') && (
@@ -232,36 +244,41 @@ export function UploadModal({ open, section, itemId, userId, existing, onClose, 
 function ChooseModal({ open, userId, linked = [], onClose, onChoose, onUploadNew }) {
   const dialog = useRef(null)
   const id = useId()
-  const [documents, setDocuments] = useState(null)
+  const [documents, setDocuments] = useState(() => cachedDocuments(userId))
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState('all')
   const [selected, setSelected] = useState([])
+  const [closing, setClosing] = useState(false)
+  const closeTimer = useRef(null)
+  useEffect(() => () => clearTimeout(closeTimer.current), [])
 
   useEffect(() => {
     if (!open) return undefined
     const element = dialog.current
+    const opener = document.activeElement
     openDialog(element)
     let active = true
     listDocuments(userId)
       .then((rows) => { if (active) setDocuments(rows) })
       .catch(() => { if (active) setDocuments([]) })
-    return () => { active = false; element?.close?.() }
+    return () => { active = false; element?.close?.(); opener?.focus?.() }
   }, [open, userId])
 
+  const pickerDocs = cachedDocuments(userId) || documents
   const chips = useMemo(() => {
     const counts = {}
-    for (const doc of documents || []) counts[doc.category] = (counts[doc.category] || 0) + 1
-    return [{ key: 'all', label: 'All', count: (documents || []).length },
+    for (const doc of pickerDocs || []) counts[doc.category] = (counts[doc.category] || 0) + 1
+    return [{ key: 'all', label: 'All', count: (pickerDocs || []).length },
       ...Object.entries(counts).map(([key, count]) => ({ key, label: DOCUMENT_CATEGORIES[key] || key, count }))]
-  }, [documents])
+  }, [pickerDocs])
 
-  const visible = useMemo(() => (documents || []).filter((doc) => {
+  const visible = useMemo(() => (pickerDocs || []).filter((doc) => {
     if (category !== 'all' && doc.category !== category) return false
     if (!query.trim()) return true
     return String(doc.title || '').toLowerCase().includes(query.trim().toLowerCase())
-  }), [documents, category, query])
+  }), [pickerDocs, category, query])
 
-  const close = () => { setSelected([]); setQuery(''); setCategory('all'); onClose?.() }
+  const close = (afterClose) => { if (closing) return; setClosing(true); closeTimer.current = setTimeout(() => { setSelected([]); setQuery(''); setCategory('all'); setClosing(false); onClose?.(); afterClose?.() }, 150) }
   const toggle = (doc) => {
     if (linked.includes(doc.id)) return
     setSelected((previous) => (previous.includes(doc.id)
@@ -269,35 +286,30 @@ function ChooseModal({ open, userId, linked = [], onClose, onChoose, onUploadNew
       : [...previous, doc.id]))
   }
   const confirm = () => {
-    onChoose?.((documents || []).filter((doc) => selected.includes(doc.id)))
-    setSelected([])
+    const chosen = (pickerDocs || []).filter((doc) => selected.includes(doc.id))
+    close(() => onChoose?.(chosen))
   }
 
   if (!open) return null
 
   return createPortal(
-    <dialog ref={dialog} className="document-modal document-modal--choose" aria-labelledby={`${id}-title`}
+    <dialog ref={dialog} className={`document-modal document-modal--choose${closing ? ' document-modal--closing' : ''}`} aria-labelledby={`${id}-title`}
+      onKeyDown={(event) => { if (event.key === 'Escape') { event.stopPropagation(); event.preventDefault(); close() } }}
       onCancel={(event) => { event.preventDefault(); close() }}
       onClick={(event) => { if (event.target === event.currentTarget) close() }}>
       <div className="document-modal__box">
         <header className="document-modal__head">
           <h3 id={`${id}-title`}>Choose from Documents</h3>
-          <button type="button" className="document-modal__close" aria-label="Close picker" onClick={close}>×</button>
+          <button type="button" className="document-modal__close" aria-label="Close picker" onClick={() => close()}>×</button>
         </header>
         <div className="document-modal__body">
           <input className="document-modal__search" type="search" value={query} placeholder="Search your documents"
             aria-label="Search your documents" onChange={(event) => setQuery(event.target.value)} />
-          <div className="document-modal__chips" role="group" aria-label="Filter by category">
-            {chips.map((chip) => (
-              <button key={chip.key} type="button" aria-pressed={category === chip.key}
-                className={`chip${category === chip.key ? ' chip--on' : ''}`}
-                onClick={() => setCategory(chip.key)}>{chip.label} {chip.count}</button>
-            ))}
-          </div>
-          {documents == null ? <p className="document-modal__empty">Loading documents…</p>
+          <FilterChips items={chips.slice(1)} value={category} onChange={setCategory} total={(documents || []).length} groupLabel="Filter by category" />
+          {pickerDocs == null ? <p className="document-modal__empty">Loading documents…</p>
             : visible.length === 0 ? (
               <p className="document-modal__empty">
-                {documents.length ? 'Nothing matches this search.' : 'No documents yet. Upload a file to get started.'}
+                {pickerDocs.length ? 'Nothing matches this search.' : 'No documents yet. Upload a file to get started.'}
               </p>
             ) : (
               <ul className="document-modal__list">
@@ -305,19 +317,14 @@ function ChooseModal({ open, userId, linked = [], onClose, onChoose, onUploadNew
                   const already = linked.includes(doc.id)
                   return (
                     <li key={doc.id} className={`document-modal__row${selected.includes(doc.id) ? ' document-modal__row--on' : ''}`}>
-                      <label className="document-modal__choice">
-                        <input type="checkbox" checked={selected.includes(doc.id)} disabled={already}
-                          onChange={() => toggle(doc)} />
-                        <span className="document-modal__title" title={doc.title}>{doc.title}</span>
+                      <label className={`document-modal__choice${already ? ' document-modal__choice--disabled' : ''}`}>
+                        <FileIcon doc={doc} />
+                        <span className="document-modal__details"><span className="document-modal__title" title={doc.title}>{doc.title}</span>
+                          <span className="document-modal__meta">{[DOCUMENT_CATEGORIES[doc.category] || doc.category, formatSize(doc.size_bytes), doc.created_at ? formatDate(doc.created_at.slice(0, 10), 'day') : ''].filter(Boolean).join(' · ')}</span>
+                        </span>
+                        {already && <span className="document-modal__linked">Linked</span>}
+                        <input type="checkbox" aria-label={doc.title} checked={selected.includes(doc.id)} disabled={already} onChange={() => toggle(doc)} />
                       </label>
-                      <span className="document-modal__meta">
-                        {DOCUMENT_CATEGORIES[doc.category] || doc.category} · {formatSize(doc.size_bytes)}
-                      </span>
-                      {already
-                        ? <span className="document-modal__linked">Linked</span>
-                        : <button type="button" className="document-modal__use" onClick={() => toggle(doc)}>
-                          {selected.includes(doc.id) ? 'Selected' : 'Select'}
-                        </button>}
                     </li>
                   )
                 })}
@@ -325,10 +332,11 @@ function ChooseModal({ open, userId, linked = [], onClose, onChoose, onUploadNew
             )}
         </div>
         <footer className="document-modal__foot">
-          <button type="button" className="edu-link" onClick={() => { close(); onUploadNew?.() }}>Upload new</button>
-          <button type="button" className="edu-btn edu-btn--ghost" onClick={close}>Cancel</button>
+          <button type="button" className="edu-btn edu-btn--ghost" onClick={() => close(onUploadNew)}>↑ Upload new</button>
+          <span className="document-modal__count">{selected.length} selected</span>
+          <button type="button" className="edu-btn edu-btn--ghost" onClick={() => close()}>Cancel</button>
           <button type="button" className="edu-btn edu-btn--primary" disabled={!selected.length} onClick={confirm}>
-            {selected.length ? `Link ${selected.length} file${selected.length === 1 ? '' : 's'}` : 'Link'}
+            {`Attach ${selected.length} file${selected.length === 1 ? '' : 's'}`}
           </button>
         </footer>
       </div>
@@ -342,7 +350,7 @@ function ChooseModal({ open, userId, linked = [], onClose, onChoose, onUploadNew
 
 export default function ProofBlock({
   section, itemId, userId, title = 'Proof', hint, onChange, disabled = false,
-  pendingFiles = null, onPendingChange, onUploaded, failedFiles = [], onRetryFile,
+  pendingFiles = null, onPendingChange, onUploaded, onDeleted, failedFiles = [], onRetryFile,
 }) {
   const [files, setFiles] = useState([])
   const [loading, setLoading] = useState(false)
@@ -352,6 +360,9 @@ export default function ProofBlock({
   const [deleting, setDeleting] = useState(null)
   const [usage, setUsage] = useState(null)
   const [actionError, setActionError] = useState('')
+  const [retryAction, setRetryAction] = useState(null)
+  const [hiddenIds, setHiddenIds] = useState([])
+  const [uploadingRows, setUploadingRows] = useState([])
   const [reloadKey, setReloadKey] = useState(0)
 
   const refresh = () => setReloadKey((value) => value + 1)
@@ -375,7 +386,7 @@ export default function ProofBlock({
   }, [section, itemId, reloadKey, pendingMode])
 
   // Another section deleted a file → drop it here too, without a reload.
-  useEffect(() => onDataChanged(refresh), [])
+  useEffect(() => onDocumentsChanged(refresh), [])
 
   useEffect(() => { onChange?.(files) }, [files, onChange])
 
@@ -383,25 +394,24 @@ export default function ProofBlock({
 
   const linkMany = async (docs) => {
     if (pendingMode) { onPendingChange?.([...pendingFiles, ...docs.filter((doc) => !pendingFiles.some((file) => file.id === doc.id))]); setChooseOpen(false); return }
-    for (const doc of docs) {
-      try {
-        await linkDocument(userId, section, itemId, doc.id)
-      } catch {
-        setActionError('Could not link a file. Try again.')
-      }
-    }
+    const results = await Promise.allSettled(docs.map((doc) => linkDocument(userId, section, itemId, doc.id, { notify: false })))
+    if (results.some((result) => result.status === 'fulfilled')) notifyDocumentsChanged()
+    if (results.some((result) => result.status === 'rejected')) setActionError('Could not link a file. Try again.')
     setChooseOpen(false)
-    refresh()
   }
 
   const removeLink = async (doc) => {
-    setActionError('')
+    setActionError(''); setRetryAction(null)
     if (pendingMode) { onPendingChange?.(pendingFiles.filter((file) => file.id !== doc.id)); return }
+    setHiddenIds((prev) => [...prev, doc.id])
     try {
-      await unlinkDocument(section, itemId, doc.id)
+      await Promise.all([unlinkDocument(section, itemId, doc.id), new Promise((resolve) => setTimeout(resolve, 150))])
       setFiles((previous) => previous.filter((file) => file.id !== doc.id))
+      setHiddenIds((prev) => prev.filter((id) => id !== doc.id))
     } catch {
-      setActionError('Could not remove the link. Try again.')
+      setHiddenIds((prev) => prev.filter((id) => id !== doc.id))
+      setActionError('Could not remove the link.')
+      setRetryAction(() => () => removeLink(doc))
     }
   }
 
@@ -422,18 +432,20 @@ export default function ProofBlock({
     }
   }
 
-  const confirmDelete = async () => {
-    const doc = deleting
-    setDeleting(null)
+  const deleteFile = async (doc) => {
+    setActionError(''); setRetryAction(null); setHiddenIds((prev) => [...prev, doc.id])
     try {
-      await deleteDocumentEverywhere(doc.id)
+      await Promise.all([deleteDocumentEverywhere(doc.id), new Promise((resolve) => setTimeout(resolve, 150))])
       setFiles((previous) => previous.filter((file) => file.id !== doc.id))
-      // Every other section listens to the same change, so they update too.
-      setReloadKey((value) => value + 1)
+      if (pendingMode) { onPendingChange?.(pendingFiles.filter((file) => file.id !== doc.id)); onDeleted?.(doc) }
+      setHiddenIds((prev) => prev.filter((id) => id !== doc.id))
     } catch {
-      setActionError('Could not delete the file. Try again.')
+      setHiddenIds((prev) => prev.filter((id) => id !== doc.id))
+      setActionError('Could not delete the file.')
+      setRetryAction(() => () => deleteFile(doc))
     }
   }
+  const confirmDelete = () => { const doc = deleting; setDeleting(null); if (doc) deleteFile(doc) }
 
   return (
     <div className="proof">
@@ -449,15 +461,16 @@ export default function ProofBlock({
 
       {initialLoading ? <p className="proof__empty">Loading files…</p>
         : loadError ? <InlineError message={loadError} />
-          : shownFiles.length === 0 && failedFiles.length === 0 ? (
+          : shownFiles.length === 0 && failedFiles.length === 0 && uploadingRows.length === 0 ? (
             <p className="proof__empty">
               {hint || 'No files attached yet.'}
             </p>
           ) : (
             <ul className="proof__list">
+              {uploadingRows.map((doc) => <li key={doc.id} className="proof__row"><FileIcon doc={doc} /><span className="proof__title">{doc.title}</span><span role="status"><span className="file-spinner" aria-hidden="true" /> Uploading…</span></li>)}
               {shownFiles.map((doc) => (
-                <li key={doc.id} className="proof__row">
-                  <span className="proof__icon" aria-hidden="true">{initials(doc.title)}</span>
+                <li key={doc.id} className={`proof__row${hiddenIds.includes(doc.id) ? ' file-row--hiding' : ''}`}>
+                  <FileIcon doc={doc} />
                   <span className="proof__title" title={doc.title}>{doc.title}</span>
                   <span className="proof__meta">
                     {DOCUMENT_CATEGORIES[doc.category] || doc.category} · {formatSize(doc.size_bytes)}
@@ -485,14 +498,15 @@ export default function ProofBlock({
           )}
       {pendingMode && shownFiles.length > 0 && <p className="proof__empty">These files will be attached when you create this entry.</p>}
 
-      <InlineError message={actionError} />
+      {actionError && <div className="toast" role="status">{actionError} {retryAction && <button type="button" onClick={retryAction}>Retry</button>}</div>}
 
       <UploadModal
         open={uploadOpen} section={section} itemId={itemId} userId={userId}
         existing={shownFiles} deferLink={pendingMode}
-        onClose={() => { setUploadOpen(false); if (!pendingMode) refresh() }}
+        onUploading={setUploadingRows} onUploadFinished={() => setUploadingRows([])}
+        onClose={() => setUploadOpen(false)}
         onLinked={(docs, { uploaded } = {}) => {
-          if (!pendingMode) { refresh(); return }
+          if (!pendingMode) return
           onPendingChange?.([...pendingFiles, ...docs.filter((doc) => !pendingFiles.some((file) => file.id === doc.id))])
           if (uploaded) onUploaded?.(docs)
         }}

@@ -66,7 +66,7 @@ function AverageInput({ id, value, maximum, invalid, onChange, onBlur }) {
 
 export default function EducationPanel({
   mode = 'edit', row, userId, onCreate, onUpdate, onGradesSaved, onClose,
-  pendingFiles, onPendingChange, onUploaded, onRequestDiscard, failedFiles, onRetryFile,
+  pendingFiles, onPendingChange, onUploaded, onDeleted, onRequestDiscard, failedFiles, onRetryFile,
 }) {
   const [createId] = useState(() => crypto.randomUUID())
   const [localPending, setLocalPending] = useState([])
@@ -425,7 +425,7 @@ export default function EducationPanel({
         <SectionLabel>Proof</SectionLabel>
         <ProofBlock section="education" itemId={mode === 'edit' ? entryId : createId} userId={userId}
           title="Transcript and certificates" pendingFiles={mode === 'create' ? (pendingFiles ?? localPending) : null}
-          onPendingChange={onPendingChange || setLocalPending} onUploaded={onUploaded}
+          onPendingChange={onPendingChange || setLocalPending} onUploaded={onUploaded} onDeleted={onDeleted}
           failedFiles={failedFiles} onRetryFile={onRetryFile} />
 
         <TipBox>Tip: many applications ask you to type your grades by year, so keep this table complete.</TipBox>

@@ -19,6 +19,7 @@ import EducationPanel from './EducationPanel'
 import { ConfirmDialog } from '../forms'
 import { saveGrades } from '../../Services/educationApi'
 import { linkDocument, documentUsage, deleteDocumentEverywhere } from '../../Services/documentsApi'
+import { notifyDocumentsChanged } from '../../Services/documentEvents'
 import {
   EDUCATION_TYPES, educationType, entryChips, entryMeta, entryTitle, filterCounts, filterEntries,
 } from '../../utils/education.js'
@@ -161,9 +162,10 @@ export default function EducationSection({ userId }) {
     }
     const failed = []
     for (const file of files) {
-      try { await linkDocument(userId, 'education', row.id, file.id) }
+      try { await linkDocument(userId, 'education', row.id, file.id, { notify: false }) }
       catch { failed.push(file) }
     }
+    if (files.length > failed.length) notifyDocumentsChanged()
     if (failed.length) setFailedLinks((prev) => ({ ...prev, [row.id]: failed }))
     setPendingFiles([])
     setUploadedFiles([])
@@ -306,6 +308,7 @@ export default function EducationSection({ userId }) {
               onClose={closePanel}
               pendingFiles={pendingFiles} onPendingChange={setPendingFiles}
               onUploaded={(docs) => setUploadedFiles((prev) => [...prev, ...docs])}
+              onDeleted={(doc) => setUploadedFiles((prev) => prev.filter((file) => file.id !== doc.id))}
               onRequestDiscard={requestDiscard}
               failedFiles={failedLinks[selected?.id] || []}
               onRetryFile={async (file) => {
@@ -320,30 +323,32 @@ export default function EducationSection({ userId }) {
         </div>
       </SectionPage>
 
-      {discardAction && <div className="confirm-overlay" role="presentation">
-        <div className="confirm-box" role="alertdialog" aria-modal="true" aria-label="Discard this entry?">
-          <h3>Discard this entry?</h3>
-          <p>{uploadedFiles.length ? 'Newly uploaded files can be kept in Documents or deleted if they are not used elsewhere. Existing files will be kept.' : 'Your draft changes will be lost. Existing files will be kept.'}</p>
-          {discardError && <p role="alert">{discardError}</p>}
-          <div className="confirm-actions">
-            <button type="button" autoFocus disabled={discardBusy} onClick={() => { setDiscardError(''); setDiscardAction(null) }}>Keep editing</button>
-            <button type="button" disabled={discardBusy} onClick={() => { setPendingFiles([]); setUploadedFiles([]); setDiscardError(''); const action = discardAction; setDiscardAction(null); action() }}>Discard and keep files</button>
-            {uploadedFiles.length > 0 && <button type="button" disabled={discardBusy} onClick={async () => {
-              setDiscardBusy(true); setDiscardError('')
-              try {
-                for (const file of uploadedFiles) {
-                  const usage = await documentUsage(file.id)
-                  if (!usage.total) await deleteDocumentEverywhere(file.id)
-                  setUploadedFiles((prev) => prev.filter((doc) => doc.id !== file.id))
-                  if (!usage.total) setPendingFiles((prev) => prev.filter((doc) => doc.id !== file.id))
-                }
-                setPendingFiles([]); const action = discardAction; setDiscardAction(null); action()
-              } catch { setDiscardError('Could not delete all uploaded files. Try again or keep the remaining files.') }
-              finally { setDiscardBusy(false) }
-            }}>Discard and delete unused uploads</button>}
-          </div>
-        </div>
-      </div>}
+      <ConfirmDialog open={Boolean(discardAction)} wide title="Discard this entry?" cancelLabel="Keep editing"
+        cancelDisabled={discardBusy} confirmDisabled={discardBusy} confirmLabel={uploadedFiles.length ? 'Discard and delete files' : 'Discard'}
+        onCancel={() => { if (!discardBusy) { setDiscardError(''); setDiscardAction(null) } }}
+        secondaryAction={uploadedFiles.length ? { label: 'Discard, keep files', disabled: discardBusy, onClick: () => {
+          setPendingFiles([]); setUploadedFiles([]); setDiscardError(''); const action = discardAction; setDiscardAction(null); action()
+        } } : undefined}
+        onConfirm={async () => {
+          setDiscardBusy(true); setDiscardError('')
+          try {
+            for (const file of uploadedFiles) {
+              const usage = await documentUsage(file.id)
+              if (!usage.total) await deleteDocumentEverywhere(file.id)
+              setUploadedFiles((prev) => prev.filter((doc) => doc.id !== file.id))
+              if (!usage.total) setPendingFiles((prev) => prev.filter((doc) => doc.id !== file.id))
+            }
+            setPendingFiles([]); const action = discardAction; setDiscardAction(null); action()
+          } catch { setDiscardError('Could not delete all uploaded files. Try again or keep the remaining files.') }
+          finally { setDiscardBusy(false) }
+        }}>
+        {uploadedFiles.length ? <div className="confirm-message">You uploaded {uploadedFiles.length} file{uploadedFiles.length === 1 ? '' : 's'} in this form:
+          <ul>{uploadedFiles.slice(0, 3).map((file) => <li key={file.id}>{file.title}</li>)}</ul>
+          {uploadedFiles.length > 3 && <span>+{uploadedFiles.length - 3} more</span>}
+          <p>Files used elsewhere will be kept.</p>
+        </div> : <p className="confirm-message">Your draft changes will be lost. Existing files will be kept.</p>}
+        {discardError && <p role="alert">{discardError}</p>}
+      </ConfirmDialog>
       <ConfirmDialog
         open={Boolean(deleting)}
         title={`Delete ${entryTitle(deleting || {})}?`}

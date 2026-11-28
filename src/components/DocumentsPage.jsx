@@ -13,7 +13,8 @@ import FilterChips from './section/FilterChips'
 import { UploadModal } from './section/ProofBlock'
 import { InlineError } from './forms/PanelValidation'
 import { useUndoToast } from '../hooks/useUndoToast'
-import { onDataChanged } from '../store/studentsStore'
+import { onDocumentsChanged } from '../Services/documentEvents'
+import FileIcon from './section/FileIcon'
 import {
   DOCUMENT_CATEGORIES, deleteDocumentEverywhere, documentUsage, formatSize,
   listAllLinks, listDocuments, openDocument, usageSentence,
@@ -37,6 +38,8 @@ export default function DocumentsPage({ userId, onOpenItem }) {
   const [deleting, setDeleting] = useState(null)
   const [uploadOpen, setUploadOpen] = useState(false)
   const [deleteUsage, setDeleteUsage] = useState(null)
+  const [hiddenIds, setHiddenIds] = useState([])
+  const [uploadingRows, setUploadingRows] = useState([])
   const [reloadKey, setReloadKey] = useState(0)
   const { toast, showToast, hideToast } = useUndoToast()
   const timer = useRef(null)
@@ -48,7 +51,6 @@ export default function DocumentsPage({ userId, onOpenItem }) {
     let active = true
     Promise.resolve().then(async () => {
       if (!active) return
-      setLoading(true)
       setError('')
       try {
         const [files, allLinks] = await Promise.all([listDocuments(userId), listAllLinks(userId)])
@@ -65,7 +67,7 @@ export default function DocumentsPage({ userId, onOpenItem }) {
   }, [userId, reloadKey])
 
   const refresh = () => setReloadKey((value) => value + 1)
-  useEffect(() => onDataChanged(refresh), [])
+  useEffect(() => onDocumentsChanged(refresh), [])
 
   const chips = useMemo(() => {
     const counts = {}
@@ -100,24 +102,21 @@ export default function DocumentsPage({ userId, onOpenItem }) {
     try { setDeleteUsage(await documentUsage(doc.id)) } catch { setDeleting(null); setError('Could not check where this file is used. Please try again.') }
   }
 
-  const confirmDelete = async () => {
-    const doc = deleting
-    setDeleting(null)
+  const deleteFile = async (doc) => {
+    setHiddenIds((prev) => [...prev, doc.id])
     try {
-      await deleteDocumentEverywhere(doc.id)
+      await Promise.all([deleteDocumentEverywhere(doc.id), new Promise((resolve) => setTimeout(resolve, 150))])
       setDocuments((previous) => previous.filter((file) => file.id !== doc.id))
-      const remaining = {}
-      for (const [key, entry] of Object.entries(links)) {
-        const kept = entry.documents.filter((file) => file.id !== doc.id)
-        if (kept.length) remaining[key] = { ...entry, documents: kept }
-      }
-      setLinks(remaining)
+      setHiddenIds((prev) => prev.filter((id) => id !== doc.id))
+      setLinks((previous) => Object.fromEntries(Object.entries(previous).map(([key, entry]) => [key, { ...entry, documents: entry.documents.filter((file) => file.id !== doc.id) }]).filter(([, entry]) => entry.documents.length)))
       showToast('File deleted')
       timer.current = setTimeout(hideToast, 4000)
     } catch {
-      setError('Could not delete the file. Try again.')
+      setHiddenIds((prev) => prev.filter((id) => id !== doc.id))
+      showToast('Could not delete the file.', { label: 'Retry', run: () => deleteFile(doc) })
     }
   }
+  const confirmDelete = () => { const doc = deleting; setDeleting(null); if (doc) deleteFile(doc) }
 
   const itemsFor = (docId) => usageOf(docId).items
 
@@ -143,6 +142,7 @@ export default function DocumentsPage({ userId, onOpenItem }) {
 
       {error && <InlineError message={error} />}
 
+      {uploadingRows.length > 0 && <ul className="documents-page__list">{uploadingRows.map((doc) => <li key={doc.id} className="documents-page__row"><FileIcon doc={doc} /><strong>{doc.title}</strong><span role="status"><span className="file-spinner" aria-hidden="true" /> Uploading…</span></li>)}</ul>}
       {loading ? <p className="documents-page__empty">Loading documents…</p>
         : visible.length === 0 ? (
           <div className="empty-state">
@@ -158,8 +158,8 @@ export default function DocumentsPage({ userId, onOpenItem }) {
             {visible.map((doc) => {
               const used = itemsFor(doc.id)
               return (
-                <li key={doc.id} className="documents-page__row">
-                  <span className="documents-page__tile" aria-hidden="true">{String(doc.title || '📄').slice(0, 1).toUpperCase()}</span>
+                <li key={doc.id} className={`documents-page__row${hiddenIds.includes(doc.id) ? ' file-row--hiding' : ''}`}>
+                  <FileIcon doc={doc} />
                   <div className="documents-page__info">
                     <strong title={doc.title}>{doc.title}</strong>
                     <span>
@@ -189,8 +189,8 @@ export default function DocumentsPage({ userId, onOpenItem }) {
         )}
 
       <UploadModal open={uploadOpen} section="library" userId={userId} existing={documents} libraryOnly
+        onUploading={setUploadingRows} onUploadFinished={() => setUploadingRows([])}
         onClose={() => setUploadOpen(false)} onLinked={(files) => {
-          refresh()
           showToast(`Uploaded ${files.length} file${files.length === 1 ? '' : 's'}`)
         }} />
       <ConfirmDialog

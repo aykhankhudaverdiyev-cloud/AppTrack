@@ -17,7 +17,7 @@
 
 import { supabase } from '../lib/supabase'
 import { createSignedFileUrl, removeStorageFile } from '../lib/storage'
-import { notifyDataChanged } from '../store/studentsStore'
+import { notifyDocumentsChanged } from './documentEvents'
 
 const BUCKET = 'student-documents'
 const MAX_SIZE = 10 * 1024 * 1024
@@ -84,14 +84,31 @@ export function validateDocumentFile(file) {
  * The library
  * ------------------------------------------------------------------------- */
 
-/** Every file the student owns, newest first. */
+const documentCache = new Map()
+const pendingLists = new Map()
+const pendingCacheChanges = new Map()
+function updateCached(userId, change) {
+  if (documentCache.has(userId)) documentCache.set(userId, change(documentCache.get(userId)))
+  else if (pendingLists.has(userId)) pendingCacheChanges.set(userId, [...(pendingCacheChanges.get(userId) || []), change])
+}
+export function cachedDocuments(userId) { return documentCache.get(userId) || null }
+
+/** Every file the student owns, newest first; shared for this session. */
 export async function listDocuments(userId) {
   if (!userId) return []
-  return unwrap(await supabase
-    .from('document_files')
-    .select('*')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false })) || []
+  if (documentCache.has(userId)) return documentCache.get(userId)
+  if (pendingLists.has(userId)) return pendingLists.get(userId)
+  const request = (async () => {
+    const rows = unwrap(await supabase.from('document_files').select('*').eq('user_id', userId)
+      .order('created_at', { ascending: false })) || []
+    // Keep uploads/deletes that completed while the request was in flight.
+    const updated = (pendingCacheChanges.get(userId) || []).reduce((list, change) => change(list), rows)
+    pendingCacheChanges.delete(userId)
+    documentCache.set(userId, updated)
+    return updated
+  })()
+  pendingLists.set(userId, request)
+  try { return await request } finally { pendingLists.delete(userId); pendingCacheChanges.delete(userId) }
 }
 
 /** A single file by id (null when it was deleted). */
@@ -128,7 +145,7 @@ export function findDuplicate(documents = [], file) {
  * `onProgress(percent)` is called as the upload advances (browsers report it
  * when the request can be tracked; otherwise just 0 → 100).
  */
-export async function uploadDocument(userId, { file, title, category }, onProgress) {
+export async function uploadDocument(userId, { file, title, category }, onProgress, { notify = true } = {}) {
   if (!userId) throw new Error('userId is required')
   if (!category) throw new Error('category is required')
   if (!file) throw new Error('No file selected')
@@ -159,7 +176,8 @@ export async function uploadDocument(userId, { file, title, category }, onProgre
       })
       .select()
       .single())
-    notifyDataChanged()
+    updateCached(userId, (docs) => [row, ...docs.filter((doc) => doc.id !== row.id)])
+    if (notify) notifyDocumentsChanged()
     return row
   } catch (cause) {
     await removeStorageFile(filePath).catch(() => {})
@@ -193,14 +211,14 @@ export async function openDocument(doc) {
  * ------------------------------------------------------------------------- */
 
 /** Attach a file to one item. Re-linking the same file is a no-op. */
-export async function linkDocument(userId, section, itemId, documentId) {
+export async function linkDocument(userId, section, itemId, documentId, { notify = true } = {}) {
   if (!userId || !itemId || !documentId) throw new Error('Missing ids')
   if (!DOCUMENT_SECTIONS.includes(section)) throw new Error('Unknown section')
   const { error } = await supabase
     .from('item_documents')
     .insert({ user_id: userId, section, item_id: itemId, document_id: documentId })
   if (error && error.code !== '23505') throw error
-  notifyDataChanged()
+  if (notify) notifyDocumentsChanged()
 }
 
 export async function unlinkDocument(section, itemId, documentId) {
@@ -210,7 +228,7 @@ export async function unlinkDocument(section, itemId, documentId) {
     .eq('section', section)
     .eq('item_id', itemId)
     .eq('document_id', documentId))
-  notifyDataChanged()
+  notifyDocumentsChanged()
 }
 
 /**
@@ -327,12 +345,13 @@ export function usageSentence(usage, title = 'This file') {
  */
 export async function deleteDocumentEverywhere(documentId) {
   const paths = unwrap(await supabase.rpc('delete_document', { p_document_id: documentId })) || []
+  for (const userId of new Set([...documentCache.keys(), ...pendingLists.keys()])) updateCached(userId, (docs) => docs.filter((doc) => doc.id !== documentId))
   for (const path of paths) {
-    await removeStorageFile(path).catch((error) => {
+    void removeStorageFile(path).catch((error) => {
       console.warn('Storage object not removed:', path, error?.message)
     })
   }
-  notifyDataChanged()
+  notifyDocumentsChanged()
   return paths
 }
 
@@ -343,6 +362,7 @@ export async function deleteDocument(userId, documentFile) {
     .delete()
     .eq('id', documentFile.id)
     .eq('user_id', userId))
-  await removeStorageFile(documentFile.file_path).catch(() => {})
-  notifyDataChanged()
+  updateCached(userId, (docs) => docs.filter((doc) => doc.id !== documentFile.id))
+  void removeStorageFile(documentFile.file_path).catch(() => {})
+  notifyDocumentsChanged()
 }

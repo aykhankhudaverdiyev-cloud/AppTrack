@@ -725,3 +725,21 @@
 .panel-validation input[type='number']::-webkit-inner-spin-button,
 .panel-validation input[type='number']::-webkit-outer-spin-button { appearance: none; margin: 0; }
 .segmented-field .sfield-label { margin-bottom: 6px; }
+
+.file-type-icon { width: 36px; height: 36px; flex: 0 0 36px; display: grid; place-items: center; border-radius: 8px; background: #f1eeff; color: #6242c4; font-size: 10px; font-weight: 800; letter-spacing: .02em; }
+.proof__row { min-height: 56px; }
+.document-modal--choose { width: min(560px, calc(100vw - 32px)); }
+.document-modal--choose .document-modal__body { overflow: hidden; }
+.document-modal--choose .document-modal__list { max-height: min(60vh, 420px); }
+.document-modal--choose .document-modal__row { padding: 0; }
+.document-modal__choice { width: 100%; padding: 10px 12px; }
+.document-modal__choice--disabled { cursor: default; opacity: .65; }
+.document-modal__details { display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 0; }
+.document-modal__linked { background: #edf0f3; color: #6b7280; padding: 3px 8px; border-radius: 999px; }
+.document-modal__count { margin-right: auto; align-self: center; color: #6b7280; font-size: 13px; white-space: nowrap; }
+.document-modal__box { animation: confirm-pop 150ms ease-out; }
+.file-row--hiding { opacity: 0; transform: translateY(-4px); pointer-events: none; transition: opacity 150ms ease, transform 150ms ease; }
+.file-spinner { display: inline-block; width: 12px; height: 12px; border: 2px solid #ddd6fe; border-top-color: #6d28d9; border-radius: 50%; animation: file-spin .7s linear infinite; vertical-align: middle; }
+@keyframes file-spin { to { transform: rotate(360deg); } }
+.document-modal--closing .document-modal__box { animation: confirm-fade-out 150ms ease forwards; pointer-events: none; }
+@media (prefers-reduced-motion: reduce) { .document-modal__box, .document-modal--closing .document-modal__box { animation-duration: 1ms; } }

@@ -38,7 +38,7 @@ it('uploads a file from the library using the shared modal', async () => {
   fireEvent.change(container.ownerDocument.querySelector('input[type="file"]'), { target: { files: [file] } })
   expect(screen.getByLabelText('Title for report.pdf')).toHaveValue('report')
   fireEvent.click(screen.getByRole('button', { name: 'Upload 1 file' }))
-  await waitFor(() => expect(uploadDocument).toHaveBeenCalledWith('test', expect.objectContaining({ title: 'report', file }), expect.any(Function)))
+  await waitFor(() => expect(uploadDocument).toHaveBeenCalledWith('test', expect.objectContaining({ title: 'report', file }), expect.any(Function), { notify: false }))
 })
 
 it('sorts documents by name', async () => {
@@ -72,4 +72,18 @@ it('shows a usage chip that opens its linked entry', async () => {
   render(<DocumentsPage userId="test" onOpenItem={open} />)
   fireEvent.click(await screen.findByRole('button', { name: 'Education · Lyceum' }))
   expect(open).toHaveBeenCalledWith(expect.objectContaining({ section: 'education', item_id: 'school' }))
+})
+it('restores a deleted row and offers retry if the RPC fails', async () => {
+  documentUsage.mockResolvedValueOnce({ total: 0, items: [] })
+  deleteDocumentEverywhere.mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce([])
+  render(<DocumentsPage userId="test" />)
+  await screen.findByText('Not attached anywhere')
+  fireEvent.click(screen.getByLabelText('More actions for Transcript'))
+  fireEvent.click(screen.getByRole('button', { name: 'Delete file…' }))
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Delete file' })).toBeEnabled())
+  fireEvent.click(screen.getByRole('button', { name: 'Delete file' }))
+  await screen.findByText('Could not delete the file.')
+  expect(screen.getByText('Transcript', { selector: 'strong' })).toBeInTheDocument()
+  fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+  await waitFor(() => expect(deleteDocumentEverywhere).toHaveBeenCalledTimes(2))
 })

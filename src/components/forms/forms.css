@@ -401,3 +401,10 @@
     width: 100%;
   }
 }
+
+.confirm-box--wide { max-width: 440px; padding: 24px; border-radius: 16px; }
+.confirm-overlay--closing { animation: confirm-fade-out 150ms ease forwards; pointer-events: none; }
+@keyframes confirm-fade-out { to { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .confirm-box, .confirm-overlay--closing { animation-duration: 1ms; } }
+.confirm-box--wide .confirm-actions { gap: 6px; }
+.confirm-box--wide .confirm-actions button { padding: 9px 10px; font-size: 0.75rem; white-space: nowrap; }
