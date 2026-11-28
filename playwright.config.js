@@ -30,3 +30,7 @@ export default defineConfig({
     timeout: 120_000,
   },
 })
+
+// The existing browser suite logs into a real Supabase project and can delete
+// records. Keep it unavailable until its auth, database and storage are mocked.
+throw new Error('Playwright is disabled: the suite must use mocks only.')
